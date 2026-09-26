@@ -35,14 +35,6 @@ export const generateRouter = router({
         });
       }
 
-      const rateLimit = await checkRateLimit(String(ctx.user._id), "re_edit");
-      if (!rateLimit.allowed) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: `Re-edit rate limit reached (${rateLimit.limit}/hour). Please wait ${Math.ceil(rateLimit.resetInSeconds / 60)} minutes.`,
-        });
-      }
-
       const listing = await ListingObject.findOne({
         _id: input.listingObjectId,
         userId: ctx.user._id,
@@ -173,6 +165,14 @@ export const generateRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const rateLimit = await checkRateLimit(String(ctx.user._id), "re_edit");
+      if (!rateLimit.allowed) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Re-edit rate limit reached (${rateLimit.limit}/hour). Please wait ${Math.ceil(rateLimit.resetInSeconds / 60)} minutes.`,
+        });
+      }
+
       const listing = await ListingObject.findOne({
         _id: input.listingObjectId,
         userId: ctx.user._id,
