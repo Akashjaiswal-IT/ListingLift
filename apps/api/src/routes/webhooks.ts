@@ -24,9 +24,12 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing svix headers" });
   }
 
-  const rawBody = (req as any).rawBody
-    ? (req as any).rawBody.toString("utf8")
-    : JSON.stringify(req.body);
+  const rawBodyBuf = (req as any).rawBody;
+  if (!rawBodyBuf) {
+    logger.error("[SECURITY] Clerk webhook received without rawBody buffer. Cryptographic verification rejected.");
+    return res.status(400).json({ error: "Missing raw body buffer" });
+  }
+  const rawBody = rawBodyBuf.toString("utf8");
 
   const wh = new Webhook(webhookSecret);
   let evt: any;
@@ -127,9 +130,12 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing Razorpay signature" });
   }
 
-  const rawBody = (req as any).rawBody
-    ? (req as any).rawBody.toString("utf8")
-    : JSON.stringify(req.body);
+  const rawBodyBuf = (req as any).rawBody;
+  if (!rawBodyBuf) {
+    logger.error("[SECURITY] Razorpay webhook received without rawBody buffer. Cryptographic verification rejected.");
+    return res.status(400).json({ error: "Missing raw body buffer" });
+  }
+  const rawBody = rawBodyBuf.toString("utf8");
 
   const expectedSignature = crypto
     .createHmac("sha256", secret)

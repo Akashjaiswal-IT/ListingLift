@@ -20,7 +20,12 @@ import { env } from "./env";
 import { webhookRouter } from "./routes/webhooks";
 import { sseRouter } from "./routes/sse";
 
+import { validateClerkEnvironment } from "./config/clerk-security";
+
 export const app = express();
+
+// Validate Clerk configuration and ensure strict environment separation (no dev/prod mix-up)
+const clerkConfig = validateClerkEnvironment(env.NODE_ENV);
 
 const openApiDocument = generateOpenApiDocument(serverRouter, {
   title: "ListingLift OpenAPI",
@@ -28,11 +33,37 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
   baseUrl: env.BASE_URL.concat("/api"),
 });
 
+// Production-hardened CORS
+const allowedOriginsList = [
+  env.FRONTEND_URL,
+  ...(env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()) : []),
+].filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow localhost frontend or tools with no origin (e.g. mobile/curl)
-      callback(null, true);
+      // Allow requests with no origin (e.g. mobile clients, curl, server-to-server webhooks)
+      if (!origin) return callback(null, true);
+
+      if (env.NODE_ENV === "development" || env.NODE_ENV === "test") {
+        // In local development, permit localhost, loopback, and local tunnels
+        if (
+          origin.startsWith("http://localhost:") ||
+          origin.startsWith("http://127.0.0.1:") ||
+          origin.includes(".loca.lt") ||
+          origin.includes(".trycloudflare.com")
+        ) {
+          return callback(null, true);
+        }
+      }
+
+      // In production, strictly match against whitelist
+      if (allowedOriginsList.includes(origin)) {
+        return callback(null, true);
+      }
+
+      logger.warn(`[SECURITY] Blocked CORS request from unauthorized origin: ${origin}`);
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
@@ -47,21 +78,16 @@ app.use(
   })
 );
 
-// Apply Clerk middleware with environment key fallback
-const clerkPubKey =
-  process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-if (clerkPubKey) {
-  try {
-    app.use(
-      clerkMiddleware({
-        publishableKey: clerkPubKey,
-        secretKey: process.env.CLERK_SECRET_KEY,
-      })
-    );
-  } catch (e: any) {
-    logger.warn("Clerk middleware initialization skipped in dev: " + e.message);
-  }
+// Apply Clerk middleware with environment key validation
+if (clerkConfig.publishableKey) {
+  app.use(
+    clerkMiddleware({
+      publishableKey: clerkConfig.publishableKey,
+      secretKey: clerkConfig.secretKey,
+    })
+  );
+} else if (clerkConfig.isProduction) {
+  throw new Error("[SECURITY CRITICAL] Clerk middleware cannot start in production without credentials.");
 }
 
 // Health & Root status

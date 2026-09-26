@@ -56,25 +56,35 @@ export async function createContext(
             ],
             role: "user",
           });
-        } catch {
-          user = await User.create({
-            clerkId: clerkUserId,
-            fullName: "Seller",
-            email: `${clerkUserId}@example.com`,
-            creditBalance: trialCredits,
-            lifetimeCreditsEarned: trialCredits,
-            lifetimeCreditsSpent: 0,
-            creditHistory: [
-              {
-                type: "TRIAL",
-                amount: trialCredits,
-                balanceAfter: trialCredits,
-                description: "Welcome bonus trial credits",
-                createdAt: new Date(),
-              },
-            ],
-            role: "user",
-          });
+        } catch (fetchErr) {
+          if (process.env.NODE_ENV === "production") {
+            // In production, never create placeholder accounts with fake email addresses
+            // Leave user null so protectedProcedure safely requests re-authentication
+            console.error(
+              "[SECURITY] Failed to fetch Clerk user details during production JIT provisioning:",
+              fetchErr
+            );
+          } else {
+            // Local dev fallback only
+            user = await User.create({
+              clerkId: clerkUserId,
+              fullName: "Seller",
+              email: `${clerkUserId}@example.com`,
+              creditBalance: trialCredits,
+              lifetimeCreditsEarned: trialCredits,
+              lifetimeCreditsSpent: 0,
+              creditHistory: [
+                {
+                  type: "TRIAL",
+                  amount: trialCredits,
+                  balanceAfter: trialCredits,
+                  description: "Welcome bonus trial credits (Dev Fallback)",
+                  createdAt: new Date(),
+                },
+              ],
+              role: "user",
+            });
+          }
         }
       }
     }
