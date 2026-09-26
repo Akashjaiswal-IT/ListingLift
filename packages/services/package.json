@@ -1,0 +1,30 @@
+{
+  "name": "@repo/services",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/archiver": "^8.0.0",
+    "@types/node": "^22.15.3",
+    "@types/sharp": "^0.32.0",
+    "dotenv-cli": "^11.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
+    "@google/genai": "^2.24.0",
+    "@repo/database": "workspace:*",
+    "@repo/logger": "workspace:*",
+    "archiver": "^8.0.0",
+    "bullmq": "^6.3.9",
+    "google-auth-library": "^10.5.0",
+    "ioredis": "^6.0.0",
+    "openai": "^7.23.0",
+    "razorpay": "^2.9.8",
+    "sharp": "^0.35.4",
+    "svix": "^2.5.0",
+    "zod": "^4.3.5"
+  }
+}

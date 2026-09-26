@@ -1,0 +1,59 @@
+import type { Metadata } from "next";
+import localFont from "next/font/local";
+import Script from "next/script";
+import "./globals.css";
+import { GlobalProviders } from "~/providers/global";
+import { Navbar } from "~/components/layout/Navbar";
+import { Footer } from "~/components/layout/Footer";
+import { ClerkProvider } from "@clerk/nextjs";
+
+const geistSans = localFont({
+  src: "./fonts/GeistVF.woff",
+  variable: "--font-geist-sans",
+});
+const geistMono = localFont({
+  src: "./fonts/GeistMonoVF.woff",
+  variable: "--font-geist-mono",
+});
+
+export const metadata: Metadata = {
+  title: "ListingLift — AI Studio Photos & Listings for Meesho & WhatsApp Resellers",
+  description:
+    "Transform ordinary phone photos into studio-grade e-commerce catalogs, Meesho product listings, and viral WhatsApp & Instagram cards in seconds.",
+  keywords: [
+    "meesho listing generator",
+    "ai product photography",
+    "whatsapp catalog card generator",
+    "reseller tools india",
+    "instagram product post maker",
+    "e-commerce copywriting ai",
+  ],
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <ClerkProvider>
+      <html lang="en" className="dark">
+        <head>
+          <Script
+            src="https://checkout.razorpay.com/v1/checkout.js"
+            strategy="lazyOnload"
+          />
+        </head>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
+        >
+          <GlobalProviders>
+            <Navbar />
+            <div className="flex-1">{children}</div>
+            <Footer />
+          </GlobalProviders>
+        </body>
+      </html>
+    </ClerkProvider>
+  );
+}
