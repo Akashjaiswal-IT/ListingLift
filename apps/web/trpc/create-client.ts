@@ -9,9 +9,20 @@ export const createTRPCHttpBatchClientClient = (opts?: CreateTRPCHttpBatchClient
   const c = opts?.enableStreaming ? httpBatchStreamLink : httpLink;
   return c({
     url: env.NEXT_PUBLIC_API_URL ?? "/trpc",
-    fetch(url, options) {
+    async fetch(url, options) {
+      const headers = new Headers(options?.headers);
+      if (typeof window !== "undefined" && (window as any).Clerk?.session) {
+        try {
+          const token = await (window as any).Clerk.session.getToken();
+          if (token) {
+            headers.set("Authorization", `Bearer ${token}`);
+          }
+        } catch {}
+      }
+
       return fetch(url, {
         ...options,
+        headers,
         credentials: "include",
       });
     },

@@ -32,18 +32,21 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
   let evt: any;
 
   try {
-    evt = wh.verify(rawBody, {
+    wh.verify(rawBody, {
       "svix-id": svixId,
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
     });
+    evt = typeof req.body === "object" && req.body !== null && Object.keys(req.body).length > 0
+      ? req.body
+      : JSON.parse(rawBody);
   } catch (err) {
     logger.error("Error verifying Clerk webhook signature", { err });
     return res.status(400).json({ error: "Invalid signature" });
   }
 
   await connectToDatabase();
-  const eventType = evt.type;
+  const eventType = evt?.type;
 
   try {
     if (eventType === "user.created") {

@@ -28,13 +28,15 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
   baseUrl: env.BASE_URL.concat("/api"),
 });
 
-if (env.NODE_ENV !== "prod") {
-  app.use(
-    cors({
-      origin: "*",
-    }),
-  );
-}
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow localhost frontend or tools with no origin (e.g. mobile/curl)
+      callback(null, true);
+    },
+    credentials: true,
+  })
+);
 
 // Preserve raw body buffer for Clerk and Razorpay webhook signature verification
 app.use(

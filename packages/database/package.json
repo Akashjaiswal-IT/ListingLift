@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",
-  "scripts": {
-    "dev": "echo 'No dev script needed for database package'"
-  },
+  "scripts": {},
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
