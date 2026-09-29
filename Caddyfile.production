@@ -1,0 +1,11 @@
+:80 {
+    # Reverse proxy all requests to the ListingLift API
+    handle {
+        reverse_proxy api-service:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}
