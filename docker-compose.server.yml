@@ -14,8 +14,8 @@ services:
       - PORT=8000
       - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/peshkar?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - FRONTEND_URL=https://peshkar.yasho.tech
-      - ALLOWED_ORIGINS=https://peshkar.yasho.tech,https://www.peshkar.yasho.tech
+      - FRONTEND_URL=https://peshkarai.in
+      - ALLOWED_ORIGINS=https://peshkarai.in,https://www.peshkarai.in
     deploy:
       replicas: 1
       resources:
@@ -115,7 +115,7 @@ services:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.peshkar-router.rule=Host(`peshkar-api.yasho.tech`)"
+      - "traefik.http.routers.peshkar-router.rule=Host(`api.peshkarai.in`)"
       - "traefik.http.services.peshkar-router.loadbalancer.server.port=80"
       - "traefik.http.routers.peshkar-router.entrypoints=websecure"
       - "traefik.docker.network=peshkar-network"

@@ -13,7 +13,7 @@ export default function RefundPolicyPage() {
         </p>
         <h3 className="text-base font-bold text-foreground">2. Credit Pack Purchases</h3>
         <p>
-          Credit packs purchased via Razorpay are generally non-refundable once credits have been partially or fully consumed. If you experience duplicate billing or technical issues, contact our support team at support@peshkar.ai for a full review and prompt resolution.
+          Credit packs purchased via Razorpay are generally non-refundable once credits have been partially or fully consumed. If you experience duplicate billing or technical issues, contact our support team at support@peshkarai.in for a full review and prompt resolution.
         </p>
       </div>
     </div>
