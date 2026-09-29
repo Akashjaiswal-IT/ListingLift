@@ -57,6 +57,7 @@ services:
   mongodb:
     image: mongo:7
     container_name: peshkar-mongodb
+    env_file: .env.production
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
