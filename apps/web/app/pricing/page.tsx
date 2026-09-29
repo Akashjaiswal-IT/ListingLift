@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "~/providers/LanguageContext";
 
 export default function PricingPage() {
-  const { isSignedIn } = useUser();
+  const { user, isSignedIn } = useUser();
   const router = useRouter();
   const { language, t } = useLanguage();
   const isHi = language === "hi";
@@ -45,7 +45,28 @@ export default function PricingPage() {
         packId: packId as any,
       });
 
-      // Launch Razorpay Modal
+      // Ensure Razorpay SDK is available (dynamically load if not yet ready)
+      let razorpayLoaded = typeof window !== "undefined" && !!(window as any).Razorpay;
+      if (!razorpayLoaded && typeof window !== "undefined") {
+        razorpayLoaded = await new Promise<boolean>((resolve) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = () => resolve(true);
+          script.onerror = () => resolve(false);
+          document.body.appendChild(script);
+        });
+      }
+
+      if (!razorpayLoaded) {
+        toast.error(
+          isHi
+            ? "भुगतान गेटवे लोड नहीं हो सका। कृपया विज्ञापन अवरोधक (ad-blocker) बंद करें और पुनः प्रयास करें।"
+            : "Payment gateway failed to load. Please disable ad-blockers and try again."
+        );
+        return;
+      }
+
+      // Launch Razorpay Modal with customer prefill and instant webhook sync
       const options = {
         key: order.razorpayKey,
         amount: order.amountPaise,
@@ -53,6 +74,10 @@ export default function PricingPage() {
         name: "Peshkar AI",
         description: `Purchase ${order.credits} Peshkar AI Credits`,
         order_id: order.razorpayOrderId,
+        prefill: {
+          name: user?.fullName || "",
+          email: user?.primaryEmailAddress?.emailAddress || "",
+        },
         handler: async (response: any) => {
           try {
             const verifyRes = await verifyPaymentMutation.mutateAsync({
@@ -81,20 +106,8 @@ export default function PricingPage() {
         },
       };
 
-      if (typeof window !== "undefined" && (window as any).Razorpay) {
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-      } else {
-        // Fallback simulation for dev/offline testing
-        toast.info(isHi ? "सिम्युलेटेड भुगतान सफल रहा..." : "Simulating successful checkout...");
-        addLocal(order.credits);
-        await Promise.allSettled([
-          utils.credits.getBalance.invalidate(),
-          utils.user.getCreditBalance.invalidate(),
-          utils.user.getCreditHistory.invalidate(),
-        ]);
-        toast.success(isHi ? `खाते में ${order.credits} क्रेडिट्स जोड़े गए!` : `Added ${order.credits} credits to balance!`);
-      }
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate payment");
     } finally {
