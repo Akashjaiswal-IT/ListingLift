@@ -72,7 +72,7 @@ export function generateFallbackListingText(params: GenerateTextParams): IAiGene
 }
 
 function buildPrompts(params: GenerateTextParams) {
-  const systemPrompt = `You are ListingLift's elite e-commerce SEO copywriter and growth marketer specializing in multi-channel e-commerce (Amazon, Flipkart, Meesho, Shopify, D2C, Instagram & WhatsApp catalogs).
+  const systemPrompt = `You are Peshkar AI's elite e-commerce SEO copywriter and growth marketer specializing in multi-channel e-commerce (Amazon, Flipkart, Meesho, Shopify, D2C, Instagram & WhatsApp catalogs).
 Your task is to write exceptionally high-converting, SEO-optimized product titles, descriptions, marketplace catalog specifications, WhatsApp broadcast copy, and Instagram posts.
 Ensure titles have maximum search volume potential, descriptions include high commercial intent keywords, bullet points are persuasive, and social captions include clear call-to-actions and emojis.
 CRITICAL: Respond ONLY with valid, raw JSON matching the requested structure. Do not wrap in markdown quotes or extra text.`;

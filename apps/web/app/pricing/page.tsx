@@ -50,8 +50,8 @@ export default function PricingPage() {
         key: order.razorpayKey,
         amount: order.amountPaise,
         currency: order.currency,
-        name: "ListingLift",
-        description: `Purchase ${order.credits} ListingLift Credits`,
+        name: "Peshkar AI",
+        description: `Purchase ${order.credits} Peshkar AI Credits`,
         order_id: order.razorpayOrderId,
         handler: async (response: any) => {
           try {

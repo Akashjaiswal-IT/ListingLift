@@ -18,7 +18,7 @@ export function OnboardingTour() {
   useEffect(() => {
     if (!isSignedIn) return;
     try {
-      const tourSeen = localStorage.getItem("listinglift_tour_seen");
+      const tourSeen = localStorage.getItem("peshkar_tour_seen") || localStorage.getItem("listinglift_tour_seen");
       if (!tourSeen) {
         // First time login/signup: launch tour automatically after a gentle 1.2s delay
         const timer = setTimeout(() => {
@@ -35,14 +35,18 @@ export function OnboardingTour() {
       setCurrentStep(0);
       setIsOpen(true);
     };
+    window.addEventListener("open-peshkar-tour", handleOpenTour);
     window.addEventListener("open-listinglift-tour", handleOpenTour);
-    return () => window.removeEventListener("open-listinglift-tour", handleOpenTour);
+    return () => {
+      window.removeEventListener("open-peshkar-tour", handleOpenTour);
+      window.removeEventListener("open-listinglift-tour", handleOpenTour);
+    };
   }, []);
 
   const handleClose = () => {
     setIsOpen(false);
     try {
-      localStorage.setItem("listinglift_tour_seen", "true");
+      localStorage.setItem("peshkar_tour_seen", "true");
     } catch {}
   };
 

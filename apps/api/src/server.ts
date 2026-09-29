@@ -28,7 +28,7 @@ export const app = express();
 const clerkConfig = validateClerkEnvironment(env.NODE_ENV);
 
 const openApiDocument = generateOpenApiDocument(serverRouter, {
-  title: "ListingLift OpenAPI",
+  title: "Peshkar AI OpenAPI",
   version: "1.0.0",
   baseUrl: env.BASE_URL.concat("/api"),
 });
@@ -92,11 +92,11 @@ if (clerkConfig.publishableKey) {
 
 // Health & Root status
 app.get("/", (_req, res) => {
-  return res.json({ message: "ListingLift API is running..." });
+  return res.json({ message: "Peshkar AI API is running..." });
 });
 
 app.get("/health", (_req, res) => {
-  return res.json({ message: "ListingLift server is healthy", healthy: true });
+  return res.json({ message: "Peshkar AI server is healthy", healthy: true });
 });
 
 // Webhooks

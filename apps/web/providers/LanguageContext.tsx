@@ -273,7 +273,7 @@ export const translations: Record<Language, Translations> = {
     },
     tour: {
       takeTourBtn: "ऐप टूर देखें",
-      welcomeTitle: "ListingLift में आपका स्वागत है!",
+      welcomeTitle: "Peshkar AI में आपका स्वागत है!",
       welcomeSubtitle: "आइए 1 मिनट में समझें कि आप अपने फ़ोन की फ़ोटो से स्टूडियो कैटलॉग कैसे बना सकते हैं।",
       step1Title: "फ़ोन से फ़ोटो खींचें और अपलोड करें",
       step1Desc: "महंगे कैमरे या लाइटिंग की ज़रूरत नहीं। अपनी सामान्य फ़ोन फ़ोटो अपलोड करें।",
@@ -289,12 +289,12 @@ export const translations: Record<Language, Translations> = {
       skip: "छोड़ें",
     },
     footer: {
-      tagline: "ListingLift",
+      tagline: "Peshkar AI",
       mission: "भारत के 1 करोड़+ सूक्ष्म-रीसेलर्स और D2C ब्रांड्स के लिए बनाया गया AI स्टूडियो।",
       colProduct: "प्रोडक्ट",
       colHelp: "मदद व सपोर्ट",
       colAccount: "अकाउंट",
-      rights: "© 2026 ListingLift AI. सर्वाधिकार सुरक्षित।",
+      rights: "© 2026 Peshkar AI. सर्वाधिकार सुरक्षित।",
       madeWith: "भारतीय रीसेलर्स के लिए ❤️ से निर्मित",
     },
     auth: {
@@ -308,7 +308,7 @@ export const translations: Record<Language, Translations> = {
       perk3: "व्हाट्सएप ब्रॉडकास्ट और इंस्टाग्राम स्टोरी कार्ड्स 1-क्लिक में",
       perk4: "शुरू करने के लिए किसी क्रेडिट कार्ड की आवश्यकता नहीं",
       trustText: "25,000+ भारतीय रीसेलर्स और D2C ब्रांड्स द्वारा भरोसेमंद",
-      copyright: "© 2026 ListingLift. भारत के वाणिज्य को सशक्त बनाता हुआ।",
+      copyright: "© 2026 Peshkar AI. भारत के वाणिज्य को सशक्त बनाता हुआ।",
     },
     pricingPage: {
       badge: "सरल और पारदर्शी प्राइसिंग",
@@ -435,7 +435,7 @@ export const translations: Record<Language, Translations> = {
     },
     tour: {
       takeTourBtn: "Take App Tour",
-      welcomeTitle: "Welcome to ListingLift!",
+      welcomeTitle: "Welcome to Peshkar AI!",
       welcomeSubtitle: "Learn how to transform casual phone photos into studio catalogs in 60 seconds.",
       step1Title: "Shoot on Your Phone",
       step1Desc: "No studio or expensive setup needed. Just take a photo on your smartphone and upload.",
@@ -451,12 +451,12 @@ export const translations: Record<Language, Translations> = {
       skip: "Skip",
     },
     footer: {
-      tagline: "ListingLift",
+      tagline: "Peshkar AI",
       mission: "The first AI studio for India's micro-resellers. Empowering 10 million women to grow their business on WhatsApp.",
       colProduct: "Product",
       colHelp: "Help & Support",
       colAccount: "Account",
-      rights: "© 2026 ListingLift AI. All rights reserved.",
+      rights: "© 2026 Peshkar AI. All rights reserved.",
       madeWith: "Made with ❤️ for Indian Resellers",
     },
     auth: {
@@ -470,7 +470,7 @@ export const translations: Record<Language, Translations> = {
       perk3: "Ready-to-broadcast WhatsApp & Instagram Story Cards",
       perk4: "No credit card required to start",
       trustText: "Trusted by 25,000+ Indian Resellers and D2C Brands",
-      copyright: "© 2026 ListingLift. Empowering Bharat's Commerce.",
+      copyright: "© 2026 Peshkar AI. Empowering Bharat's Commerce.",
     },
     pricingPage: {
       badge: "Simple & Transparent Pricing",
@@ -518,13 +518,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("listinglift_lang") as Language | null;
+      const stored = (localStorage.getItem("peshkar_lang") || localStorage.getItem("listinglift_lang")) as Language | null;
       if (stored === "en" || stored === "hi") {
         setLanguageState(stored);
       } else {
         // Default to Hindi per user specification
         setLanguageState("hi");
-        localStorage.setItem("listinglift_lang", "hi");
+        localStorage.setItem("peshkar_lang", "hi");
       }
     } catch {
       // Fallback
@@ -534,7 +534,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
-      localStorage.setItem("listinglift_lang", lang);
+      localStorage.setItem("peshkar_lang", lang);
     } catch {}
   };
 

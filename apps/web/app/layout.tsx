@@ -20,7 +20,7 @@ const serif = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "ListingLift — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
+  title: "Peshkar AI — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
   description:
     "Transform ordinary phone photos into studio-grade e-commerce catalogs, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and viral social cards in seconds.",
   keywords: [

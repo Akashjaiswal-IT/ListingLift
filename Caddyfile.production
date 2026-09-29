@@ -1,5 +1,5 @@
 :80 {
-    # Reverse proxy all requests to the ListingLift API
+    # Reverse proxy all requests to the Peshkar AI API
     handle {
         reverse_proxy api-service:8000 {
             header_up Host {host}

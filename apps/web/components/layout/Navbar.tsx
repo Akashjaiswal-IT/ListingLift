@@ -59,6 +59,7 @@ export function Navbar() {
 
   const handleTriggerTour = () => {
     if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("open-peshkar-tour"));
       window.dispatchEvent(new Event("open-listinglift-tour"));
     }
   };
@@ -66,14 +67,14 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-md transition-colors">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        {/* Brand Logo - Orange Square with white 'L' matching reference */}
+        {/* Brand Logo - Orange Square with white 'P' */}
         <Link href="/" className="flex items-center gap-3 transition-transform hover:scale-[1.01]">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xl shadow-sm shadow-primary/20 shrink-0">
-            L
+            P
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-black tracking-tight text-foreground font-serif leading-none">
-              ListingLift
+              Peshkar AI
             </span>
             <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase mt-0.5">
               {language === "hi" ? "AI ई-कॉमर्स स्टूडियो" : "AI E-Commerce Studio"}

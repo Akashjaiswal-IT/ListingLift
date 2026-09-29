@@ -18,9 +18,9 @@ export default function LoginPage() {
 
         <div className="relative z-20 flex items-center text-lg font-bold gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white font-black shadow-md">
-            L
+            P
           </div>
-          <span className="text-xl font-serif font-black tracking-tight text-white">ListingLift</span>
+          <span className="text-xl font-serif font-black tracking-tight text-white">Peshkar AI</span>
         </div>
 
         <div className="relative z-20 my-auto max-w-md space-y-6">

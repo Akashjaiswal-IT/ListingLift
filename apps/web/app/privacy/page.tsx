@@ -5,7 +5,7 @@ export default function PrivacyPage() {
       <p className="text-xs text-muted-foreground">Last updated: September 2026</p>
       <div className="prose dark:prose-invert text-sm space-y-4 text-muted-foreground leading-relaxed">
         <p>
-          ListingLift values the privacy of your catalog assets and account details. This Privacy Policy details how we collect, process, and protect your information.
+          Peshkar AI values the privacy of your catalog assets and account details. This Privacy Policy details how we collect, process, and protect your information.
         </p>
         <h3 className="text-base font-bold text-foreground">1. Information We Collect</h3>
         <p>

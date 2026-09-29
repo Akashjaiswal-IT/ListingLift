@@ -14,10 +14,10 @@ export function Footer() {
           <div className="md:col-span-2 space-y-3">
             <Link href="/" className="inline-flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-primary text-white font-black text-lg flex items-center justify-center">
-                L
+                P
               </div>
               <span className="text-2xl font-black font-serif tracking-tight text-white">
-                ListingLift
+                Peshkar AI
               </span>
             </Link>
             <p className="text-xs text-stone-400 max-w-sm leading-relaxed">
@@ -62,7 +62,7 @@ export function Footer() {
             <ul className="space-y-2 text-xs text-stone-400">
               <li>
                 <a
-                  href="https://api.whatsapp.com/send?text=Hello%20ListingLift%20Support"
+                  href="https://api.whatsapp.com/send?text=Hello%20Peshkar%20AI%20Support"
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-white transition-colors"
