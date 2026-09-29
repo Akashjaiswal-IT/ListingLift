@@ -9,7 +9,6 @@ node_modules
 
 # Local env files
 .env
-.env.example
 .env.local
 .env.development.local
 .env.test.local
