@@ -43,11 +43,7 @@ export function getReEditQueue(): Queue {
     reEditQueue = new Queue(RE_EDIT_QUEUE_NAME, {
       connection: getRedisConnection(),
       defaultJobOptions: {
-        attempts: 2,
-        backoff: {
-          type: "exponential",
-          delay: 4000,
-        },
+        attempts: 1,
         removeOnComplete: 100,
         removeOnFail: 500,
       },

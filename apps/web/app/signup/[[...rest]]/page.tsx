@@ -1,7 +1,7 @@
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import { Sparkles, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <div className="container relative min-h-[calc(100vh-4rem)] flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
       <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex justify-between overflow-hidden">
@@ -22,25 +22,25 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-3xl font-extrabold tracking-tight leading-tight sm:text-4xl text-white">
-            Turn ordinary phone snaps into multi-channel revenue.
+            Create your account & claim 10 free credits today.
           </h2>
 
           <ul className="space-y-3 text-sm text-slate-300">
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>AI Studio Photography (White background, luxury pedestals)</span>
+              <span>Instant AI Studio Photography (Podiums, 8K lighting)</span>
             </li>
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Full Marketplace Catalog Copy + High-Converting Descriptions</span>
+              <span>Automated SEO & Multi-Platform Marketplace Copywriting in seconds</span>
             </li>
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Ready-to-broadcast WhatsApp & Instagram Story Cards</span>
+              <span>One-click WhatsApp & Instagram marketing story cards</span>
             </li>
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Atomic multi-turn image re-editing with prompt guidance</span>
+              <span>No credit card required to start</span>
             </li>
           </ul>
 
@@ -51,16 +51,16 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-20 text-xs text-slate-400">
-          © {new Date().getFullYear()} ListingLift. Empowering Bharat's Commerce.
+          © {new Date().getFullYear()} ListingLift. Empowering Bharat&apos;s Commerce.
         </div>
       </div>
 
       <div className="p-8 flex items-center justify-center">
-        <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[380px]">
-          <SignIn
+        <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[420px]">
+          <SignUp
             routing="path"
-            path="/login"
-            signUpUrl="/signup"
+            path="/signup"
+            signInUrl="/login"
             fallbackRedirectUrl="/app/dashboard"
           />
         </div>

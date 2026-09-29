@@ -93,7 +93,7 @@ export default function PricingPage() {
           Never Pay Subscriptions. Buy What You Need.
         </h1>
         <p className="text-muted-foreground text-base sm:text-lg">
-          Credits never expire. Quick Studio generation costs only 2 credits (~₹20). Full multi-photo Meesho kits cost 5-7 credits.
+          Credits never expire. Quick Studio generation costs only 2 credits (~₹20). Full multi-photo marketplace kits cost 5-7 credits.
         </p>
       </div>
 
@@ -145,11 +145,11 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Full Meesho Catalog Copy</span>
+                    <span>Full Marketplace Catalog Copy</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>WhatsApp & Instagram Cards</span>
+                    <span>WhatsApp & Instagram Cards (10+ Templates)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />

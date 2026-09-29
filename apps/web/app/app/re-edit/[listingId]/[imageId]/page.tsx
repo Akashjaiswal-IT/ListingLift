@@ -87,21 +87,37 @@ export default function ReEditPage({
     const interval = setInterval(async () => {
       const res = await listingQuery.refetch();
       const updatedListing = res.data;
-      if (updatedListing) {
-        // Check if there is a newer image that replaced this one or latest image updated
-        const latestImages = updatedListing.generatedImages?.filter((img: any) => img.isLatest);
-        const replaced = updatedListing.generatedImages?.find(
-          (img: any) => String(img._id) === imageId && !img.isLatest
-        );
+      if (!updatedListing) return;
 
-        if (replaced || updatedListing.status === "completed") {
-          setIsPolling(false);
-          setIsSubmitting(false);
-          toast.success("Image re-edited successfully!");
-          router.push(`/app/listing/${listingId}`);
-        }
+      const reEdit = (updatedListing as any).reEditStatus;
+      const targetMatches = !reEdit?.targetImageId || reEdit.targetImageId === imageId;
+
+      // Check if image was replaced in generatedImages
+      const replaced = updatedListing.generatedImages?.some(
+        (img: any) => String(img._id) === imageId && !img.isLatest
+      );
+
+      // 1. Success condition: reEdit marked completed for this image OR old image marked replaced
+      if ((reEdit?.status === "completed" && targetMatches) || replaced) {
+        clearInterval(interval);
+        setIsPolling(false);
+        setIsSubmitting(false);
+        toast.success("Image re-edited successfully! Loading updated deliverables...");
+        router.push(`/app/listing/${listingId}`);
+        return;
       }
-    }, 3000);
+
+      // 2. Failure condition: reEdit marked failed
+      if (reEdit?.status === "failed" && targetMatches) {
+        clearInterval(interval);
+        setIsPolling(false);
+        setIsSubmitting(false);
+        toast.error(
+          reEdit.errorMessage || "Re-edit generation failed. Your 1 credit has been refunded."
+        );
+        return;
+      }
+    }, 2500);
 
     return () => clearInterval(interval);
   }, [isPolling, listingId, imageId, listingQuery, router]);
@@ -206,12 +222,19 @@ export default function ReEditPage({
                     className="w-full h-full object-cover"
                   />
                   {isPolling && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center">
-                      <RotateCw className="h-8 w-8 text-indigo-500 animate-spin mb-3" />
-                      <p className="text-sm font-bold">Generating New Refined Shot...</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Gemini & Prompt Enhancer synthesizing your feedback
+                    <div className="absolute inset-0 bg-background/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-300">
+                      <div className="relative mb-4">
+                        <div className="h-14 w-14 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                        <Sparkles className="h-6 w-6 text-indigo-400 absolute inset-0 m-auto animate-pulse" />
+                      </div>
+                      <p className="text-sm font-bold text-foreground">AI Re-edit in Progress...</p>
+                      <p className="text-xs text-muted-foreground mt-1.5 max-w-[240px] leading-relaxed">
+                        Gemini & Prompt Enhancer are synthesizing your changes.
                       </p>
+                      <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-400 font-medium">
+                        <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
+                        Waiting for worker completion...
+                      </div>
                     </div>
                   )}
                 </div>

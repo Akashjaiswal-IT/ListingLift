@@ -71,6 +71,7 @@ export interface IListingObject extends Document {
   sizes?: string[];          // ["S", "M", "L", "XL"]
   variants?: string[];       // ["Red", "Blue"]
   ctaText?: string;          // "Order Now via WhatsApp"
+  templateId?: string;       // "minimal-luxury" | "midnight-gold" | ...
 
   // Step 3: AI-generated text (streamed via SSE, persisted)
   aiGeneratedText?: IAiGeneratedText;
@@ -94,6 +95,16 @@ export interface IListingObject extends Document {
   bullmqJobId?: string;
   errorMessage?: string;
   retryCount: number;
+
+  // Re-edit status tracking
+  reEditStatus?: {
+    status: "idle" | "processing" | "completed" | "failed";
+    jobId?: string;
+    targetImageId?: string;
+    newImageId?: string;
+    errorMessage?: string;
+    updatedAt?: Date;
+  };
 
   createdAt: Date;
   updatedAt: Date;
@@ -187,6 +198,7 @@ const ListingObjectSchema = new Schema<IListingObject>(
     sizes: [{ type: String }],
     variants: [{ type: String }],
     ctaText: { type: String },
+    templateId: { type: String, default: "minimal-luxury" },
 
     // Step 3
     aiGeneratedText: AiGeneratedTextSchema,
@@ -210,6 +222,20 @@ const ListingObjectSchema = new Schema<IListingObject>(
     bullmqJobId: { type: String },
     errorMessage: { type: String },
     retryCount: { type: Number, default: 0 },
+
+    // Re-edit tracking
+    reEditStatus: {
+      status: {
+        type: String,
+        enum: ["idle", "processing", "completed", "failed"],
+        default: "idle",
+      },
+      jobId: { type: String },
+      targetImageId: { type: String },
+      newImageId: { type: String },
+      errorMessage: { type: String },
+      updatedAt: { type: Date },
+    },
   },
   { timestamps: true }
 );

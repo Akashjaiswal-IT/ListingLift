@@ -65,6 +65,6 @@ export async function optimizeForAi(buffer: Buffer): Promise<Buffer> {
       fit: "inside",
       withoutEnlargement: true,
     })
-    .webp({ quality: 85 })
+    .jpeg({ quality: 85 })
     .toBuffer();
 }

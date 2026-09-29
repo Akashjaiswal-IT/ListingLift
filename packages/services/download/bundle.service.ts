@@ -85,12 +85,12 @@ ${t.keywords?.join(", ")}
 
 ---
 
-## Meesho Catalog Listing
-**Title:** ${t.meeshoListing?.title}
+## Marketplace Catalog Listing
+**Title:** ${t.meeshoListing?.title || t.seoTitle}
 **Category:** ${t.meeshoListing?.category || "N/A"} > ${t.meeshoListing?.subcategory || "N/A"}
 
 **Description:**
-${t.meeshoListing?.description}
+${t.meeshoListing?.description || t.seoDescription}
 
 ---
 

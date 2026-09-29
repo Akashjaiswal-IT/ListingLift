@@ -101,7 +101,7 @@ export function Navbar() {
                   Sign In
                 </Button>
               </SignInButton>
-              <Link href="/login">
+              <Link href="/signup">
                 <Button size="sm" className="bg-primary text-primary-foreground font-semibold">
                   Get Started
                 </Button>

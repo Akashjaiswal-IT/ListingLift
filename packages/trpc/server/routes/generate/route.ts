@@ -9,6 +9,7 @@ import {
   enqueueImageGeneration,
   enqueueReEdit,
   checkRateLimit,
+  generateListingText,
 } from "@repo/services";
 
 export const generateRouter = router({
@@ -24,6 +25,7 @@ export const generateRouter = router({
         sizes: z.array(z.string()).optional(),
         variants: z.array(z.string()).optional(),
         ctaText: z.string().optional(),
+        templateId: z.string().optional().default("minimal-luxury"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -99,6 +101,7 @@ export const generateRouter = router({
       listing.sizes = input.sizes;
       listing.variants = input.variants;
       listing.ctaText = input.ctaText;
+      listing.templateId = input.templateId;
       listing.creditsCharged = creditsNeeded;
       listing.creditsRefunded = false;
       listing.status = "queued";
@@ -136,6 +139,7 @@ export const generateRouter = router({
         hasWhatsappCard: !!listing.whatsappCard?.url,
         hasInstagramPost: !!listing.instagramPost?.url,
         hasInstagramStory: !!listing.instagramStory?.url,
+        aiGeneratedText: listing.aiGeneratedText,
         errorMessage: listing.errorMessage,
         retryCount: listing.retryCount,
       };
@@ -151,6 +155,35 @@ export const generateRouter = router({
 
       if (!listing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
+      }
+
+      // Self-heal: If completed listing is missing aiGeneratedText, generate it on the fly with OpenAI!
+      if (listing.status === "completed" && (!listing.aiGeneratedText || !listing.aiGeneratedText.seoTitle)) {
+        try {
+          const generatedText = await generateListingText({
+            userTitle: listing.userTitle || "Product",
+            userDescription: listing.userDescription,
+            userPrompt: listing.userPrompt,
+            price: listing.price,
+            discountPrice: listing.discountPrice,
+            sizes: listing.sizes,
+            variants: listing.variants,
+            ctaText: listing.ctaText,
+            storeName: ctx.user.storeName,
+            whatsappNumber: ctx.user.whatsappNumber,
+            instagramHandle: ctx.user.instagramHandle,
+            originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
+          });
+
+          await ListingObject.updateOne(
+            { _id: listing._id },
+            { $set: { aiGeneratedText: generatedText, textStatus: "completed" } }
+          );
+          listing.aiGeneratedText = generatedText as any;
+          listing.textStatus = "completed";
+        } catch {
+          // Non-blocking fallback
+        }
       }
 
       return listing;
@@ -219,6 +252,15 @@ export const generateRouter = router({
       } catch (err) {
         console.warn("Re-edit enqueue warning (Redis offline in dev):", err);
       }
+
+      // Mark listing reEditStatus as processing
+      listing.reEditStatus = {
+        status: "processing",
+        jobId,
+        targetImageId: input.generatedImageId,
+        updatedAt: new Date(),
+      };
+      await listing.save();
 
       return {
         success: true,

@@ -29,7 +29,7 @@ export default function HomePage() {
         <div className="container relative mx-auto max-w-7xl px-4 sm:px-6 text-center space-y-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1.5 text-xs sm:text-sm font-semibold text-indigo-400 backdrop-blur-sm animate-fade-in shadow-sm">
             <Sparkles className="h-4 w-4 text-amber-400 animate-spin-slow" />
-            <span>Built Specifically for Meesho Resellers & Social Commerce</span>
+            <span>Built for E-Commerce Sellers, D2C Brands & Social Commerce</span>
             <span className="text-amber-400 font-bold ml-1">✦ 10 Free Credits</span>
           </div>
 
@@ -41,7 +41,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Stop losing sales to low-quality camera photos. Upload your product once to instantly get 8K studio photography, compliant Meesho listings, and branded WhatsApp & Instagram story cards.
+            Stop losing sales to low-quality camera photos. Upload your product once to instantly get 8K studio photography, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and branded social cards with 10+ sleek templates.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
@@ -74,7 +74,7 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              <span>Meesho 100% Policy Compliant</span>
+              <span>100% Marketplace Policy Compliant</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -114,7 +114,7 @@ export default function HomePage() {
                       <Sparkles className="h-10 w-10 text-indigo-400" />
                     </div>
                     <span className="text-indigo-200 font-bold text-base">8K Studio Lighting & Neutral Pedestal</span>
-                    <span className="text-indigo-300/80 text-xs mt-1">+ SEO Title, Meesho Catalog Copy & Social Cards</span>
+                    <span className="text-indigo-300/80 text-xs mt-1">+ SEO Title, Marketplace Catalog Copy & 10+ Social Templates</span>
                   </div>
                 </div>
               </div>
@@ -123,7 +123,7 @@ export default function HomePage() {
               <div className="mt-6 pt-6 border-t border-border/40 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                 <div className="p-3 rounded-lg bg-background/50 border border-border/40">
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
-                    <ShoppingBag className="h-3.5 w-3.5 text-indigo-400" /> Meesho Catalog
+                    <ShoppingBag className="h-3.5 w-3.5 text-indigo-400" /> Marketplace Catalog
                   </span>
                   <span className="text-sm font-semibold block mt-1">SEO Title & Bullets</span>
                 </div>
@@ -189,7 +189,7 @@ export default function HomePage() {
               {
                 step: "04",
                 title: "Publish & Sell",
-                desc: "One-click copy to Meesho, broadcast directly to WhatsApp customers, or download the full ZIP bundle.",
+                desc: "One-click copy to Amazon, Flipkart, Meesho or Shopify, broadcast directly to WhatsApp customers, or download the full ZIP bundle.",
                 icon: Share2,
               },
             ].map((s) => {
@@ -247,7 +247,7 @@ export default function HomePage() {
                     <CheckCircle2 className="h-4 w-4 text-emerald-400" /> 5 Quick Studio Generations
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Full Meesho Catalog Copy
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Full Marketplace Catalog Copy
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400" /> WhatsApp & Instagram Cards
@@ -339,10 +339,10 @@ export default function HomePage() {
       <section className="py-20 border-t border-border/40 bg-gradient-to-tr from-indigo-900/40 via-violet-950/40 to-slate-950">
         <div className="container mx-auto max-w-4xl px-4 sm:px-6 text-center space-y-6">
           <h3 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
-            Ready to Multiply Your Meesho Sales?
+            Ready to Multiply Your Online Sales?
           </h3>
           <p className="text-slate-300 text-base max-w-xl mx-auto">
-            Join thousands of smart resellers who list products faster and close orders directly over WhatsApp with ListingLift.
+            Join thousands of smart sellers and D2C brands who list products faster and close orders directly across all marketplaces with ListingLift.
           </p>
           <div className="pt-2">
             <Link href="/app/generate">
