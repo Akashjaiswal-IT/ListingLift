@@ -9,13 +9,6 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     env_file: .env.production
-    environment:
-      - NODE_ENV=production
-      - PORT=8000
-      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/peshkar?authSource=admin
-      - REDIS_URL=redis://redis:6379
-      - FRONTEND_URL=https://peshkarai.in
-      - ALLOWED_ORIGINS=https://peshkarai.in,https://www.peshkarai.in
     deploy:
       replicas: 1
       resources:
@@ -44,10 +37,6 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     env_file: .env.production
-    environment:
-      - NODE_ENV=production
-      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/peshkar?authSource=admin
-      - REDIS_URL=redis://redis:6379
     deploy:
       replicas: 1
       resources:
