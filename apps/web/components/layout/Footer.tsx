@@ -1,80 +1,122 @@
+"use client";
+
 import Link from "next/link";
-import { Sparkles, Heart } from "lucide-react";
+import { useLanguage } from "~/providers/LanguageContext";
 
 export function Footer() {
+  const { language, t } = useLanguage();
+
   return (
-    <footer className="border-t border-border/40 bg-muted/20 py-12">
+    <footer className="border-t border-border/60 bg-[#161311] text-[#FAF7F2] py-14">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
-                <Sparkles className="h-4 w-4" />
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-12">
+          {/* Brand info */}
+          <div className="md:col-span-2 space-y-3">
+            <Link href="/" className="inline-flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-primary text-white font-black text-lg flex items-center justify-center">
+                L
               </div>
-              <span className="text-lg font-bold">ListingLift</span>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Empowering e-commerce sellers, D2C brands, and marketplace merchants to turn ordinary phone photos into high-converting studio catalogs, marketplace listings, and viral WhatsApp & Instagram cards.
+              <span className="text-2xl font-black font-serif tracking-tight text-white">
+                ListingLift
+              </span>
+            </Link>
+            <p className="text-xs text-stone-400 max-w-sm leading-relaxed">
+              {t.footer.mission}
             </p>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold mb-3">Product</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+          {/* Column 1: Product */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-300">
+              {t.footer.colProduct}
+            </h4>
+            <ul className="space-y-2 text-xs text-stone-400">
               <li>
-                <Link href="/app/generate" className="hover:text-foreground transition-colors">
-                  Quick Studio Generator
+                <Link href="/app/generate" className="hover:text-white transition-colors">
+                  {language === "hi" ? "AI स्टूडियो रीवैम्प" : "AI Studio Revamp"}
                 </Link>
               </li>
               <li>
-                <Link href="/app/generate" className="hover:text-foreground transition-colors">
-                  Full Marketplace Kit
+                <Link href="/app/generate" className="hover:text-white transition-colors">
+                  {language === "hi" ? "मल्टी-फ़ोटो लिस्टिंग किट्स" : "Multi-Photo Listing Kits"}
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="hover:text-foreground transition-colors">
-                  Credit Pricing
+                <Link href="/app/dashboard" className="hover:text-white transition-colors">
+                  {language === "hi" ? "मीशो और अमेज़ॅन ऑप्टिमाइज़ेशन" : "Meesho & Amazon Optimization"}
                 </Link>
               </li>
               <li>
-                <Link href="/app/credits" className="hover:text-foreground transition-colors">
-                  Trial ₹99 Pack
+                <Link href="/pricing" className="hover:text-white transition-colors">
+                  {language === "hi" ? "क्रेडिट पैक्स व प्राइसिंग" : "Credit Packs & Pricing"}
                 </Link>
               </li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold mb-3">Legal & Support</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+          {/* Column 2: Help */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-300">
+              {t.footer.colHelp}
+            </h4>
+            <ul className="space-y-2 text-xs text-stone-400">
               <li>
-                <Link href="/terms" className="hover:text-foreground transition-colors">
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="hover:text-foreground transition-colors">
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link href="/refund-policy" className="hover:text-foreground transition-colors">
-                  Refund & Cancellation Policy
-                </Link>
-              </li>
-              <li>
-                <a href="mailto:support@listinglift.com" className="hover:text-foreground transition-colors">
-                  support@listinglift.com
+                <a
+                  href="https://api.whatsapp.com/send?text=Hello%20ListingLift%20Support"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  {language === "hi" ? "व्हाट्सएप सपोर्ट" : "WhatsApp Support"}
                 </a>
+              </li>
+              <li>
+                <Link href="/refund-policy" className="hover:text-white transition-colors">
+                  {language === "hi" ? "रिफंड व क्रेडिट पॉलिसी" : "Refund & Credit Policy"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="hover:text-white transition-colors">
+                  {language === "hi" ? "सेवा की शर्तें (Terms)" : "Terms of Service"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-white transition-colors">
+                  {language === "hi" ? "गोपनीयता नीति (Privacy)" : "Privacy Policy"}
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: Account */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-300">
+              {t.footer.colAccount}
+            </h4>
+            <ul className="space-y-2 text-xs text-stone-400">
+              <li>
+                <Link href="/app/profile" className="hover:text-white transition-colors">
+                  {language === "hi" ? "सेलर स्टोर प्रोफ़ाइल" : "Seller Store Profile"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/app/credits" className="hover:text-white transition-colors">
+                  {language === "hi" ? "क्रेडिट लेजर और बैलेंस" : "Credit Ledger & Balance"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/app/history" className="hover:text-white transition-colors">
+                  {language === "hi" ? "कैटलॉग इतिहास" : "Catalog History"}
+                </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-border/40 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} ListingLift Technologies. All rights reserved.</p>
-          <p className="flex items-center gap-1 mt-2 sm:mt-0">
-            Crafted with <Heart className="h-3 w-3 text-rose-500 fill-rose-500" /> for Indian Resellers & E-Commerce Entrepreneurs.
+        <div className="border-t border-stone-800 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500">
+          <p>{t.footer.rights}</p>
+          <p className="mt-2 sm:mt-0 font-medium text-stone-400">
+            {t.footer.madeWith}
           </p>
         </div>
       </div>

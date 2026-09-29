@@ -1,60 +1,69 @@
+"use client";
+
 import { SignIn } from "@clerk/nextjs";
 import { Sparkles, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
+import { useLanguage } from "~/providers/LanguageContext";
 
 export default function LoginPage() {
-  return (
-    <div className="container relative min-h-[calc(100vh-4rem)] flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-      <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex justify-between overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293710_1px,transparent_1px),linear-gradient(to_bottom,#1f293710_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30" />
+  const { language, t } = useLanguage();
+  const isHi = language === "hi";
 
-        <div className="relative z-20 flex items-center text-lg font-bold gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-amber-500 shadow-md">
-            <Sparkles className="h-5 w-5 text-white" />
+  return (
+    <div className="container relative min-h-[calc(100vh-4rem)] flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0 bg-background text-foreground">
+      {/* Left Branding Hero Column (Warm Espresso & Terracotta) */}
+      <div className="relative hidden h-full flex-col bg-[#161311] p-10 text-[#FAF7F2] lg:flex justify-between overflow-hidden border-r border-stone-800">
+        {/* Subtle warm glow circles */}
+        <div className="absolute -top-24 -left-24 w-80 h-80 bg-primary/20 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-amber-600/15 blur-[100px] rounded-full pointer-events-none" />
+
+        <div className="relative z-20 flex items-center text-lg font-bold gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white font-black shadow-md">
+            L
           </div>
-          <span className="text-xl font-extrabold tracking-tight">ListingLift</span>
+          <span className="text-xl font-serif font-black tracking-tight text-white">ListingLift</span>
         </div>
 
         <div className="relative z-20 my-auto max-w-md space-y-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
-            <Zap className="h-3.5 w-3.5 text-amber-400" />
-            <span>10 Free Trial Credits on Signup</span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary uppercase tracking-wider">
+            <Zap className="h-3.5 w-3.5" />
+            <span>{t.auth.trialBadge}</span>
           </div>
 
-          <h2 className="text-3xl font-extrabold tracking-tight leading-tight sm:text-4xl text-white">
-            Turn ordinary phone snaps into multi-channel revenue.
+          <h2 className="text-3xl sm:text-4xl font-black font-serif tracking-tight leading-tight text-white">
+            {t.auth.heroHeadline}
           </h2>
 
-          <ul className="space-y-3 text-sm text-slate-300">
+          <ul className="space-y-3.5 text-xs sm:text-sm text-stone-300">
             <li className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>AI Studio Photography (White background, luxury pedestals)</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{t.auth.perk1}</span>
             </li>
             <li className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Full Marketplace Catalog Copy + High-Converting Descriptions</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{t.auth.perk2}</span>
             </li>
             <li className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Ready-to-broadcast WhatsApp & Instagram Story Cards</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{t.auth.perk3}</span>
             </li>
             <li className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span>Atomic multi-turn image re-editing with prompt guidance</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{t.auth.perk4}</span>
             </li>
           </ul>
 
-          <div className="pt-4 border-t border-slate-800 flex items-center gap-3 text-xs text-slate-400">
-            <ShieldCheck className="h-4 w-4 text-indigo-400" />
-            <span>Trusted by 25,000+ Indian Resellers and D2C Brands</span>
+          <div className="pt-4 border-t border-stone-800 flex items-center gap-2.5 text-xs text-stone-400">
+            <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+            <span>{t.auth.trustText}</span>
           </div>
         </div>
 
-        <div className="relative z-20 text-xs text-slate-400">
-          © {new Date().getFullYear()} ListingLift. Empowering Bharat's Commerce.
+        <div className="relative z-20 text-xs text-stone-500">
+          {t.auth.copyright}
         </div>
       </div>
 
+      {/* Right Form Column */}
       <div className="p-8 flex items-center justify-center">
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[380px]">
           <SignIn
@@ -62,6 +71,17 @@ export default function LoginPage() {
             path="/login"
             signUpUrl="/signup"
             fallbackRedirectUrl="/app/dashboard"
+            appearance={{
+              variables: {
+                colorPrimary: "#E05822",
+                colorBackground: "var(--card)",
+                borderRadius: "0.75rem",
+              },
+              elements: {
+                card: "border border-border/80 shadow-lg rounded-2xl",
+                formButtonPrimary: "bg-[#E05822] hover:bg-[#c94917] text-white font-bold",
+              },
+            }}
           />
         </div>
       </div>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { GlobalProviders } from "~/providers/global";
@@ -7,13 +7,16 @@ import { Navbar } from "~/components/layout/Navbar";
 import { Footer } from "~/components/layout/Footer";
 import { ClerkProvider } from "@clerk/nextjs";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
+const sans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
+
+const serif = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -39,7 +42,7 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
+      <html lang="en" suppressHydrationWarning>
         <head>
           <Script
             src="https://checkout.razorpay.com/v1/checkout.js"
@@ -47,7 +50,7 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
+          className={`${sans.variable} ${serif.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
         >
           <GlobalProviders>
             <Navbar />
