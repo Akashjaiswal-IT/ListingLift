@@ -80,7 +80,7 @@ export default function AdminDashboardPage() {
           </div>
           <h1 className="text-3xl font-black tracking-tight mt-1 flex items-center gap-2">
             <Shield className="h-6 w-6 text-indigo-400" />
-            ListingLift Admin Console
+            Peshkar AI Admin Console
           </h1>
         </div>
       </div>

@@ -12,7 +12,7 @@ Indian D2C brand founders, resellers on Meesho, Amazon, and Flipkart, and indepe
 
 ## Product Purpose
 
-ListingLift eliminates the expensive and slow commercial photography pipeline for e-commerce sellers. It turns amateur phone photos into high-converting studio photography and complete marketplace-ready listings in seconds. Success is defined as a merchant uploading a raw phone picture and immediately getting studio-grade images, compliant marketplace catalog copy, and branded social marketing cards ready to publish.
+Peshkar AI eliminates the expensive and slow commercial photography pipeline for e-commerce sellers. It turns amateur phone photos into high-converting studio photography and complete marketplace-ready listings in seconds. Success is defined as a merchant uploading a raw phone picture and immediately getting studio-grade images, compliant marketplace catalog copy, and branded social marketing cards ready to publish.
 
 ## Positioning
 
@@ -41,7 +41,7 @@ An automated all-in-one AI e-commerce production studio delivering a complete mu
 
 ## Brand Commitments
 
-- **Name**: ListingLift
+- **Name**: Peshkar AI
 - **Subtitle**: AI E-Commerce Studio
 - **Tone & Voice**: Empowering, professional, practical, rapid, and trustworthy.
 - **Aesthetic Direction**: Sleek modern studio aesthetic with dark mode support, rich indigo/violet gradients, amber credit accents, and crisp contrast.

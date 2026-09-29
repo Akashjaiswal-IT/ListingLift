@@ -5,7 +5,7 @@ export default function TermsPage() {
       <p className="text-xs text-muted-foreground">Last updated: September 2026</p>
       <div className="prose dark:prose-invert text-sm space-y-4 text-muted-foreground leading-relaxed">
         <p>
-          Welcome to ListingLift. By signing up, accessing, or using our AI product photography and listing generation services, you agree to be bound by these Terms of Service.
+          Welcome to Peshkar AI. By signing up, accessing, or using our AI product photography and listing generation services, you agree to be bound by these Terms of Service.
         </p>
         <h3 className="text-base font-bold text-foreground">1. Account & Credits</h3>
         <p>
@@ -17,7 +17,7 @@ export default function TermsPage() {
         </p>
         <h3 className="text-base font-bold text-foreground">3. Acceptable Content Policy</h3>
         <p>
-          You agree not to upload illegal, defamatory, obscene, or trademark-infringing content. ListingLift employs safety detection filters to prevent abuse.
+          You agree not to upload illegal, defamatory, obscene, or trademark-infringing content. Peshkar AI employs safety detection filters to prevent abuse.
         </p>
       </div>
     </div>

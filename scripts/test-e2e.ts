@@ -17,7 +17,7 @@ import sharp from "sharp";
 
 async function runE2ETests() {
   console.log("==================================================");
-  console.log("  ListingLift Master Plan E2E Verification Suite  ");
+  console.log("  Peshkar AI Master Plan E2E Verification Suite   ");
   console.log("==================================================");
 
   let passed = 0;
@@ -42,7 +42,7 @@ async function runE2ETests() {
   const testUser = await User.create({
     clerkId: testClerkId,
     fullName: "Priya Sharma (Test Reseller)",
-    email: `test_${Date.now()}@listinglift.com`,
+    email: `test_${Date.now()}@peshkar.ai`,
     creditBalance: 10,
     lifetimeCreditsEarned: 10,
     lifetimeCreditsSpent: 0,

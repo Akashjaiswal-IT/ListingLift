@@ -10,7 +10,7 @@ async function init() {
     const PORT: number = env.PORT ? +env.PORT : 8000;
 
     server.listen(PORT, () => {
-      logger.info(`ListingLift API server is running on PORT ${PORT}`);
+      logger.info(`Peshkar AI API server is running on PORT ${PORT}`);
     });
 
     // Connect to MongoDB asynchronously
@@ -25,7 +25,7 @@ async function init() {
         );
       });
   } catch (err) {
-    logger.error(`Error starting ListingLift server`, { err });
+    logger.error(`Error starting Peshkar AI server`, { err });
     process.exit(1);
   }
 }

@@ -12,7 +12,7 @@ import { processReEdit } from "./processors/re-edit.processor";
 
 async function main() {
   logger.info("==================================================");
-  logger.info("  ListingLift BullMQ Worker Service Starting...   ");
+  logger.info("  Peshkar AI BullMQ Worker Service Starting...   ");
   logger.info("==================================================");
   logger.info(`Environment: ${env.NODE_ENV}`);
   logger.info(`Redis URL: ${env.REDIS_URL}`);
