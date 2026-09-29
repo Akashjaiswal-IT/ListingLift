@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { Webhook } from "svix";
 import crypto from "crypto";
 import { User, Payment, connectToDatabase } from "@repo/database";
+import { addCredits } from "@repo/services";
 import { logger } from "@repo/logger";
 
 export const webhookRouter = Router();
@@ -167,36 +168,36 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
         return res.status(200).json({ received: true });
       }
 
-      // Idempotency check: if already captured, do not credit again
-      if (payment.status === "captured") {
+      // Atomic transition: only transition if not already captured (prevents race conditions with client verify)
+      const updatedPayment = await Payment.findOneAndUpdate(
+        {
+          _id: payment._id,
+          status: { $ne: "captured" },
+        },
+        {
+          $set: {
+            status: "captured",
+            razorpayPaymentId,
+            razorpayMetadata: req.body,
+          },
+        },
+        { new: true }
+      );
+
+      if (!updatedPayment) {
+        logger.info(`Payment already captured for order: ${razorpayOrderId} (idempotent ignore)`);
         return res.status(200).json({ received: true, alreadyCaptured: true });
       }
 
-      payment.status = "captured";
-      payment.razorpayPaymentId = razorpayPaymentId;
-      payment.razorpayMetadata = req.body;
-      await payment.save();
-
-      // Atomically credit user
-      await User.updateOne(
-        { _id: payment.userId },
-        {
-          $inc: {
-            creditBalance: payment.creditsPurchased,
-            lifetimeCreditsEarned: payment.creditsPurchased,
-          },
-          $push: {
-            creditHistory: {
-              type: "PURCHASE",
-              amount: payment.creditsPurchased,
-              description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
-              referenceId: String(payment._id),
-              referenceType: "payment",
-              createdAt: new Date(),
-            },
-          },
-        }
-      );
+      // Add credits via unified ledger service with accurate balanceAfter
+      await addCredits({
+        userId: payment.userId,
+        amount: payment.creditsPurchased,
+        type: "PURCHASE",
+        description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
+        referenceId: String(payment._id),
+        referenceType: "payment",
+      });
 
       logger.info(
         `Successfully credited ${payment.creditsPurchased} credits to user ${payment.userId}`

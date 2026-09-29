@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { Payment, User } from "@repo/database";
-import { createOrder, verifyPaymentSignature } from "@repo/services";
+import { createOrder, verifyPaymentSignature, addCredits } from "@repo/services";
 
 export const paymentsRouter = router({
   createOrder: protectedProcedure
@@ -51,12 +51,6 @@ export const paymentsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Order record not found" });
       }
 
-      // Idempotency: if already processed, return success immediately
-      if (payment.status === "captured") {
-        const user = await User.findById(ctx.user._id);
-        return { success: true, newBalance: user?.creditBalance ?? 0 };
-      }
-
       const isValid = verifyPaymentSignature({
         razorpayOrderId,
         razorpayPaymentId,
@@ -72,46 +66,45 @@ export const paymentsRouter = router({
         });
       }
 
-      // Update payment record
-      payment.status = "captured";
-      payment.razorpayPaymentId = razorpayPaymentId;
-      payment.razorpaySignature = razorpaySignature;
-      await payment.save();
-
-      // Atomically add credits to User
-      const updatedUser = await User.findOneAndUpdate(
-        { _id: ctx.user._id },
+      // Atomic transition: only transition if not already captured (prevents race conditions with webhook)
+      const updatedPayment = await Payment.findOneAndUpdate(
         {
-          $inc: {
-            creditBalance: payment.creditsPurchased,
-            lifetimeCreditsEarned: payment.creditsPurchased,
-          },
-          $push: {
-            creditHistory: {
-              type: "PURCHASE",
-              amount: payment.creditsPurchased,
-              balanceAfter: 0,
-              description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
-              referenceId: String(payment._id),
-              referenceType: "payment",
-              createdAt: new Date(),
-            },
+          _id: payment._id,
+          status: { $ne: "captured" },
+        },
+        {
+          $set: {
+            status: "captured",
+            razorpayPaymentId,
+            razorpaySignature,
           },
         },
         { new: true }
       );
 
-      if (updatedUser) {
-        const lastIdx = updatedUser.creditHistory.length - 1;
-        if (lastIdx >= 0) {
-          updatedUser.creditHistory[lastIdx]!.balanceAfter = updatedUser.creditBalance;
-          await updatedUser.save();
-        }
+      // If updatedPayment is null, the webhook already processed and credited this order
+      if (!updatedPayment) {
+        const user = await User.findById(ctx.user._id);
+        return {
+          success: true,
+          newBalance: user?.creditBalance ?? 0,
+          creditsAdded: payment.creditsPurchased,
+        };
       }
+
+      // Add credits via unified ledger service with accurate balanceAfter
+      const newBalance = await addCredits({
+        userId: ctx.user._id,
+        amount: payment.creditsPurchased,
+        type: "PURCHASE",
+        description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
+        referenceId: String(payment._id),
+        referenceType: "payment",
+      });
 
       return {
         success: true,
-        newBalance: updatedUser?.creditBalance ?? 0,
+        newBalance,
         creditsAdded: payment.creditsPurchased,
       };
     }),
