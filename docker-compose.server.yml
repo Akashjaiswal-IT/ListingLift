@@ -1,0 +1,150 @@
+name: listinglift-server
+
+services:
+  # ─────────────────────────────────────────────
+  # API Server (Express + tRPC)
+  # ─────────────────────────────────────────────
+  api-service:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/listinglift?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - FRONTEND_URL=https://listinglift.yasho.tech
+      - ALLOWED_ORIGINS=https://listinglift.yasho.tech,https://www.listinglift.yasho.tech
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - internal
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─────────────────────────────────────────────
+  # Background Worker (BullMQ)
+  # ─────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env.production
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/listinglift?authSource=admin
+      - REDIS_URL=redis://redis:6379
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - internal
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # MongoDB (with persistent volume)
+  # ─────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: listinglift-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: listinglift
+    volumes:
+      - listinglift_mongo_data:/data/db
+      - listinglift_mongo_config:/data/configdb
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    # No ports exposed to host — only accessible within internal network
+
+  # ─────────────────────────────────────────────
+  # Redis (BullMQ queues + caching, with AOF persistence)
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: listinglift-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - listinglift_redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    # No ports exposed to host — only accessible within internal network
+
+  # ─────────────────────────────────────────────
+  # Caddy (Reverse Proxy → API, exposed via Traefik)
+  # ─────────────────────────────────────────────
+  caddy:
+    image: caddy:latest
+    container_name: listinglift-caddy
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.listinglift-router.rule=Host(`listinglift-api.yasho.tech`)"
+      - "traefik.http.services.listinglift-router.loadbalancer.server.port=80"
+      - "traefik.http.routers.listinglift-router.entrypoints=websecure"
+      - "traefik.docker.network=listinglift-network"
+      - "traefik.http.routers.listinglift-router.tls=true"
+      - "traefik.http.routers.listinglift-router.tls.certresolver=cert-resolver"
+    networks:
+      - listinglift-network
+      - internal
+    depends_on:
+      api-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────
+# Named Volumes (data persists across restarts & updates)
+# ─────────────────────────────────────────────
+volumes:
+  listinglift_mongo_data:
+    name: listinglift_mongo_data
+  listinglift_mongo_config:
+    name: listinglift_mongo_config
+  listinglift_redis_data:
+    name: listinglift_redis_data
+
+# ─────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+  listinglift-network:
+    external: true
