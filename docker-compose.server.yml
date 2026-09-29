@@ -1,4 +1,4 @@
-name: listinglift-server
+name: peshkar-server
 
 services:
   # ─────────────────────────────────────────────
@@ -12,10 +12,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8000
-      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/listinglift?authSource=admin
+      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/peshkar?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - FRONTEND_URL=https://listinglift.yasho.tech
-      - ALLOWED_ORIGINS=https://listinglift.yasho.tech,https://www.listinglift.yasho.tech
+      - FRONTEND_URL=https://peshkar.yasho.tech
+      - ALLOWED_ORIGINS=https://peshkar.yasho.tech,https://www.peshkar.yasho.tech
     deploy:
       replicas: 1
       resources:
@@ -46,7 +46,7 @@ services:
     env_file: .env.production
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/listinglift?authSource=admin
+      - MONGODB_URI=mongodb://root:${MONGO_PASSWORD:-password}@mongodb:27017/peshkar?authSource=admin
       - REDIS_URL=redis://redis:6379
     deploy:
       replicas: 1
@@ -67,14 +67,14 @@ services:
   # ─────────────────────────────────────────────
   mongodb:
     image: mongo:7
-    container_name: listinglift-mongodb
+    container_name: peshkar-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
-      MONGO_INITDB_DATABASE: listinglift
+      MONGO_INITDB_DATABASE: peshkar
     volumes:
-      - listinglift_mongo_data:/data/db
-      - listinglift_mongo_config:/data/configdb
+      - peshkar_mongo_data:/data/db
+      - peshkar_mongo_config:/data/configdb
     networks:
       - internal
     healthcheck:
@@ -91,10 +91,10 @@ services:
   # ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: listinglift-redis
+    container_name: peshkar-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     volumes:
-      - listinglift_redis_data:/data
+      - peshkar_redis_data:/data
     networks:
       - internal
     healthcheck:
@@ -110,19 +110,19 @@ services:
   # ─────────────────────────────────────────────
   caddy:
     image: caddy:latest
-    container_name: listinglift-caddy
+    container_name: peshkar-caddy
     volumes:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.listinglift-router.rule=Host(`listinglift-api.yasho.tech`)"
-      - "traefik.http.services.listinglift-router.loadbalancer.server.port=80"
-      - "traefik.http.routers.listinglift-router.entrypoints=websecure"
-      - "traefik.docker.network=listinglift-network"
-      - "traefik.http.routers.listinglift-router.tls=true"
-      - "traefik.http.routers.listinglift-router.tls.certresolver=cert-resolver"
+      - "traefik.http.routers.peshkar-router.rule=Host(`peshkar-api.yasho.tech`)"
+      - "traefik.http.services.peshkar-router.loadbalancer.server.port=80"
+      - "traefik.http.routers.peshkar-router.entrypoints=websecure"
+      - "traefik.docker.network=peshkar-network"
+      - "traefik.http.routers.peshkar-router.tls=true"
+      - "traefik.http.routers.peshkar-router.tls.certresolver=cert-resolver"
     networks:
-      - listinglift-network
+      - peshkar-network
       - internal
     depends_on:
       api-service:
@@ -133,12 +133,12 @@ services:
 # Named Volumes (data persists across restarts & updates)
 # ─────────────────────────────────────────────
 volumes:
-  listinglift_mongo_data:
-    name: listinglift_mongo_data
-  listinglift_mongo_config:
-    name: listinglift_mongo_config
-  listinglift_redis_data:
-    name: listinglift_redis_data
+  peshkar_mongo_data:
+    name: peshkar_mongo_data
+  peshkar_mongo_config:
+    name: peshkar_mongo_config
+  peshkar_redis_data:
+    name: peshkar_redis_data
 
 # ─────────────────────────────────────────────
 # Networks
@@ -146,5 +146,5 @@ volumes:
 networks:
   internal:
     driver: bridge
-  listinglift-network:
+  peshkar-network:
     external: true

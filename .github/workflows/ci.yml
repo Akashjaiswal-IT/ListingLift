@@ -39,5 +39,5 @@ jobs:
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bGlzdGluZ2xpZnQuY2xlcmsuYWNjb3VudHMuZGV2JA==
           CLERK_SECRET_KEY: sk_test_mocksecretkeyforlocaldev123456789
-          MONGODB_URI: mongodb://localhost:27017/listinglift
+          MONGODB_URI: mongodb://localhost:27017/peshkar
           REDIS_URL: redis://localhost:6379

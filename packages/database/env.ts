@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  MONGODB_URI: z.string().default("mongodb://root:password@localhost:27017/listinglift?authSource=admin"),
+  MONGODB_URI: z.string().default("mongodb://root:password@localhost:27017/peshkar?authSource=admin"),
 });
 
 export const env = envSchema.parse({
