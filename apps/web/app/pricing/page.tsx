@@ -17,6 +17,7 @@ export default function PricingPage() {
   const { addLocal } = useCreditStore();
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
 
+  const utils = trpc.useUtils();
   const packsQuery = trpc.credits.getPacks.useQuery();
   const createOrderMutation = trpc.payments.createOrder.useMutation();
   const verifyPaymentMutation = trpc.payments.verifyPayment.useMutation();
@@ -53,6 +54,11 @@ export default function PricingPage() {
             if (verifyRes.success) {
               const added = (verifyRes as any).creditsAdded || order.credits;
               addLocal(added);
+              await Promise.allSettled([
+                utils.credits.getBalance.invalidate(),
+                utils.user.getCreditBalance.invalidate(),
+                utils.user.getCreditHistory.invalidate(),
+              ]);
               toast.success(`Successfully added ${added} credits to your account!`);
               router.push("/app/dashboard");
             }
@@ -72,6 +78,11 @@ export default function PricingPage() {
         // Fallback simulation for dev/offline testing
         toast.info("Razorpay script not loaded. Simulating successful checkout...");
         addLocal(order.credits);
+        await Promise.allSettled([
+          utils.credits.getBalance.invalidate(),
+          utils.user.getCreditBalance.invalidate(),
+          utils.user.getCreditHistory.invalidate(),
+        ]);
         toast.success(`Added ${order.credits} credits to balance!`);
       }
     } catch (err: any) {

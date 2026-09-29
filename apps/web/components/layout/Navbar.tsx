@@ -2,15 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { Sparkles, Coins, PlusCircle, LayoutDashboard, History, UserCheck } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { useCreditStore } from "~/stores/useCreditStore";
 import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
+import { trpc } from "~/trpc/client";
 
 export function Navbar() {
   const pathname = usePathname();
-  const { balance } = useCreditStore();
+  const { balance, setBalance, isInitialized } = useCreditStore();
   const { isSignedIn } = useUser();
+
+  const creditQuery = trpc.credits.getBalance.useQuery(undefined, {
+    enabled: !!isSignedIn,
+    refetchInterval: 15000,
+  });
+
+  useEffect(() => {
+    if (creditQuery.data?.balance !== undefined) {
+      setBalance(creditQuery.data.balance);
+    }
+  }, [creditQuery.data?.balance, setBalance]);
 
   const navLinks = [
     { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -75,14 +88,16 @@ export function Navbar() {
 
         {/* Right Action: Credits + Auth */}
         <div className="flex items-center gap-3">
-          {/* Credit Badge */}
-          <Link href="/app/credits">
-            <div className="flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors shadow-sm">
-              <Coins className="h-4 w-4 text-amber-500 animate-pulse" />
-              <span>{balance}</span>
-              <span className="text-xs opacity-75 font-normal">credits</span>
-            </div>
-          </Link>
+          {/* Credit Badge (shown when signed in) */}
+          {isSignedIn && (
+            <Link href="/app/credits">
+              <div className="flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors shadow-sm">
+                <Coins className="h-4 w-4 text-amber-500 animate-pulse" />
+                <span>{isInitialized ? balance : (creditQuery.isLoading ? "..." : balance)}</span>
+                <span className="text-xs opacity-75 font-normal">credits</span>
+              </div>
+            </Link>
+          )}
 
           {/* User state */}
           {isSignedIn ? (
