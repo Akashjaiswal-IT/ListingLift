@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Check, Sparkles, Palette } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { CARD_TEMPLATES_INFO, CardTemplateInfo, TemplateId } from "~/lib/card-templates";
+import { useLanguage } from "~/providers/LanguageContext";
 
 interface TemplateSelectorProps {
   selectedTemplateId: TemplateId;
@@ -22,14 +23,16 @@ export function TemplateSelector({
   previewDiscountPrice = "499",
   previewCta = "Order Now",
 }: TemplateSelectorProps) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
   const [filter, setFilter] = useState<string>("all");
 
   const categories = [
-    { id: "all", label: "All 10 Styles" },
-    { id: "luxury", label: "Luxury & Prestige" },
-    { id: "modern", label: "Modern & Tech" },
-    { id: "ethnic", label: "Ethnic & Festive" },
-    { id: "sale", label: "Deals & Trending" },
+    { id: "all", label: isHi ? "सभी 10 स्टाइल्स" : "All 10 Styles" },
+    { id: "luxury", label: isHi ? "लक्ज़री और प्रेस्टीज" : "Luxury & Prestige" },
+    { id: "modern", label: isHi ? "मॉडर्न और मिनिमल" : "Modern & Tech" },
+    { id: "ethnic", label: isHi ? "एथनिक और फेस्टिव" : "Ethnic & Festive" },
+    { id: "sale", label: isHi ? "डील्स और ट्रेंडिंग" : "Deals & Trending" },
   ];
 
   const filteredTemplates = CARD_TEMPLATES_INFO.filter((tpl) => {
@@ -41,7 +44,7 @@ export function TemplateSelector({
     return true;
   });
 
-  const displayTitle = previewTitle.trim() || "Exclusive Product";
+  const displayTitle = previewTitle.trim() || (isHi ? "प्रीमियम उत्पाद" : "Exclusive Product");
   const displayPrice = previewDiscountPrice
     ? `₹${previewDiscountPrice}`
     : previewPrice
@@ -53,13 +56,13 @@ export function TemplateSelector({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Palette className="h-4 w-4 text-indigo-400" />
+          <Palette className="h-4 w-4 text-[#E05822]" />
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Card & Story Design Theme (Choose 1 of 10)
+            {isHi ? "कार्ड और स्टोरी डिज़ाइन थीम (10 में से चुनें)" : "Card & Story Design Theme (Choose 1 of 10)"}
           </span>
         </div>
-        <Badge variant="outline" className="text-[10px] w-fit border-indigo-500/30 text-indigo-400 font-medium">
-          Auto-Applies to WhatsApp, IG Posts & Stories
+        <Badge variant="outline" className="text-[10px] w-fit border-[#E05822]/30 text-[#E05822] font-medium">
+          {isHi ? "व्हाट्सएप, IG पोस्ट और स्टोरीज़ पर स्वतः लागू" : "Auto-Applies to WhatsApp, IG Posts & Stories"}
         </Badge>
       </div>
 
@@ -72,7 +75,7 @@ export function TemplateSelector({
             onClick={() => setFilter(cat.id)}
             className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
               filter === cat.id
-                ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20"
+                ? "bg-[#E05822] text-white shadow-xs"
                 : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
@@ -92,13 +95,13 @@ export function TemplateSelector({
               onClick={() => onSelectTemplate(tpl.id)}
               className={`group relative cursor-pointer rounded-xl border p-2.5 transition-all duration-200 flex flex-col justify-between ${
                 isSelected
-                  ? "border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-500/5 shadow-md shadow-indigo-500/10 scale-[1.02]"
+                  ? "border-[#E05822] ring-2 ring-[#E05822]/30 bg-[#E05822]/5 shadow-md scale-[1.02]"
                   : "border-border/60 hover:border-border hover:bg-muted/20"
               }`}
             >
               {/* Active Checkmark Pill */}
               {isSelected && (
-                <div className="absolute -top-2 -right-2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white shadow-md animate-scale-in">
+                <div className="absolute -top-2 -right-2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-[#E05822] text-white shadow-md animate-scale-in">
                   <Check className="h-3.5 w-3.5 stroke-[3]" />
                 </div>
               )}

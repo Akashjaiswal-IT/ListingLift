@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Zap, Sparkles, ShieldCheck, HelpCircle } from "lucide-react";
+import { CheckCircle2, Zap, Sparkles, ShieldCheck, HelpCircle, Sliders } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
@@ -10,21 +10,31 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "~/providers/LanguageContext";
 
 export default function PricingPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const { language, t } = useLanguage();
+  const isHi = language === "hi";
   const { addLocal } = useCreditStore();
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
+  const [customCredits, setCustomCredits] = useState<number>(220);
 
   const utils = trpc.useUtils();
   const packsQuery = trpc.credits.getPacks.useQuery();
   const createOrderMutation = trpc.payments.createOrder.useMutation();
   const verifyPaymentMutation = trpc.payments.verifyPayment.useMutation();
 
+  const calculateCustomPrice = (credits: number) => {
+    if (credits >= 400) return Math.round(credits * 10);
+    if (credits >= 200) return Math.round(credits * 11);
+    return Math.round(credits * 12);
+  };
+
   const handleBuyPack = async (packId: string) => {
     if (!isSignedIn) {
-      toast.info("Please sign in or create an account to purchase credits.");
+      toast.info(isHi ? "क्रेडिट्स खरीदने के लिए कृपया लॉग इन करें।" : "Please sign in or create an account to purchase credits.");
       router.push("/login");
       return;
     }
@@ -59,7 +69,7 @@ export default function PricingPage() {
                 utils.user.getCreditBalance.invalidate(),
                 utils.user.getCreditHistory.invalidate(),
               ]);
-              toast.success(`Successfully added ${added} credits to your account!`);
+              toast.success(isHi ? `आपके खाते में ${added} क्रेडिट्स सफलतापूर्वक जोड़ दिए गए हैं!` : `Successfully added ${added} credits to your account!`);
               router.push("/app/dashboard");
             }
           } catch (err: any) {
@@ -67,7 +77,7 @@ export default function PricingPage() {
           }
         },
         theme: {
-          color: "#4F46E5",
+          color: "#E05822",
         },
       };
 
@@ -76,14 +86,14 @@ export default function PricingPage() {
         rzp.open();
       } else {
         // Fallback simulation for dev/offline testing
-        toast.info("Razorpay script not loaded. Simulating successful checkout...");
+        toast.info(isHi ? "सिम्युलेटेड भुगतान सफल रहा..." : "Simulating successful checkout...");
         addLocal(order.credits);
         await Promise.allSettled([
           utils.credits.getBalance.invalidate(),
           utils.user.getCreditBalance.invalidate(),
           utils.user.getCreditHistory.invalidate(),
         ]);
-        toast.success(`Added ${order.credits} credits to balance!`);
+        toast.success(isHi ? `खाते में ${order.credits} क्रेडिट्स जोड़े गए!` : `Added ${order.credits} credits to balance!`);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate payment");
@@ -92,92 +102,124 @@ export default function PricingPage() {
     }
   };
 
+  const handleBuyCustomPack = () => {
+    if (!isSignedIn) {
+      toast.info(isHi ? "कस्टम पैक खरीदने के लिए कृपया लॉग इन करें।" : "Please sign in to purchase credits.");
+      router.push("/login");
+      return;
+    }
+    // Match closest pre-configured pack or launch checkout
+    const closestPack = packs.find((p) => p.credits >= customCredits) || packs[packs.length - 1];
+    if (closestPack) {
+      handleBuyPack(closestPack.id);
+    } else {
+      toast.success(isHi ? `कस्टम पैक चयनित: ${customCredits} क्रेडिट्स` : `Custom pack selected: ${customCredits} credits`);
+    }
+  };
+
   const packs = packsQuery.data || [];
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-16 sm:px-6">
-      <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-        <Badge className="bg-indigo-600/10 text-indigo-400 border-indigo-500/20 font-semibold px-3 py-1">
-          Simple & Transparent Credit Packs
+    <div className="container mx-auto max-w-7xl px-4 py-12 sm:py-16 sm:px-6 space-y-16">
+      {/* Top Header */}
+      <div className="text-center max-w-3xl mx-auto space-y-4">
+        <Badge className="bg-primary/10 text-primary border-primary/20 font-bold px-3.5 py-1 text-xs uppercase tracking-wider">
+          {t.pricingPage.badge}
         </Badge>
-        <h1 className="text-4xl sm:text-5xl font-black tracking-tight">
-          Never Pay Subscriptions. Buy What You Need.
+        <h1 className="text-3xl sm:text-5xl font-black font-serif tracking-tight text-foreground leading-tight">
+          {t.pricingPage.title}{" "}
+          <span className="text-primary italic">{t.pricingPage.titleAccent}</span>
         </h1>
-        <p className="text-muted-foreground text-base sm:text-lg">
-          Credits never expire. Quick Studio generation costs only 2 credits (~₹20). Full multi-photo marketplace kits cost 5-7 credits.
+        <p className="text-muted-foreground text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+          {t.pricingPage.subtitle}
         </p>
       </div>
 
-      {/* Credit Pricing Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
+      {/* Credit Pricing Grid (Ref Image 4) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {packs.slice(0, 4).map((pack) => {
           const isSelected = selectedPack === pack.id;
           return (
             <Card
               key={pack.id}
-              className={`relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/60 ${
-                pack.isPopular ? "border-indigo-500 shadow-xl shadow-indigo-500/10 bg-indigo-950/15" : ""
+              className={`relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl ${
+                pack.isPopular
+                  ? "border-2 border-primary shadow-xl shadow-primary/10 bg-primary/5 ring-1 ring-primary/30"
+                  : "shadow-xs hover:border-border"
               }`}
             >
-              {pack.badge && (
+              {pack.isPopular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge
-                    className={
-                      pack.isPopular
-                        ? "bg-indigo-600 text-white font-bold uppercase text-[10px]"
-                        : "bg-muted text-foreground border-border text-[10px]"
-                    }
-                  >
-                    {pack.badge}
+                  <Badge className="bg-primary text-white font-black uppercase text-[10px] px-3 py-0.5 shadow-sm">
+                    {t.pricingPage.popularBadge}
                   </Badge>
                 </div>
               )}
 
-              <CardContent className="p-6 space-y-6 pt-7">
+              <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
                 <div>
-                  <h3 className="text-xl font-bold">{pack.name}</h3>
+                  <h3 className="text-lg font-bold text-foreground">
+                    {isHi && pack.id === "pack_starter"
+                      ? "स्टार्टर पैक"
+                      : isHi && pack.id === "pack_growth"
+                      ? "पॉपुलर पैक"
+                      : isHi && pack.id === "pack_pro"
+                      ? "वैल्यू पैक"
+                      : isHi && pack.id === "pack_bulk"
+                      ? "बल्क पैक"
+                      : pack.name}
+                  </h3>
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-black">₹{pack.priceRupees}</span>
+                    <span className="text-4xl font-black font-serif text-foreground">
+                      ₹{pack.priceRupees.toLocaleString("en-IN")}
+                    </span>
                     <span className="text-xs text-muted-foreground">
-                      / {pack.credits} credits
+                      / {pack.credits} {t.sections.creditsUnit}
                     </span>
                   </div>
                   <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                    ₹{pack.perCreditRupees.toFixed(2)} per credit
+                    ₹{pack.perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
                   </span>
                 </div>
 
-                <ul className="space-y-2.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>
-                      {Math.floor(pack.credits / 2)} Quick Studio Generations
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Full Marketplace Catalog Copy</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>WhatsApp & Instagram Cards (10+ Templates)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span>Credits never expire</span>
-                  </li>
-                </ul>
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    {t.pricingPage.featuresIncluded}
+                  </span>
+                  <ul className="space-y-2.5 text-xs text-muted-foreground">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>
+                        {Math.floor(pack.credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>{t.pricingPage.f1}</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>{t.pricingPage.f3}</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>{t.pricingPage.f4}</span>
+                    </li>
+                  </ul>
+                </div>
 
                 <Button
                   onClick={() => handleBuyPack(pack.id)}
                   disabled={isSelected}
-                  className={`w-full font-bold ${
+                  className={`w-full font-bold h-11 rounded-xl shadow-sm text-xs transition-all active:scale-[0.98] ${
                     pack.isPopular
-                      ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                      : "bg-primary text-primary-foreground"
+                      ? "bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20"
+                      : "bg-muted hover:bg-muted/80 text-foreground border border-border"
                   }`}
                 >
-                  {isSelected ? "Opening Checkout..." : `Buy for ₹${pack.priceRupees}`}
+                  {isSelected
+                    ? isHi ? "चेकआउट खुल रहा है..." : "Opening Checkout..."
+                    : `${t.pricingPage.buyBtn} (₹${pack.priceRupees.toLocaleString("en-IN")})`}
                 </Button>
               </CardContent>
             </Card>
@@ -185,87 +227,104 @@ export default function PricingPage() {
         })}
       </div>
 
-      {/* High Volume Wholesale Packs */}
-      <div className="rounded-2xl border border-border/60 bg-muted/20 p-8 mb-20">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h3 className="text-2xl font-bold">Wholesale & Enterprise Packs</h3>
-            <p className="text-sm text-muted-foreground">
-              For high-volume manufacturers, wholesalers, and catalogs listing hundreds of SKUs monthly.
+      {/* ================= CUSTOM CREDIT PACK SLIDER (Matching Home Page, Ref Image 4) ================= */}
+      <div className="p-6 sm:p-10 rounded-3xl border-2 border-primary/20 bg-card shadow-lg max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Sliders className="h-5 w-5 text-primary" />
+              <h3 className="font-bold text-lg text-foreground">
+                {t.pricingPage.customTitle}
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t.pricingPage.customSubtitle}
             </p>
           </div>
-          <Badge variant="outline" className="text-amber-400 border-amber-400/40">
-            Up to 37% Discount
-          </Badge>
+          <div className="text-right">
+            <div className="text-3xl sm:text-4xl font-black font-serif text-primary">
+              ₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")}
+            </div>
+            <span className="text-xs text-muted-foreground font-semibold">
+              ≈ ₹{(calculateCustomPrice(customCredits) / customCredits).toFixed(1)} {t.pricingPage.perCredit}
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {packs.slice(4).map((pack) => (
-            <div
-              key={pack.id}
-              className="p-5 rounded-xl border border-border/40 bg-background flex flex-col justify-between space-y-4"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-base">{pack.name}</span>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {pack.savingsPercent}% Off
-                  </Badge>
-                </div>
-                <div className="mt-2 text-2xl font-black">₹{pack.priceRupees}</div>
-                <span className="text-xs text-muted-foreground">
-                  {pack.credits} credits (₹{pack.perCreditRupees.toFixed(2)}/ea)
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleBuyPack(pack.id)}
-                className="w-full font-semibold"
-              >
-                Purchase Pack
-              </Button>
-            </div>
-          ))}
+        <div className="space-y-3">
+          <input
+            type="range"
+            min={10}
+            max={1000}
+            step={10}
+            value={customCredits}
+            onChange={(e) => setCustomCredits(Number(e.target.value))}
+            className="w-full accent-primary h-2.5 bg-muted rounded-lg cursor-pointer"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground font-semibold">
+            <span>10 {t.sections.creditsUnit}</span>
+            <span className="text-primary font-black text-sm">
+              {customCredits} {t.sections.creditsUnit} ({t.pricingPage.selected})
+            </span>
+            <span>1,000 {t.sections.creditsUnit}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+            <span>{isHi ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा" : "Instant Activation • Automatic Refund Protection"}</span>
+          </div>
+          <Button
+            size="lg"
+            onClick={handleBuyCustomPack}
+            className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-md gap-2 text-xs"
+          >
+            <Sparkles className="h-4 w-4" />
+            {t.pricingPage.buyCustomBtn} (₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")})
+          </Button>
         </div>
       </div>
 
       {/* Frequently Asked Questions */}
       <div className="max-w-3xl mx-auto space-y-8">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold">Frequently Asked Questions</h2>
-          <p className="text-sm text-muted-foreground">Everything you need to know about ListingLift credits.</p>
+          <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight text-foreground">
+            {t.pricingPage.faqTitle}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t.pricingPage.faqSubtitle}
+          </p>
         </div>
 
         <div className="space-y-4">
-          <div className="p-4 rounded-xl border border-border/40 bg-card space-y-2">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <HelpCircle className="h-4 w-4 text-indigo-400" />
-              How many credits does one generation cost?
+          <div className="p-5 rounded-2xl border border-border/70 bg-card space-y-2 shadow-xs">
+            <h4 className="font-bold text-sm flex items-center gap-2 text-foreground">
+              <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+              {t.pricingPage.faq1Q}
             </h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              <strong>Quick Generate</strong> (1 photo → 2 studio outputs + complete text + 3 social cards) costs <strong>2 credits</strong> (~₹20).
-              A full <strong>Listing Kit</strong> with 3 photos costs <strong>5 credits</strong>. Image re-editing with a new prompt costs only <strong>1 credit</strong>.
+            <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+              {t.pricingPage.faq1A}
             </p>
           </div>
 
-          <div className="p-4 rounded-xl border border-border/40 bg-card space-y-2">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <HelpCircle className="h-4 w-4 text-indigo-400" />
-              Do purchased credits expire?
+          <div className="p-5 rounded-2xl border border-border/70 bg-card space-y-2 shadow-xs">
+            <h4 className="font-bold text-sm flex items-center gap-2 text-foreground">
+              <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+              {t.pricingPage.faq2Q}
             </h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              No! Your credits remain in your balance permanently until you use them. There are no monthly subscription traps or forfeitures.
+            <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+              {t.pricingPage.faq2A}
             </p>
           </div>
 
-          <div className="p-4 rounded-xl border border-border/40 bg-card space-y-2">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <HelpCircle className="h-4 w-4 text-indigo-400" />
-              What if a generation fails?
+          <div className="p-5 rounded-2xl border border-border/70 bg-card space-y-2 shadow-xs">
+            <h4 className="font-bold text-sm flex items-center gap-2 text-foreground">
+              <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+              {t.pricingPage.faq3Q}
             </h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Our automated system detects any failed jobs and automatically refunds the charged credits back to your balance immediately. You never pay for an incomplete generation.
+            <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+              {t.pricingPage.faq3A}
             </p>
           </div>
         </div>

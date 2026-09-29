@@ -8,6 +8,8 @@ import { Toaster } from "~/components/ui/sonner";
 import { trpc } from "~/trpc/client";
 import { createTRPCHttpBatchClientClient } from "~/trpc/create-client";
 
+import { LanguageProvider } from "./LanguageContext";
+
 export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [queryClient] = useState(
     () =>
@@ -31,13 +33,15 @@ export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ child
       <NextThemesProvider
         attribute="class"
         defaultTheme="light"
-        enableSystem
+        enableSystem={false}
         disableTransitionOnChange
       >
-        <trpc.Provider queryClient={queryClient} client={trpcClient}>
-          {children}
-          <Toaster />
-        </trpc.Provider>
+        <LanguageProvider>
+          <trpc.Provider queryClient={queryClient} client={trpcClient}>
+            {children}
+            <Toaster />
+          </trpc.Provider>
+        </LanguageProvider>
       </NextThemesProvider>
     </QueryClientProvider>
   );

@@ -36,18 +36,24 @@ export async function enhancePromptWithVision(
   });
 
   const promptText = `
-You are an expert commercial advertising art director.
+You are an expert commercial advertising art director and e-commerce photographer.
 Analyze this product image and craft an ultra-detailed, photorealistic image generation prompt for Google Gemini/Imagen.
 Product Title: ${params.userTitle || "Product"}
 Product Description: ${params.userDescription || "N/A"}
 User's Custom Style Direction: ${params.userPrompt || "High-end clean e-commerce studio background"}
 
-Rules:
-1. Preserve the EXACT product geometry, color, and distinguishing features shown in the image.
-2. Place the product on an elegant, professional e-commerce studio setting (clean podium, textured marble/concrete/warm wood, soft natural sunlight or studio key light, subtle depth of field).
-3. Specify lighting (soft diffuse lighting, subtle rim lighting, soft reflections).
-4. Do NOT include text, watermarks, or distorted artifacts.
-5. Return ONLY the final enhanced generation prompt string.
+STRICT PRODUCT FIDELITY & PRESENTABILITY RULES:
+1. STRICT OBJECT IDENTITY FIDELITY (DO NOT MUTATE THE OBJECT):
+   - You MUST NOT alter, add, replace, or remove any physical or visual details of the subject product.
+   - NEVER add phantom accessories or elements (e.g. NEVER add chains, straps, pockets, badges, logos, patterns, buckles, or decorations that are not on the original item).
+   - PRESERVE all existing hardware, logos, brand emblems, stitching, colorways, zippers, and textures exactly as they appear in the original photo.
+2. ENHANCED ORIENTATION & PRESENTABILITY (MAKE IT LOOK COMMERCIALLY HEROIC):
+   - You CAN and MUST improve the product's physical posture, staging, and orientation:
+   - If the product was photographed slouched, crumpled, folded, tilted, or lying casually on a bed or floor (like a slouched backpack or folded apparel), straighten it upright, un-crumple and fill out its form naturally so its shape is crisp and fully structured, and stand it upright in an appealing 3D commercial presentation.
+   - Present the product in its most flattering, symmetrical, well-staged, and eye-pleasing orientation.
+3. ENVIRONMENT & LIGHTING:
+   - Place the product in a pristine commercial setting with soft diffuse lighting, clean contact shadows beneath the base, zero clutter, zero unwanted artifacts.
+4. Return ONLY the final enhanced generation prompt string.
 `;
 
   try {

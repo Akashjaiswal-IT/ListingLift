@@ -285,17 +285,24 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
 
   const price = params.price;
   const discountPrice = params.discountPrice;
+  const discountPct =
+    price && discountPrice && price > discountPrice
+      ? Math.round(((price - discountPrice) / price) * 100)
+      : 0;
 
-  const priceText = discountPrice
-    ? `₹${discountPrice} <tspan font-size="28" fill="#9CA3AF" text-decoration="line-through">₹${price || ""}</tspan>`
+  const currentPriceFormatted = discountPrice
+    ? `₹${discountPrice.toLocaleString("en-IN")}`
     : price
-    ? `₹${price}`
+    ? `₹${price.toLocaleString("en-IN")}`
     : "Best Price";
 
-  // 1. WhatsApp Card (1080x1080 Square Card)
+  const originalPriceFormatted =
+    discountPrice && price ? `₹${price.toLocaleString("en-IN")}` : "";
+
+  // 1. WhatsApp Card (1080x1080 Square Card) - Matching Reference Image 3
   const waProduct = await sharp(imgBuffer)
     .rotate()
-    .resize(920, 680, { fit: "cover", position: "center" })
+    .resize(920, 640, { fit: "cover", position: "center" })
     .toBuffer();
 
   const waBgSvg = Buffer.from(`
@@ -311,37 +318,56 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       <rect width="1080" height="1080" fill="url(#cardBgGrad)"/>
 
       <!-- Decorative Outer Border -->
-      <rect x="40" y="35" width="1000" height="1010" rx="36" fill="none" stroke="${cfg.borderStroke}" stroke-width="2" stroke-opacity="0.5"/>
+      <rect x="40" y="35" width="1000" height="1010" rx="36" fill="none" stroke="${cfg.borderStroke}" stroke-width="2" stroke-opacity="0.6"/>
     </svg>
   `);
 
   const waFgSvg = Buffer.from(`
     <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
       <!-- Product frame border overlay -->
-      <rect x="80" y="60" width="920" height="680" rx="20" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.4"/>
+      <rect x="80" y="55" width="920" height="640" rx="24" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.4"/>
       
       <!-- Top Badge over product photo -->
       <g>
-        <rect x="105" y="85" width="190" height="42" rx="21" fill="${cfg.badgeBg}" opacity="0.95"/>
-        <text x="200" y="112" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle" letter-spacing="1.5">✦ ${cfg.badge}</text>
+        <rect x="105" y="75" width="170" height="38" rx="19" fill="${cfg.badgeBg}" opacity="0.96"/>
+        <text x="190" y="100" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle" letter-spacing="1">✦ ${discountPct > 0 ? `${discountPct}% OFF` : cfg.badge}</text>
+      </g>
+
+      <!-- Store Pill Tag on photo top right -->
+      <g>
+        <rect x="760" y="75" width="215" height="38" rx="19" fill="${cfg.containerBg}" opacity="0.94"/>
+        <text x="867" y="100" font-family="${cfg.fontFamily}" font-size="13" font-weight="700" fill="${cfg.containerText}" text-anchor="middle">✦ ${storeText.slice(0, 16)}</text>
       </g>
       
       <!-- Bottom information card container -->
-      <rect x="80" y="760" width="920" height="240" rx="28" fill="${cfg.containerBg}" filter="drop-shadow(0 20px 25px rgba(0,0,0,0.22))"/>
-      
-      <!-- Store Name Badge -->
-      <rect x="120" y="792" width="220" height="34" rx="8" fill="${cfg.badgeBg}"/>
-      <text x="135" y="815" font-family="${cfg.fontFamily}" font-size="14" font-weight="700" fill="${cfg.badgeText}">${storeText.toUpperCase()}</text>
+      <rect x="80" y="715" width="920" height="295" rx="28" fill="${cfg.containerBg}" filter="drop-shadow(0 20px 25px rgba(0,0,0,0.18))"/>
       
       <!-- Product Title -->
-      <text x="120" y="870" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
+      <text x="120" y="768" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
       
-      <!-- Price -->
-      <text x="120" y="945" font-family="${cfg.fontFamily}" font-size="44" font-weight="900" fill="${cfg.priceColor}">${priceText}</text>
+      <!-- Price Row -->
+      <text x="120" y="830" font-family="${cfg.fontFamily}" font-size="44" font-weight="900" fill="${cfg.priceColor}">
+        ${currentPriceFormatted}
+        ${originalPriceFormatted ? `<tspan font-size="26" font-weight="600" fill="#9CA3AF" text-decoration="line-through">  ${originalPriceFormatted}</tspan>` : ""}
+      </text>
+
+      ${
+        discountPct > 0
+          ? `
+        <rect x="360" y="796" width="115" height="34" rx="8" fill="#16A34A"/>
+        <text x="417" y="819" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="#FFFFFF" text-anchor="middle">${discountPct}% OFF</text>
+      `
+          : ""
+      }
       
+      <!-- Trust badges row: Free Shipping & COD -->
+      <text x="120" y="876" font-family="${cfg.fontFamily}" font-size="15" font-weight="600" fill="${cfg.isDark ? "#94A3B8" : "#475569"}">
+        ✓ Free Shipping   •   ✓ Cash on Delivery   •   ✓ 7-Day Easy Exchange
+      </text>
+
       <!-- CTA Button -->
-      <rect x="710" y="885" width="250" height="75" rx="37" fill="${cfg.ctaBg}"/>
-      <text x="835" y="932" font-family="${cfg.fontFamily}" font-size="20" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">💬 ${cta}</text>
+      <rect x="120" y="910" width="840" height="72" rx="20" fill="${cfg.ctaBg}"/>
+      <text x="540" y="955" font-family="${cfg.fontFamily}" font-size="22" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">💬 ${cta}</text>
     </svg>
   `);
 
@@ -355,7 +381,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   })
     .composite([
       { input: waBgSvg, top: 0, left: 0 },
-      { input: waProduct, top: 60, left: 80 },
+      { input: waProduct, top: 55, left: 80 },
       { input: waFgSvg, top: 0, left: 0 },
     ])
     .webp({ quality: 90 })
@@ -364,7 +390,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   // 2. Instagram Post (1080x1080)
   const igProduct = await sharp(imgBuffer)
     .rotate()
-    .resize(960, 810, { fit: "cover", position: "center" })
+    .resize(960, 780, { fit: "cover", position: "center" })
     .toBuffer();
 
   const igBgSvg = Buffer.from(`
@@ -389,15 +415,21 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       
       <!-- Top Badge -->
       <rect x="880" y="42" width="140" height="46" rx="23" fill="${cfg.badgeBg}"/>
-      <text x="950" y="72" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${cfg.badge}</text>
+      <text x="950" y="72" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${discountPct > 0 ? `${discountPct}% OFF` : cfg.badge}</text>
 
       <!-- Product frame border -->
-      <rect x="60" y="100" width="960" height="810" rx="20" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.35"/>
+      <rect x="60" y="98" width="960" height="780" rx="20" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.35"/>
 
       <!-- Bottom Ribbon -->
-      <rect x="60" y="925" width="960" height="100" rx="22" fill="${cfg.containerBg}" opacity="0.97" filter="drop-shadow(0 15px 20px rgba(0,0,0,0.25))"/>
-      <text x="100" y="986" font-family="${cfg.fontFamily}" font-size="28" font-weight="700" fill="${cfg.containerText}">${titleText}</text>
-      <text x="980" y="986" font-family="${cfg.fontFamily}" font-size="34" font-weight="900" fill="${cfg.priceColor}" text-anchor="end">${priceText}</text>
+      <rect x="60" y="900" width="960" height="130" rx="24" fill="${cfg.containerBg}" opacity="0.98" filter="drop-shadow(0 15px 20px rgba(0,0,0,0.25))"/>
+      <text x="95" y="952" font-family="${cfg.fontFamily}" font-size="28" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
+      <text x="95" y="996" font-family="${cfg.fontFamily}" font-size="15" font-weight="600" fill="${cfg.isDark ? "#94A3B8" : "#64748B"}">Free Shipping • Cash on Delivery • 100% Quality Assured</text>
+      <text x="980" y="965" font-family="${cfg.fontFamily}" font-size="36" font-weight="900" fill="${cfg.priceColor}" text-anchor="end">${currentPriceFormatted}</text>
+      ${
+        originalPriceFormatted
+          ? `<text x="980" y="998" font-family="${cfg.fontFamily}" font-size="20" font-weight="600" fill="#9CA3AF" text-decoration="line-through" text-anchor="end">${originalPriceFormatted}</text>`
+          : ""
+      }
     </svg>
   `);
 
@@ -411,7 +443,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   })
     .composite([
       { input: igBgSvg, top: 0, left: 0 },
-      { input: igProduct, top: 100, left: 60 },
+      { input: igProduct, top: 98, left: 60 },
       { input: igFgSvg, top: 0, left: 0 },
     ])
     .webp({ quality: 90 })
@@ -440,7 +472,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       <defs>
         <linearGradient id="storyFade" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stop-color="${cfg.containerBg}" stop-opacity="0"/>
-          <stop offset="25%" stop-color="${cfg.containerBg}" stop-opacity="0.85"/>
+          <stop offset="25%" stop-color="${cfg.containerBg}" stop-opacity="0.88"/>
           <stop offset="100%" stop-color="${cfg.containerBg}" stop-opacity="1"/>
         </linearGradient>
         <linearGradient id="topShadow" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -458,21 +490,29 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       
       <!-- Badge -->
       <rect x="860" y="80" width="160" height="64" rx="32" fill="${cfg.badgeBg}"/>
-      <text x="940" y="122" font-family="${cfg.fontFamily}" font-size="18" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${cfg.badge}</text>
+      <text x="940" y="122" font-family="${cfg.fontFamily}" font-size="18" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${discountPct > 0 ? `${discountPct}% OFF` : cfg.badge}</text>
       
       <!-- Bottom Gradient Scrim Overlay over the lower part of photo -->
-      <rect x="0" y="1120" width="1080" height="800" fill="url(#storyFade)"/>
+      <rect x="0" y="1080" width="1080" height="840" fill="url(#storyFade)"/>
       
       <!-- Title & Price Container -->
-      <text x="70" y="1460" font-family="${cfg.fontFamily}" font-size="44" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
-      <text x="70" y="1560" font-family="${cfg.fontFamily}" font-size="58" font-weight="900" fill="${cfg.priceColor}">${priceText}</text>
+      <text x="70" y="1420" font-family="${cfg.fontFamily}" font-size="44" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
+      
+      <text x="70" y="1510" font-family="${cfg.fontFamily}" font-size="56" font-weight="900" fill="${cfg.priceColor}">
+        ${currentPriceFormatted}
+        ${originalPriceFormatted ? `<tspan font-size="34" font-weight="600" fill="#9CA3AF" text-decoration="line-through">  ${originalPriceFormatted}</tspan>` : ""}
+      </text>
+
+      <text x="70" y="1565" font-family="${cfg.fontFamily}" font-size="22" font-weight="600" fill="${cfg.isDark ? "#94A3B8" : "#475569"}">
+        ✓ Free All-India Delivery   •   ✓ Cash on Delivery (COD) Available
+      </text>
       
       <!-- Swipe/Tap Button -->
-      <rect x="70" y="1650" width="940" height="120" rx="60" fill="${cfg.ctaBg}"/>
-      <text x="540" y="1725" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">👆 DM / Tap to Order</text>
+      <rect x="70" y="1640" width="940" height="120" rx="60" fill="${cfg.ctaBg}"/>
+      <text x="540" y="1715" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">👆 DM / Tap to Order Now</text>
 
       <!-- Bottom store credit -->
-      <text x="540" y="1830" font-family="${cfg.fontFamily}" font-size="20" font-weight="700" fill="${cfg.badgeText}" text-anchor="middle" opacity="0.9">Direct Message to Inquire</text>
+      <text x="540" y="1820" font-family="${cfg.fontFamily}" font-size="20" font-weight="700" fill="${cfg.badgeText}" text-anchor="middle" opacity="0.9">Direct Message to Inquire or WhatsApp Us</text>
     </svg>
   `);
 
