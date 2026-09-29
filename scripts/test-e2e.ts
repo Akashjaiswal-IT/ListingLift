@@ -42,7 +42,7 @@ async function runE2ETests() {
   const testUser = await User.create({
     clerkId: testClerkId,
     fullName: "Priya Sharma (Test Reseller)",
-    email: `test_${Date.now()}@peshkar.ai`,
+    email: `test_${Date.now()}@peshkarai.in`,
     creditBalance: 10,
     lifetimeCreditsEarned: 10,
     lifetimeCreditsSpent: 0,
