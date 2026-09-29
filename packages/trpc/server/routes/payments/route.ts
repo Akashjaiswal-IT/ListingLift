@@ -51,6 +51,16 @@ export const paymentsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Order record not found" });
       }
 
+      // Fast-path idempotency check: if already captured, return success immediately
+      if (payment.status === "captured") {
+        const user = await User.findById(ctx.user._id);
+        return {
+          success: true,
+          newBalance: user?.creditBalance ?? 0,
+          creditsAdded: payment.creditsPurchased,
+        };
+      }
+
       const isValid = verifyPaymentSignature({
         razorpayOrderId,
         razorpayPaymentId,
