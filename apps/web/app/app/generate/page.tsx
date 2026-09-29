@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Upload,
   Sparkles,
@@ -36,11 +37,13 @@ import { useGenerationStore } from "~/stores/useGenerationStore";
 import { TemplateSelector } from "~/components/generate/TemplateSelector";
 import { TemplateId } from "~/lib/card-templates";
 import { toast } from "sonner";
+import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 
 export default function GeneratePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { balance, deductLocal } = useCreditStore();
+  const utils = trpc.useUtils();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<"listing_product" | "listing_kit">("listing_product");
@@ -176,6 +179,8 @@ export default function GeneratePage() {
     try {
       setStep(3);
       deductLocal(creditsNeeded);
+      utils.credits.getBalance.invalidate();
+      utils.user.getCreditBalance.invalidate();
 
       const genRes = await startGenerationMutation.mutateAsync({
         listingObjectId: activeListingId,
@@ -211,12 +216,26 @@ export default function GeneratePage() {
         if (aiGeneratedText) {
           setStreamedText(aiGeneratedText);
         }
+        Promise.allSettled([
+          utils.credits.getBalance.invalidate(),
+          utils.user.getCreditBalance.invalidate(),
+          utils.listing.list.invalidate(),
+          utils.listing.getById.invalidate({ id: activeListingId! }),
+        ]);
         setStep(4);
+        if (activeListingId) {
+          router.push(`/app/listing/${activeListingId}`);
+        }
       } else if (status === "failed") {
+        Promise.allSettled([
+          utils.credits.getBalance.invalidate(),
+          utils.user.getCreditBalance.invalidate(),
+          utils.user.getCreditHistory.invalidate(),
+        ]);
         toast.error(`Generation failed: ${errorMessage || "Unknown error"}. Credits have been refunded.`);
       }
     }
-  }, [step, getStatusQuery.data]);
+  }, [step, getStatusQuery.data, activeListingId, router, utils]);
 
   // Keep result updated in Step 4
   useEffect(() => {
@@ -679,7 +698,7 @@ export default function GeneratePage() {
       {/* ================= STEP 4: RESULTS VIEW ================= */}
       {step === 4 && (
         <div className="space-y-8">
-          {/* Top Actions: Title + Download ZIP */}
+          {/* Top Actions: Title + Hub Link + Download ZIP */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/40 pb-6">
             <div>
               <div className="flex items-center gap-2">
@@ -692,6 +711,13 @@ export default function GeneratePage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {activeListingId && (
+                <Link href={`/app/listing/${activeListingId}`}>
+                  <Button variant="outline" size="sm" className="gap-1.5 font-semibold text-xs h-9">
+                    <ExternalLink className="h-4 w-4" /> Open in Deliverables Hub
+                  </Button>
+                </Link>
+              )}
               <Button
                 onClick={handleDownloadBundle}
                 className="font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-md"
@@ -701,212 +727,14 @@ export default function GeneratePage() {
             </div>
           </div>
 
-          {/* Results Tabs */}
-          <Tabs defaultValue="photos" className="space-y-6">
-            <TabsList className="grid grid-cols-4 max-w-xl">
-              <TabsTrigger value="photos" className="gap-1.5 text-xs font-bold">
-                <Sparkles className="h-3.5 w-3.5" /> Studio Photos
-              </TabsTrigger>
-              <TabsTrigger value="catalog" className="gap-1.5 text-xs font-bold">
-                <ShoppingBag className="h-3.5 w-3.5" /> Marketplace Catalog
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp" className="gap-1.5 text-xs font-bold">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-              </TabsTrigger>
-              <TabsTrigger value="cards" className="gap-1.5 text-xs font-bold">
-                <Instagram className="h-3.5 w-3.5" /> Social Cards
-              </TabsTrigger>
-            </TabsList>
-
-            {/* TAB 1: STUDIO PHOTOS & RE-EDIT */}
-            <TabsContent value="photos" className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {(listingResult?.generatedImages || []).filter((img: any) => img.isLatest !== false).map((img: any, idx: number) => (
-                  <Card key={img._id || idx} className="overflow-hidden border-border/60 hover:border-indigo-500/50 transition-all flex flex-col justify-between">
-                    <div className="relative aspect-square bg-muted">
-                      <img src={img.url} alt={`Studio variation ${idx + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2">
-                        <Badge variant="secondary" className="capitalize text-[10px]">
-                          {img.variationType?.replace("_", " ")}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <CardContent className="p-3.5 flex items-center justify-between border-t border-border/40 bg-card/60">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setReEditTarget(img);
-                          setReEditPrompt("");
-                        }}
-                        className="h-8 text-xs font-semibold gap-1.5 text-indigo-400 hover:text-indigo-300"
-                      >
-                        <RotateCw className="h-3.5 w-3.5" /> Re-Edit (1 Cr)
-                      </Button>
-
-                      <a href={img.url} download target="_blank" rel="noreferrer">
-                        <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                          <Download className="h-3 w-3" /> Save
-                        </Button>
-                      </a>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* TAB 2: MARKETPLACE CATALOG COPY */}
-            <TabsContent value="catalog" className="space-y-6 max-w-3xl">
-              <Card className="border-border/60 p-6 space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Marketplace Optimized Title (Amazon, Flipkart, Meesho, Shopify)
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyText(streamedText?.meeshoListing?.title || streamedText?.seoTitle, "Title")}
-                      className="h-7 text-xs gap-1 font-semibold"
-                    >
-                      <Copy className="h-3 w-3" /> Copy
-                    </Button>
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted/30 font-medium text-sm border border-border/40">
-                    {streamedText?.meeshoListing?.title || streamedText?.seoTitle}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Marketplace Catalog Description & Specifications
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyText(streamedText?.meeshoListing?.description, "Description")}
-                      className="h-7 text-xs gap-1 font-semibold"
-                    >
-                      <Copy className="h-3 w-3" /> Copy
-                    </Button>
-                  </div>
-                  <div className="p-4 rounded-lg bg-muted/30 text-xs text-muted-foreground whitespace-pre-wrap font-mono border border-border/40">
-                    {streamedText?.meeshoListing?.description}
-                  </div>
-                </div>
-
-                {/* Key Features */}
-                {streamedText?.keyFeatures && streamedText.keyFeatures.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        SEO High-Converting Key Features
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyText(streamedText.keyFeatures.map((f: string) => `• ${f}`).join("\n"), "Key Features")}
-                        className="h-7 text-xs gap-1 font-semibold"
-                      >
-                        <Copy className="h-3 w-3" /> Copy Features
-                      </Button>
-                    </div>
-                    <div className="space-y-1.5">
-                      {streamedText.keyFeatures.map((feat: string, idx: number) => (
-                        <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-muted/20 border border-border/30 text-xs">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Keywords */}
-                {streamedText?.keywords && streamedText.keywords.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                      Target Search Keywords
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {streamedText.keywords.map((kw: string, idx: number) => (
-                        <Badge key={idx} variant="outline" className="text-xs py-1 px-2.5 bg-muted/20">
-                          {kw}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </TabsContent>
-
-            {/* TAB 3: WHATSAPP BROADCAST */}
-            <TabsContent value="whatsapp" className="space-y-6 max-w-2xl">
-              <Card className="border-border/60 p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Ready-to-Send WhatsApp Catalog Message
-                  </span>
-                  <Button
-                    size="sm"
-                    onClick={() => copyText(streamedText?.whatsappCaption, "WhatsApp Caption")}
-                    className="font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-8 text-xs"
-                  >
-                    <Copy className="h-3.5 w-3.5" /> One-Click Copy
-                  </Button>
-                </div>
-                <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">
-                  {streamedText?.whatsappCaption}
-                </div>
-              </Card>
-            </TabsContent>
-
-            {/* TAB 4: SOCIAL CARDS */}
-            <TabsContent value="cards" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* WhatsApp Card */}
-                {listingResult?.whatsappCard?.url && (
-                  <Card className="overflow-hidden border-border/60">
-                    <div className="p-3 bg-muted/40 font-bold text-xs flex items-center justify-between">
-                      <span>WhatsApp Catalog Card</span>
-                      <a href={listingResult.whatsappCard.url} download target="_blank" rel="noreferrer">
-                        <Download className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                      </a>
-                    </div>
-                    <img src={listingResult.whatsappCard.url} alt="WhatsApp Card" className="w-full aspect-square object-cover" />
-                  </Card>
-                )}
-
-                {/* Instagram 1:1 Post */}
-                {listingResult?.instagramPost?.url && (
-                  <Card className="overflow-hidden border-border/60">
-                    <div className="p-3 bg-muted/40 font-bold text-xs flex items-center justify-between">
-                      <span>Instagram Square (1:1)</span>
-                      <a href={listingResult.instagramPost.url} download target="_blank" rel="noreferrer">
-                        <Download className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                      </a>
-                    </div>
-                    <img src={listingResult.instagramPost.url} alt="Instagram Post" className="w-full aspect-square object-cover" />
-                  </Card>
-                )}
-
-                {/* Instagram 9:16 Story */}
-                {listingResult?.instagramStory?.url && (
-                  <Card className="overflow-hidden border-border/60">
-                    <div className="p-3 bg-muted/40 font-bold text-xs flex items-center justify-between">
-                      <span>Instagram Story (9:16)</span>
-                      <a href={listingResult.instagramStory.url} download target="_blank" rel="noreferrer">
-                        <Download className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                      </a>
-                    </div>
-                    <img src={listingResult.instagramStory.url} alt="Instagram Story" className="w-full aspect-[9/16] object-cover" />
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+          {/* 6 Constant Standard Deliverables Tabs */}
+          <ListingDeliverablesTabs
+            listing={listingResult}
+            onReEditClick={(img) => {
+              setReEditTarget(img);
+              setReEditPrompt("");
+            }}
+          />
         </div>
       )}
 

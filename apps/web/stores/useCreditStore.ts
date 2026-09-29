@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 interface CreditStore {
   balance: number;
+  isInitialized: boolean;
   isLoading: boolean;
   setBalance: (balance: number) => void;
   deductLocal: (amount: number) => void;
@@ -10,9 +11,10 @@ interface CreditStore {
 }
 
 export const useCreditStore = create<CreditStore>((set) => ({
-  balance: 10, // Default trial credits
+  balance: 0,
+  isInitialized: false,
   isLoading: false,
-  setBalance: (balance) => set({ balance }),
+  setBalance: (balance) => set({ balance, isInitialized: true, isLoading: false }),
   deductLocal: (amount) =>
     set((state) => ({ balance: Math.max(0, state.balance - amount) })),
   addLocal: (amount) => set((state) => ({ balance: state.balance + amount })),

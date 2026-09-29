@@ -35,6 +35,7 @@ export default function ReEditPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
 
+  const utils = trpc.useUtils();
   const listingQuery = trpc.listing.getById.useQuery({ id: listingId });
   const reEditMutation = trpc.generate.reEditImage.useMutation();
 
@@ -73,6 +74,8 @@ export default function ReEditPage({
 
       toast.success("Re-edit started! Processing with AI...");
       deductLocal(1);
+      utils.credits.getBalance.invalidate();
+      utils.user.getCreditBalance.invalidate();
       setIsPolling(true);
     } catch (err: any) {
       toast.error(err.message || "Failed to start re-edit");
@@ -102,6 +105,12 @@ export default function ReEditPage({
         clearInterval(interval);
         setIsPolling(false);
         setIsSubmitting(false);
+        await Promise.allSettled([
+          utils.credits.getBalance.invalidate(),
+          utils.user.getCreditBalance.invalidate(),
+          utils.listing.getById.invalidate({ id: listingId }),
+          utils.listing.list.invalidate(),
+        ]);
         toast.success("Image re-edited successfully! Loading updated deliverables...");
         router.push(`/app/listing/${listingId}`);
         return;
@@ -112,6 +121,12 @@ export default function ReEditPage({
         clearInterval(interval);
         setIsPolling(false);
         setIsSubmitting(false);
+        await Promise.allSettled([
+          utils.credits.getBalance.invalidate(),
+          utils.user.getCreditBalance.invalidate(),
+          utils.user.getCreditHistory.invalidate(),
+          utils.listing.getById.invalidate({ id: listingId }),
+        ]);
         toast.error(
           reEdit.errorMessage || "Re-edit generation failed. Your 1 credit has been refunded."
         );
@@ -120,7 +135,7 @@ export default function ReEditPage({
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [isPolling, listingId, imageId, listingQuery, router]);
+  }, [isPolling, listingId, imageId, listingQuery, router, utils]);
 
   if (listingQuery.isLoading) {
     return (

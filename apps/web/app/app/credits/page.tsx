@@ -10,7 +10,7 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { useEffect } from "react";
 
 export default function CreditsPage() {
-  const { balance, setBalance } = useCreditStore();
+  const { balance, setBalance, isInitialized } = useCreditStore();
 
   const balanceQuery = trpc.user.getCreditBalance.useQuery();
   const historyQuery = trpc.user.getCreditHistory.useQuery({ limit: 50 });
@@ -50,7 +50,9 @@ export default function CreditsPage() {
             <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
               Current Balance
             </span>
-            <div className="text-4xl font-black text-amber-400 mt-2">{balance}</div>
+            <div className="text-4xl font-black text-amber-400 mt-2">
+              {isInitialized ? balance : (balanceQuery.isLoading ? "..." : balance)}
+            </div>
             <span className="text-xs text-muted-foreground mt-1 block">
               Available immediately
             </span>

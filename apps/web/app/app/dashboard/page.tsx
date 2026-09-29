@@ -21,7 +21,7 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { useEffect } from "react";
 
 export default function DashboardPage() {
-  const { balance, setBalance } = useCreditStore();
+  const { balance, setBalance, isInitialized } = useCreditStore();
 
   const balanceQuery = trpc.credits.getBalance.useQuery();
   const listingsQuery = trpc.listing.list.useQuery({ page: 1, limit: 6 });
@@ -65,7 +65,9 @@ export default function DashboardPage() {
               <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
                 Available Credits
               </span>
-              <div className="text-3xl font-black text-amber-400">{balance}</div>
+              <div className="text-3xl font-black text-amber-400">
+                {isInitialized ? balance : (balanceQuery.isLoading ? "..." : balance)}
+              </div>
               <span className="text-xs text-muted-foreground block">
                 ≈ {Math.floor(balance / 2)} Quick Studio Generations
               </span>
