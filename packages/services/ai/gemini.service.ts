@@ -39,20 +39,32 @@ export async function generateStudioImages(params: {
         const variation = variationTypes[i % variationTypes.length]!;
         const variedPrompt = `${prompt} [Variation: ${variation.replace("_", " ")}]`;
 
-        // Generate via Google GenAI model
-        const response: any = await ai.models.generateImages({
-          model: "imagen-3.0-generate-002",
-          prompt: variedPrompt,
-          config: {
-            numberOfImages: 1,
-            outputMimeType: "image/jpeg",
-            aspectRatio: "1:1",
+        // Build input payload with text prompt and reference images
+        const inputPayload: any[] = [{ type: "text", text: variedPrompt }];
+        if (originalImages && originalImages.length > 0) {
+          for (const img of originalImages.slice(0, 3)) {
+            inputPayload.push({
+              type: "image",
+              mime_type: "image/jpeg",
+              data: img.toString("base64"),
+            });
+          }
+        }
+
+        // Generate via Google GenAI Interactions API (gemini-3.1-flash-image)
+        const interaction: any = await (ai as any).interactions.create({
+          model: "gemini-3.1-flash-image",
+          input: inputPayload,
+          response_format: {
+            type: "image",
+            mime_type: "image/jpeg",
+            aspect_ratio: "1:1",
           },
         });
 
-        const imageBase64 = response?.generatedImages?.[0]?.image?.imageBytes;
+        const imageBase64 = interaction?.output_image?.data;
         const interactionId =
-          response?.interactionId ||
+          interaction?.id ||
           `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
         if (imageBase64) {
@@ -138,20 +150,21 @@ export async function reEditStudioImage(params: {
 
   if (ai) {
     try {
-      // Use multi-turn interaction if interactionId is present
-      const response: any = await ai.models.generateImages({
-        model: "imagen-3.0-generate-002",
-        prompt: `Continue editing image session ${interactionId}. Modifications requested: ${newPrompt}. Maintain original product identity and clean commercial e-commerce aesthetic.`,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: "image/jpeg",
-          aspectRatio: "1:1",
+      // Use multi-turn editing with previous_interaction_id for seamless conversational editing
+      const interaction: any = await (ai as any).interactions.create({
+        model: "gemini-3.1-flash-image",
+        input: `${newPrompt}. Maintain original product identity and clean commercial e-commerce aesthetic.`,
+        previous_interaction_id: interactionId,
+        response_format: {
+          type: "image",
+          mime_type: "image/jpeg",
+          aspect_ratio: "1:1",
         },
       });
 
-      const imageBase64 = response?.generatedImages?.[0]?.image?.imageBytes;
+      const imageBase64 = interaction?.output_image?.data;
       const newInteractionId =
-        response?.interactionId ||
+        interaction?.id ||
         `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
       if (imageBase64) {

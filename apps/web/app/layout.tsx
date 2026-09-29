@@ -17,16 +17,18 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ListingLift — AI Studio Photos & Listings for Meesho & WhatsApp Resellers",
+  title: "ListingLift — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
   description:
-    "Transform ordinary phone photos into studio-grade e-commerce catalogs, Meesho product listings, and viral WhatsApp & Instagram cards in seconds.",
+    "Transform ordinary phone photos into studio-grade e-commerce catalogs, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and viral social cards in seconds.",
   keywords: [
-    "meesho listing generator",
+    "ecommerce listing generator",
     "ai product photography",
+    "marketplace product listings",
     "whatsapp catalog card generator",
-    "reseller tools india",
+    "online seller tools",
     "instagram product post maker",
     "e-commerce copywriting ai",
+    "meesho amazon flipkart catalog maker",
   ],
 };
 

@@ -14,7 +14,7 @@ export function Footer() {
               <span className="text-lg font-bold">ListingLift</span>
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
-              Empowering Meesho resellers and Indian social commerce sellers to turn ordinary phone photos into high-converting studio catalogs, Meesho listings, and viral WhatsApp & Instagram cards.
+              Empowering e-commerce sellers, D2C brands, and marketplace merchants to turn ordinary phone photos into high-converting studio catalogs, marketplace listings, and viral WhatsApp & Instagram cards.
             </p>
           </div>
 
@@ -28,7 +28,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/app/generate" className="hover:text-foreground transition-colors">
-                  Full Listing Kit (Meesho)
+                  Full Marketplace Kit
                 </Link>
               </li>
               <li>

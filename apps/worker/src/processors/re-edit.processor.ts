@@ -30,6 +30,21 @@ export async function processReEdit(
     throw new Error(`Generated image not found: ${generatedImageId}`);
   }
 
+  // Mark re-edit as actively processing
+  await ListingObject.updateOne(
+    { _id: listingObjectId },
+    {
+      $set: {
+        reEditStatus: {
+          status: "processing",
+          jobId: job.id,
+          targetImageId: generatedImageId,
+          updatedAt: new Date(),
+        },
+      },
+    }
+  );
+
   try {
     // 1. Fetch old image and original image buffer
     const oldBuffer = await fetchBufferFromR2(oldImage.s3Key);
@@ -78,12 +93,14 @@ export async function processReEdit(
 
     // 6. Refresh social cards with new image
     const user = await User.findById(listing.userId);
+    const templateId = (listing as any).templateId || "minimal-luxury";
     const renderedCards = await renderSocialCards({
       productImage: editOutput.buffer,
       productTitle: listing.userTitle || "Product",
       price: listing.price,
       discountPrice: listing.discountPrice,
       ctaText: listing.ctaText || user?.defaultCta?.text,
+      templateId,
       sellerInfo: {
         storeName: user?.storeName,
         whatsappNumber: user?.whatsappNumber,
@@ -117,23 +134,68 @@ export async function processReEdit(
       generatedAt: new Date(),
     };
 
+    listing.reEditStatus = {
+      status: "completed",
+      jobId: job.id,
+      targetImageId: generatedImageId,
+      newImageId: String(newImageId),
+      updatedAt: new Date(),
+    };
+
     await listing.save();
     logger.info(`Re-edit for listing ${listingObjectId} completed successfully!`);
   } catch (error: any) {
-    logger.error("Error during re-edit job execution:", { error });
-    // Refund the 1 credit on failure
-    try {
-      await refundCredits({
-        userId: listing.userId,
-        amount: RE_EDIT_CREDIT_COST,
-        description: `Refund for failed re-edit of ${listing.userTitle || "image"}`,
-        referenceId: String(listing._id),
-        referenceType: "re_edit",
-      });
-      logger.info(`Refunded ${RE_EDIT_CREDIT_COST} credit for failed re-edit`);
-    } catch (refundErr) {
-      logger.error("Failed to refund credit after re-edit error:", { refundErr });
+    logger.error("Error during re-edit job execution:", {
+      message: error?.message || String(error),
+      stack: error?.stack,
+    });
+
+    const retryCount = (job.attemptsMade || 0) + 1;
+    const maxRetries = job.opts.attempts || 1;
+
+    // Persist failure status to listing document
+    await ListingObject.updateOne(
+      { _id: listingObjectId },
+      {
+        $set: {
+          reEditStatus: {
+            status: "failed",
+            jobId: job.id,
+            targetImageId: generatedImageId,
+            errorMessage: error?.message || "Re-edit failed",
+            updatedAt: new Date(),
+          },
+        },
+      }
+    );
+
+    // Single refund guard: refund exactly once when attempts are exhausted
+    if (retryCount >= maxRetries) {
+      try {
+        const refundReferenceId = `reedit_${listingObjectId}_${job.id}`;
+        // Verify user hasn't already been refunded for this referenceId
+        const targetUser = await User.findById(listing.userId);
+        const alreadyRefunded = targetUser?.creditHistory?.some(
+          (h) => h.referenceId === refundReferenceId
+        );
+
+        if (!alreadyRefunded) {
+          await refundCredits({
+            userId: listing.userId,
+            amount: RE_EDIT_CREDIT_COST,
+            description: `Refund for failed re-edit of ${listing.userTitle || "image"}`,
+            referenceId: refundReferenceId,
+            referenceType: "re_edit",
+          });
+          logger.info(`Refunded ${RE_EDIT_CREDIT_COST} credit for failed re-edit (Job ${job.id})`);
+        } else {
+          logger.warn(`Skipping duplicate refund for referenceId: ${refundReferenceId}`);
+        }
+      } catch (refundErr) {
+        logger.error("Failed to refund credit after re-edit error:", { refundErr });
+      }
     }
+
     throw error;
   }
 }

@@ -7,6 +7,244 @@ export interface SellerInfo {
   logoBuffer?: Buffer;
 }
 
+export type TemplateId =
+  | "minimal-luxury"
+  | "midnight-gold"
+  | "clean-modern"
+  | "neon-cyber"
+  | "royal-emerald"
+  | "pastel-bloom"
+  | "sunset-glow"
+  | "nordic-slate"
+  | "festive-crimson"
+  | "editorial-vogue";
+
+export interface CardTemplateConfig {
+  id: TemplateId;
+  name: string;
+  category: string;
+  description: string;
+  badge: string;
+  bgGradStart: string;
+  bgGradEnd: string;
+  containerBg: string;
+  containerText: string;
+  priceColor: string;
+  badgeBg: string;
+  badgeText: string;
+  ctaBg: string;
+  ctaText: string;
+  borderStroke: string;
+  fontFamily: string;
+  previewBg: string;
+  isDark: boolean;
+}
+
+export const CARD_TEMPLATES: Record<TemplateId, CardTemplateConfig> = {
+  "minimal-luxury": {
+    id: "minimal-luxury",
+    name: "Luxury Minimalist",
+    category: "High-End & Designer",
+    description: "Ivory tones, obsidian serif styling, and champagne gold accents",
+    badge: "LUXE",
+    bgGradStart: "#FBF9F5",
+    bgGradEnd: "#EFE9DF",
+    containerBg: "#FFFFFF",
+    containerText: "#0F172A",
+    priceColor: "#9A3412",
+    badgeBg: "#F7F1E5",
+    badgeText: "#92400E",
+    ctaBg: "#0F172A",
+    ctaText: "#F8FAFC",
+    borderStroke: "#E5DDD0",
+    fontFamily: "Georgia, serif",
+    previewBg: "from-stone-100 to-amber-50",
+    isDark: false,
+  },
+  "midnight-gold": {
+    id: "midnight-gold",
+    name: "Midnight Prestige",
+    category: "Prestige & Premium",
+    description: "Deep obsidian gradient with metallic 24K gold foil accents",
+    badge: "PRESTIGE",
+    bgGradStart: "#0B0F19",
+    bgGradEnd: "#1A1B35",
+    containerBg: "#111827",
+    containerText: "#F9FAFB",
+    priceColor: "#FBBF24",
+    badgeBg: "#3730A3",
+    badgeText: "#FCD34D",
+    ctaBg: "#F59E0B",
+    ctaText: "#0F172A",
+    borderStroke: "#D97706",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-slate-950 via-indigo-950 to-slate-900",
+    isDark: true,
+  },
+  "clean-modern": {
+    id: "clean-modern",
+    name: "Studio Clean White",
+    category: "Tech & Lifestyle",
+    description: "Crisp white studio layout with electric indigo focus",
+    badge: "MODERN",
+    bgGradStart: "#F8FAFC",
+    bgGradEnd: "#E2E8F0",
+    containerBg: "#FFFFFF",
+    containerText: "#0F172A",
+    priceColor: "#2563EB",
+    badgeBg: "#EEF2FF",
+    badgeText: "#4F46E5",
+    ctaBg: "#4F46E5",
+    ctaText: "#FFFFFF",
+    borderStroke: "#CBD5E1",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-slate-100 to-indigo-50",
+    isDark: false,
+  },
+  "neon-cyber": {
+    id: "neon-cyber",
+    name: "Neon Cyber Sale",
+    category: "Streetwear & Flash Deals",
+    description: "Electric cyan and hot magenta cyber aesthetic for high-impact drops",
+    badge: "FLASH SALE",
+    bgGradStart: "#09090B",
+    bgGradEnd: "#18181B",
+    containerBg: "#121217",
+    containerText: "#FFFFFF",
+    priceColor: "#06B6D4",
+    badgeBg: "#BE123C",
+    badgeText: "#FFE4E6",
+    ctaBg: "#06B6D4",
+    ctaText: "#000000",
+    borderStroke: "#06B6D4",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-black via-zinc-900 to-cyan-950",
+    isDark: true,
+  },
+  "royal-emerald": {
+    id: "royal-emerald",
+    name: "Royal Emerald",
+    category: "Heritage & Traditional",
+    description: "Deep forest emerald backdrop with opulent brass gold trim",
+    badge: "HERITAGE",
+    bgGradStart: "#022C22",
+    bgGradEnd: "#064E3B",
+    containerBg: "#064E3B",
+    containerText: "#ECFDF5",
+    priceColor: "#FDE047",
+    badgeBg: "#047857",
+    badgeText: "#FCD34D",
+    ctaBg: "#F59E0B",
+    ctaText: "#022C22",
+    borderStroke: "#F59E0B",
+    fontFamily: "Georgia, serif",
+    previewBg: "from-emerald-950 via-teal-950 to-emerald-900",
+    isDark: true,
+  },
+  "pastel-bloom": {
+    id: "pastel-bloom",
+    name: "Soft Pastel Chic",
+    category: "Beauty & Fashion",
+    description: "Delicate blush and rose gold tones with soft organic curves",
+    badge: "TRENDING",
+    bgGradStart: "#FFF1F2",
+    bgGradEnd: "#FDF2F8",
+    containerBg: "#FFFFFF",
+    containerText: "#881337",
+    priceColor: "#E11D48",
+    badgeBg: "#FFE4E6",
+    badgeText: "#9F1239",
+    ctaBg: "#E11D48",
+    ctaText: "#FFFFFF",
+    borderStroke: "#FECDD3",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-rose-50 via-pink-50 to-rose-100",
+    isDark: false,
+  },
+  "sunset-glow": {
+    id: "sunset-glow",
+    name: "Sunset Radiance",
+    category: "Summer & Activewear",
+    description: "Blazing amber to magenta sunset energy with high-contrast text",
+    badge: "HOT DEAL",
+    bgGradStart: "#2A0845",
+    bgGradEnd: "#641530",
+    containerBg: "#1C0A26",
+    containerText: "#FFFFFF",
+    priceColor: "#FB923C",
+    badgeBg: "#C2410C",
+    badgeText: "#FFEDD5",
+    ctaBg: "#EA580C",
+    ctaText: "#FFFFFF",
+    borderStroke: "#EA580C",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-purple-950 via-orange-950 to-amber-950",
+    isDark: true,
+  },
+  "nordic-slate": {
+    id: "nordic-slate",
+    name: "Nordic Minimalist",
+    category: "Industrial & Minimal",
+    description: "Muted charcoal and brushed steel with Swiss typographic precision",
+    badge: "STUDIO",
+    bgGradStart: "#0F172A",
+    bgGradEnd: "#1E293B",
+    containerBg: "#1E293B",
+    containerText: "#F8FAFC",
+    priceColor: "#38BDF8",
+    badgeBg: "#334155",
+    badgeText: "#CBD5E1",
+    ctaBg: "#38BDF8",
+    ctaText: "#0F172A",
+    borderStroke: "#475569",
+    fontFamily: "system-ui, sans-serif",
+    previewBg: "from-slate-900 to-zinc-900",
+    isDark: true,
+  },
+  "festive-crimson": {
+    id: "festive-crimson",
+    name: "Festive Crimson",
+    category: "Festive & Wedding",
+    description: "Regal ruby crimson with celebratory marigold yellow flourishes",
+    badge: "CELEBRATION",
+    bgGradStart: "#450A0A",
+    bgGradEnd: "#7F1D1D",
+    containerBg: "#5A0E17",
+    containerText: "#FEF2F2",
+    priceColor: "#FDE047",
+    badgeBg: "#831843",
+    badgeText: "#FDE047",
+    ctaBg: "#EAB308",
+    ctaText: "#450A0A",
+    borderStroke: "#DC2626",
+    fontFamily: "Georgia, serif",
+    previewBg: "from-red-950 via-rose-950 to-red-900",
+    isDark: true,
+  },
+  "editorial-vogue": {
+    id: "editorial-vogue",
+    name: "Editorial Vogue",
+    category: "Couture & Editorial",
+    description: "High-contrast monochrome couture layout with vivid scarlet accents",
+    badge: "LIMITED EDIT",
+    bgGradStart: "#FAFAFA",
+    bgGradEnd: "#E4E4E7",
+    containerBg: "#09090B",
+    containerText: "#FFFFFF",
+    priceColor: "#EF4444",
+    badgeBg: "#DC2626",
+    badgeText: "#FFFFFF",
+    ctaBg: "#EF4444",
+    ctaText: "#FFFFFF",
+    borderStroke: "#18181B",
+    fontFamily: "Georgia, serif",
+    previewBg: "from-zinc-950 to-neutral-900",
+    isDark: false,
+  },
+};
+
+export const TEMPLATE_LIST = Object.values(CARD_TEMPLATES);
+
 export interface CardRenderParams {
   productImage?: Buffer;
   productImageBuffer?: Buffer;
@@ -15,6 +253,7 @@ export interface CardRenderParams {
   price?: number;
   discountPrice?: number;
   ctaText?: string;
+  templateId?: string;
   sellerInfo?: SellerInfo;
   storeName?: string;
   whatsappNumber?: string;
@@ -23,6 +262,7 @@ export interface CardRenderParams {
 
 export interface RenderedCards {
   whatsappCard: Buffer;
+  whatsapp: Buffer;
   instagramPost: Buffer;
   instagramStory: Buffer;
 }
@@ -34,11 +274,14 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   }
 
   const rawTitle = params.productTitle || params.title || "Exclusive Product";
-  const titleText = escapeXml(rawTitle.slice(0, 38));
+  const titleText = escapeXml(rawTitle.slice(0, 36));
   const storeText = escapeXml(
     params.sellerInfo?.storeName || params.storeName || "Official Catalog"
   );
   const cta = escapeXml(params.ctaText || "Order Now");
+
+  const templateKey = (params.templateId as TemplateId) || "minimal-luxury";
+  const cfg = CARD_TEMPLATES[templateKey] || CARD_TEMPLATES["minimal-luxury"];
 
   const price = params.price;
   const discountPrice = params.discountPrice;
@@ -49,36 +292,56 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
     ? `₹${price}`
     : "Best Price";
 
-  // 1. WhatsApp Card (1080x1080 Square Card with Modern Badge & Price Tag)
+  // 1. WhatsApp Card (1080x1080 Square Card)
   const waProduct = await sharp(imgBuffer)
+    .rotate()
     .resize(920, 680, { fit: "cover", position: "center" })
     .toBuffer();
 
-  const waSvgOverlay = Buffer.from(`
+  const waBgSvg = Buffer.from(`
     <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="waGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#111827"/>
-          <stop offset="100%" stop-color="#1F2937"/>
+        <linearGradient id="cardBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${cfg.bgGradStart}"/>
+          <stop offset="100%" stop-color="${cfg.bgGradEnd}"/>
         </linearGradient>
       </defs>
       
-      <!-- Bottom card container -->
-      <rect x="80" y="760" width="920" height="240" rx="28" fill="#FFFFFF" filter="drop-shadow(0 20px 25px rgba(0,0,0,0.15))"/>
+      <!-- Full background gradient -->
+      <rect width="1080" height="1080" fill="url(#cardBgGrad)"/>
+
+      <!-- Decorative Outer Border -->
+      <rect x="40" y="35" width="1000" height="1010" rx="36" fill="none" stroke="${cfg.borderStroke}" stroke-width="2" stroke-opacity="0.5"/>
+    </svg>
+  `);
+
+  const waFgSvg = Buffer.from(`
+    <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+      <!-- Product frame border overlay -->
+      <rect x="80" y="60" width="920" height="680" rx="20" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.4"/>
       
-      <!-- Store Badge -->
-      <rect x="120" y="795" width="220" height="36" rx="8" fill="#EEF2F6"/>
-      <text x="135" y="819" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#4F46E5">${storeText.toUpperCase()}</text>
+      <!-- Top Badge over product photo -->
+      <g>
+        <rect x="105" y="85" width="190" height="42" rx="21" fill="${cfg.badgeBg}" opacity="0.95"/>
+        <text x="200" y="112" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle" letter-spacing="1.5">✦ ${cfg.badge}</text>
+      </g>
+      
+      <!-- Bottom information card container -->
+      <rect x="80" y="760" width="920" height="240" rx="28" fill="${cfg.containerBg}" filter="drop-shadow(0 20px 25px rgba(0,0,0,0.22))"/>
+      
+      <!-- Store Name Badge -->
+      <rect x="120" y="792" width="220" height="34" rx="8" fill="${cfg.badgeBg}"/>
+      <text x="135" y="815" font-family="${cfg.fontFamily}" font-size="14" font-weight="700" fill="${cfg.badgeText}">${storeText.toUpperCase()}</text>
       
       <!-- Product Title -->
-      <text x="120" y="875" font-family="system-ui, sans-serif" font-size="34" font-weight="800" fill="#111827">${titleText}</text>
+      <text x="120" y="870" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
       
       <!-- Price -->
-      <text x="120" y="945" font-family="system-ui, sans-serif" font-size="44" font-weight="900" fill="#2563EB">${priceText}</text>
+      <text x="120" y="945" font-family="${cfg.fontFamily}" font-size="44" font-weight="900" fill="${cfg.priceColor}">${priceText}</text>
       
       <!-- CTA Button -->
-      <rect x="740" y="885" width="220" height="75" rx="38" fill="#10B981"/>
-      <text x="850" y="932" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="middle">💬 ${cta}</text>
+      <rect x="710" y="885" width="250" height="75" rx="37" fill="${cfg.ctaBg}"/>
+      <text x="835" y="932" font-family="${cfg.fontFamily}" font-size="20" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">💬 ${cta}</text>
     </svg>
   `);
 
@@ -87,38 +350,54 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       width: 1080,
       height: 1080,
       channels: 4,
-      background: { r: 243, g: 244, b: 246, alpha: 1 },
+      background: { r: 24, g: 24, b: 27, alpha: 1 },
     },
   })
     .composite([
+      { input: waBgSvg, top: 0, left: 0 },
       { input: waProduct, top: 60, left: 80 },
-      { input: waSvgOverlay, top: 0, left: 0 },
+      { input: waFgSvg, top: 0, left: 0 },
     ])
     .webp({ quality: 90 })
     .toBuffer();
 
-  // 2. Instagram Post (1080x1080 Minimalist Luxury Showcase)
+  // 2. Instagram Post (1080x1080)
   const igProduct = await sharp(imgBuffer)
-    .resize(960, 840, { fit: "cover" })
+    .rotate()
+    .resize(960, 810, { fit: "cover", position: "center" })
     .toBuffer();
 
-  const igPostOverlay = Buffer.from(`
+  const igBgSvg = Buffer.from(`
     <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="igBanner" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#000000" stop-opacity="0.85"/>
-          <stop offset="100%" stop-color="#1E293B" stop-opacity="0.85"/>
+        <linearGradient id="igBg" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${cfg.bgGradStart}"/>
+          <stop offset="100%" stop-color="${cfg.bgGradEnd}"/>
         </linearGradient>
       </defs>
       
+      <rect width="1080" height="1080" fill="url(#igBg)"/>
+      <rect x="35" y="35" width="1010" height="1010" rx="32" fill="none" stroke="${cfg.borderStroke}" stroke-width="2" stroke-opacity="0.4"/>
+    </svg>
+  `);
+
+  const igFgSvg = Buffer.from(`
+    <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
       <!-- Top Brand Tag -->
-      <rect x="60" y="50" width="300" height="50" rx="25" fill="#FFFFFF" opacity="0.95"/>
-      <text x="85" y="83" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#0F172A">✦ ${storeText}</text>
+      <rect x="60" y="42" width="340" height="46" rx="23" fill="${cfg.containerBg}" opacity="0.95"/>
+      <text x="85" y="72" font-family="${cfg.fontFamily}" font-size="16" font-weight="800" fill="${cfg.containerText}">✦ ${storeText}</text>
       
+      <!-- Top Badge -->
+      <rect x="880" y="42" width="140" height="46" rx="23" fill="${cfg.badgeBg}"/>
+      <text x="950" y="72" font-family="${cfg.fontFamily}" font-size="14" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${cfg.badge}</text>
+
+      <!-- Product frame border -->
+      <rect x="60" y="100" width="960" height="810" rx="20" fill="none" stroke="${cfg.borderStroke}" stroke-width="1.5" stroke-opacity="0.35"/>
+
       <!-- Bottom Ribbon -->
-      <rect x="60" y="930" width="960" height="95" rx="20" fill="url(#igBanner)"/>
-      <text x="100" y="990" font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF">${titleText}</text>
-      <text x="980" y="990" font-family="system-ui, sans-serif" font-size="32" font-weight="900" fill="#FBBF24" text-anchor="end">${priceText}</text>
+      <rect x="60" y="925" width="960" height="100" rx="22" fill="${cfg.containerBg}" opacity="0.97" filter="drop-shadow(0 15px 20px rgba(0,0,0,0.25))"/>
+      <text x="100" y="986" font-family="${cfg.fontFamily}" font-size="28" font-weight="700" fill="${cfg.containerText}">${titleText}</text>
+      <text x="980" y="986" font-family="${cfg.fontFamily}" font-size="34" font-weight="900" fill="${cfg.priceColor}" text-anchor="end">${priceText}</text>
     </svg>
   `);
 
@@ -127,45 +406,73 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       width: 1080,
       height: 1080,
       channels: 4,
-      background: { r: 248, g: 250, b: 252, alpha: 1 },
+      background: { r: 15, g: 23, b: 42, alpha: 1 },
     },
   })
     .composite([
-      { input: igProduct, top: 60, left: 60 },
-      { input: igPostOverlay, top: 0, left: 0 },
+      { input: igBgSvg, top: 0, left: 0 },
+      { input: igProduct, top: 100, left: 60 },
+      { input: igFgSvg, top: 0, left: 0 },
     ])
     .webp({ quality: 90 })
     .toBuffer();
 
   // 3. Instagram Story (1080x1920 Full Bleed 9:16 Format)
   const storyProduct = await sharp(imgBuffer)
-    .resize(1080, 1350, { fit: "cover" })
+    .rotate()
+    .resize(1080, 1420, { fit: "cover", position: "center" })
     .toBuffer();
 
-  const storyOverlay = Buffer.from(`
+  const storyBgSvg = Buffer.from(`
+    <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="storyBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${cfg.bgGradStart}"/>
+          <stop offset="100%" stop-color="${cfg.bgGradEnd}"/>
+        </linearGradient>
+      </defs>
+      <rect width="1080" height="1920" fill="url(#storyBgGrad)"/>
+    </svg>
+  `);
+
+  const storyFgSvg = Buffer.from(`
     <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="storyFade" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#0F172A" stop-opacity="0"/>
-          <stop offset="50%" stop-color="#0F172A" stop-opacity="0.85"/>
-          <stop offset="100%" stop-color="#0F172A" stop-opacity="1"/>
+          <stop offset="0%" stop-color="${cfg.containerBg}" stop-opacity="0"/>
+          <stop offset="25%" stop-color="${cfg.containerBg}" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="${cfg.containerBg}" stop-opacity="1"/>
+        </linearGradient>
+        <linearGradient id="topShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${cfg.containerBg}" stop-opacity="0.75"/>
+          <stop offset="100%" stop-color="${cfg.containerBg}" stop-opacity="0"/>
         </linearGradient>
       </defs>
       
+      <!-- Top subtle shadow for status bar / brand tags -->
+      <rect x="0" y="0" width="1080" height="240" fill="url(#topShadow)"/>
+
       <!-- Top Header -->
-      <rect x="60" y="100" width="400" height="60" rx="30" fill="#FFFFFF" opacity="0.95"/>
-      <text x="95" y="140" font-family="system-ui, sans-serif" font-size="24" font-weight="800" fill="#0F172A">✦ ${storeText}</text>
+      <rect x="60" y="80" width="380" height="64" rx="32" fill="${cfg.containerBg}" opacity="0.95"/>
+      <text x="95" y="122" font-family="${cfg.fontFamily}" font-size="22" font-weight="800" fill="${cfg.containerText}">✦ ${storeText}</text>
       
-      <!-- Bottom Gradient Overlay -->
-      <rect x="0" y="1200" width="1080" height="720" fill="url(#storyFade)"/>
+      <!-- Badge -->
+      <rect x="860" y="80" width="160" height="64" rx="32" fill="${cfg.badgeBg}"/>
+      <text x="940" y="122" font-family="${cfg.fontFamily}" font-size="18" font-weight="800" fill="${cfg.badgeText}" text-anchor="middle">${cfg.badge}</text>
       
-      <!-- Title & Price -->
-      <text x="80" y="1480" font-family="system-ui, sans-serif" font-size="46" font-weight="800" fill="#FFFFFF">${titleText}</text>
-      <text x="80" y="1570" font-family="system-ui, sans-serif" font-size="58" font-weight="900" fill="#38BDF8">${priceText}</text>
+      <!-- Bottom Gradient Scrim Overlay over the lower part of photo -->
+      <rect x="0" y="1120" width="1080" height="800" fill="url(#storyFade)"/>
+      
+      <!-- Title & Price Container -->
+      <text x="70" y="1460" font-family="${cfg.fontFamily}" font-size="44" font-weight="800" fill="${cfg.containerText}">${titleText}</text>
+      <text x="70" y="1560" font-family="${cfg.fontFamily}" font-size="58" font-weight="900" fill="${cfg.priceColor}">${priceText}</text>
       
       <!-- Swipe/Tap Button -->
-      <rect x="80" y="1650" width="920" height="120" rx="60" fill="#3B82F6"/>
-      <text x="540" y="1725" font-family="system-ui, sans-serif" font-size="34" font-weight="800" fill="#FFFFFF" text-anchor="middle">👆 DM / Tap to Order</text>
+      <rect x="70" y="1650" width="940" height="120" rx="60" fill="${cfg.ctaBg}"/>
+      <text x="540" y="1725" font-family="${cfg.fontFamily}" font-size="32" font-weight="800" fill="${cfg.ctaText}" text-anchor="middle">👆 DM / Tap to Order</text>
+
+      <!-- Bottom store credit -->
+      <text x="540" y="1830" font-family="${cfg.fontFamily}" font-size="20" font-weight="700" fill="${cfg.badgeText}" text-anchor="middle" opacity="0.9">Direct Message to Inquire</text>
     </svg>
   `);
 
@@ -178,8 +485,9 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
     },
   })
     .composite([
-      { input: storyProduct, top: 150, left: 0 },
-      { input: storyOverlay, top: 0, left: 0 },
+      { input: storyBgSvg, top: 0, left: 0 },
+      { input: storyProduct, top: 120, left: 0 },
+      { input: storyFgSvg, top: 0, left: 0 },
     ])
     .webp({ quality: 90 })
     .toBuffer();
@@ -189,7 +497,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
     whatsapp: whatsappCard,
     instagramPost,
     instagramStory,
-  } as any;
+  };
 }
 
 function escapeXml(unsafe: string): string {

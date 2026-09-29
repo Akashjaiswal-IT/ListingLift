@@ -13,7 +13,7 @@ export default function TermsPage() {
         </p>
         <h3 className="text-base font-bold text-foreground">2. Permitted Commercial Usage</h3>
         <p>
-          You retain full ownership and commercial rights to all generated photos, Meesho listings, and marketing deliverables created through your account for selling on e-commerce platforms.
+          You retain full ownership and commercial rights to all generated photos, marketplace listings, and marketing deliverables created through your account for selling on e-commerce platforms.
         </p>
         <h3 className="text-base font-bold text-foreground">3. Acceptable Content Policy</h3>
         <p>

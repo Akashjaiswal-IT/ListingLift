@@ -2,7 +2,71 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
-import { deleteObjectFromR2 } from "@repo/services";
+import { deleteObjectFromR2, generateListingText, getPresignedDownloadUrl } from "@repo/services";
+
+async function ensureFreshSignedUrls(listing: any): Promise<boolean> {
+  let modified = false;
+
+  function isUrlExpired(url?: string): boolean {
+    if (!url) return true;
+    const match = url.match(/X-Amz-Date=(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/);
+    if (!match) return false;
+    const y = match[1];
+    const m = match[2];
+    const d = match[3];
+    const h = match[4];
+    const min = match[5];
+    const s = match[6];
+    if (!y || !m || !d || !h || !min || !s) return false;
+    const date = new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s));
+    return Date.now() - date.getTime() > 5 * 24 * 3600 * 1000;
+  }
+
+  if (listing.originalImages && listing.originalImages.length > 0) {
+    for (const img of listing.originalImages) {
+      if (img.s3Key && isUrlExpired(img.url)) {
+        try {
+          img.url = await getPresignedDownloadUrl(img.s3Key, 7 * 24 * 3600);
+          modified = true;
+        } catch {}
+      }
+    }
+  }
+
+  if (listing.generatedImages && listing.generatedImages.length > 0) {
+    for (const img of listing.generatedImages) {
+      if (img.s3Key && isUrlExpired(img.url)) {
+        try {
+          img.url = await getPresignedDownloadUrl(img.s3Key, 7 * 24 * 3600);
+          modified = true;
+        } catch {}
+      }
+    }
+  }
+
+  if (listing.whatsappCard?.s3Key && isUrlExpired(listing.whatsappCard.url)) {
+    try {
+      listing.whatsappCard.url = await getPresignedDownloadUrl(listing.whatsappCard.s3Key, 7 * 24 * 3600);
+      modified = true;
+    } catch {}
+  }
+
+  if (listing.instagramPost?.s3Key && isUrlExpired(listing.instagramPost.url)) {
+    try {
+      listing.instagramPost.url = await getPresignedDownloadUrl(listing.instagramPost.s3Key, 7 * 24 * 3600);
+      modified = true;
+    } catch {}
+  }
+
+  if (listing.instagramStory?.s3Key && isUrlExpired(listing.instagramStory.url)) {
+    try {
+      listing.instagramStory.url = await getPresignedDownloadUrl(listing.instagramStory.s3Key, 7 * 24 * 3600);
+      modified = true;
+    } catch {}
+  }
+
+  return modified;
+}
 
 export const listingRouter = router({
   getById: protectedProcedure
@@ -15,6 +79,46 @@ export const listingRouter = router({
 
       if (!listing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
+      }
+
+      // Self-heal: ensure image URLs are fresh and never expired
+      const urlsRefreshed = await ensureFreshSignedUrls(listing);
+      if (urlsRefreshed) {
+        listing.markModified("originalImages");
+        listing.markModified("generatedImages");
+        listing.markModified("whatsappCard");
+        listing.markModified("instagramPost");
+        listing.markModified("instagramStory");
+        await listing.save().catch(() => {});
+      }
+
+      // Self-heal: If completed listing is missing aiGeneratedText, generate it on the fly with OpenAI!
+      if (listing.status === "completed" && (!listing.aiGeneratedText || !listing.aiGeneratedText.seoTitle)) {
+        try {
+          const generatedText = await generateListingText({
+            userTitle: listing.userTitle || "Product",
+            userDescription: listing.userDescription,
+            userPrompt: listing.userPrompt,
+            price: listing.price,
+            discountPrice: listing.discountPrice,
+            sizes: listing.sizes,
+            variants: listing.variants,
+            ctaText: listing.ctaText,
+            storeName: ctx.user.storeName,
+            whatsappNumber: ctx.user.whatsappNumber,
+            instagramHandle: ctx.user.instagramHandle,
+            originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
+          });
+
+          await ListingObject.updateOne(
+            { _id: listing._id },
+            { $set: { aiGeneratedText: generatedText, textStatus: "completed" } }
+          );
+          listing.aiGeneratedText = generatedText as any;
+          listing.textStatus = "completed";
+        } catch {
+          // Non-blocking fallback
+        }
       }
 
       return listing;
@@ -145,5 +249,40 @@ export const listingRouter = router({
 
       await ListingObject.deleteOne({ _id: listing._id });
       return { success: true };
+    }),
+
+  regenerateText: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const listing = await ListingObject.findOne({
+        _id: input.id,
+        userId: ctx.user._id,
+      });
+
+      if (!listing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
+      }
+
+      const generatedText = await generateListingText({
+        userTitle: listing.userTitle || "Product",
+        userDescription: listing.userDescription,
+        userPrompt: listing.userPrompt,
+        price: listing.price,
+        discountPrice: listing.discountPrice,
+        sizes: listing.sizes,
+        variants: listing.variants,
+        ctaText: listing.ctaText,
+        storeName: ctx.user.storeName,
+        whatsappNumber: ctx.user.whatsappNumber,
+        instagramHandle: ctx.user.instagramHandle,
+        originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
+      });
+
+      await ListingObject.updateOne(
+        { _id: listing._id },
+        { $set: { aiGeneratedText: generatedText, textStatus: "completed" } }
+      );
+
+      return generatedText;
     }),
 });

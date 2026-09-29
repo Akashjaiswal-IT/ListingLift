@@ -23,7 +23,7 @@ function getR2Client(): S3Client {
 }
 
 export function getR2BucketName(): string {
-  return process.env.R2_BUCKET_NAME || "listinglift-uploads";
+  return process.env.R2_BUCKET_NAME || "listinglift";
 }
 
 export function getPublicUrlForS3Key(s3Key: string): string {
@@ -31,7 +31,8 @@ export function getPublicUrlForS3Key(s3Key: string): string {
   if (publicBase && !publicBase.includes("YOUR_R2_PUBLIC_URL")) {
     return `${publicBase}/${s3Key}`;
   }
-  return `https://${getR2BucketName()}.r2.cloudflarestorage.com/${s3Key}`;
+  const accountId = process.env.R2_ACCOUNT_ID || "mock-account";
+  return `https://${accountId}.r2.cloudflarestorage.com/${getR2BucketName()}/${s3Key}`;
 }
 
 export async function getPresignedUploadUrl(
@@ -52,10 +53,13 @@ export async function getPresignedUploadUrl(
     expiresIn: expiresInSeconds,
   });
 
+  // Use a presigned download URL (7-day TTL) so the file is accessible without public bucket access
+  const publicUrl = await getPresignedDownloadUrl(s3Key, 7 * 24 * 3600);
+
   return {
     uploadUrl,
     s3Key,
-    publicUrl: getPublicUrlForS3Key(s3Key),
+    publicUrl,
   };
 }
 
@@ -93,9 +97,12 @@ export async function uploadBufferToR2(
 
   await client.send(command);
 
+  // Use a presigned download URL (7-day TTL) so the file is accessible without public bucket access
+  const publicUrl = await getPresignedDownloadUrl(s3Key, 7 * 24 * 3600);
+
   return {
     s3Key,
-    publicUrl: getPublicUrlForS3Key(s3Key),
+    publicUrl,
   };
 }
 

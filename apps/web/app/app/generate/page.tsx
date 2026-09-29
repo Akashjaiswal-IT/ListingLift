@@ -33,6 +33,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
 import { useGenerationStore } from "~/stores/useGenerationStore";
+import { TemplateSelector } from "~/components/generate/TemplateSelector";
+import { TemplateId } from "~/lib/card-templates";
 import { toast } from "sonner";
 
 export default function GeneratePage() {
@@ -53,6 +55,7 @@ export default function GeneratePage() {
   const [discountPrice, setDiscountPrice] = useState<string>("");
   const [sizes, setSizes] = useState<string>("S, M, L, XL");
   const [ctaText, setCtaText] = useState("Order Now via WhatsApp");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>("minimal-luxury");
 
   // Re-edit modal state
   const [reEditTarget, setReEditTarget] = useState<any>(null);
@@ -179,6 +182,7 @@ export default function GeneratePage() {
         userTitle: title,
         userDescription: description,
         userPrompt: customPrompt,
+        templateId: selectedTemplateId,
         price: price ? parseFloat(price) : undefined,
         discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
         sizes: sizes ? sizes.split(",").map((s) => s.trim()) : undefined,
@@ -186,43 +190,27 @@ export default function GeneratePage() {
       });
 
       toast.info(`Generation started! Charged ${genRes.creditsCharged} credits.`);
-
-      // Connect to SSE route for real-time text streaming
-      const sse = new EventSource(`/api/generate/${activeListingId}/text-stream`);
-
-      sse.addEventListener("chunk", (e) => {
-        try {
-          const chunkData = JSON.parse(e.data);
-          // Accumulate structured text
-        } catch {}
-      });
-
-      sse.addEventListener("complete", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          setStreamedText(data.text);
-          toast.success("AI Listing Copy completed!");
-        } catch {}
-        sse.close();
-      });
-
-      sse.addEventListener("error", () => {
-        sse.close();
-      });
     } catch (err: any) {
       toast.error(err.message || "Failed to start generation");
       setStep(2);
     }
   };
 
-  // Monitor BullMQ worker image generation status in Step 3
+  // Monitor BullMQ worker image & SEO text generation status in Step 3
   useEffect(() => {
     if (step === 3 && getStatusQuery.data) {
-      const { status, errorMessage } = getStatusQuery.data;
+      const { status, errorMessage, aiGeneratedText } = getStatusQuery.data;
       setImageGenStatus(status);
 
+      if (aiGeneratedText) {
+        setStreamedText(aiGeneratedText);
+      }
+
       if (status === "completed") {
-        toast.success("Studio images and social cards ready!");
+        toast.success("Studio images and SEO deliverables ready!");
+        if (aiGeneratedText) {
+          setStreamedText(aiGeneratedText);
+        }
         setStep(4);
       } else if (status === "failed") {
         toast.error(`Generation failed: ${errorMessage || "Unknown error"}. Credits have been refunded.`);
@@ -301,7 +289,7 @@ export default function GeneratePage() {
               AI Studio Listing Generator
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              One upload → 8K Studio Photos, Meesho Catalog, and WhatsApp & Instagram Story Cards.
+              One upload → 8K Studio Photos, Marketplace Catalog, and WhatsApp & Instagram Story Cards.
             </p>
           </div>
 
@@ -360,7 +348,7 @@ export default function GeneratePage() {
                     <Badge className="bg-indigo-600 text-white text-[10px]">2 Credits</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Upload 1 photo. Generates 2 studio photo variations, full Meesho copy, and social cards.
+                    Upload 1 photo. Generates 2 studio photo variations, marketplace catalog copy, and social cards.
                   </p>
                 </div>
               </CardContent>
@@ -578,6 +566,18 @@ export default function GeneratePage() {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+
+            {/* Visual Card & Story Design Template Selector (10 Sleek Styles) */}
+            <div className="pt-4 border-t border-border/40">
+              <TemplateSelector
+                selectedTemplateId={selectedTemplateId}
+                onSelectTemplate={setSelectedTemplateId}
+                previewTitle={title}
+                previewPrice={price}
+                previewDiscountPrice={discountPrice}
+                previewCta={ctaText}
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -604,7 +604,7 @@ export default function GeneratePage() {
             </div>
             <h2 className="text-2xl font-black">AI Studio is Crafting Your Catalog</h2>
             <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-              Our models are removing raw backgrounds, rendering 8K lighting, and generating your Meesho copy in real time.
+              Our models are removing raw backgrounds, rendering 8K lighting, and generating your marketplace copy in real time.
             </p>
           </div>
 
@@ -707,8 +707,8 @@ export default function GeneratePage() {
               <TabsTrigger value="photos" className="gap-1.5 text-xs font-bold">
                 <Sparkles className="h-3.5 w-3.5" /> Studio Photos
               </TabsTrigger>
-              <TabsTrigger value="meesho" className="gap-1.5 text-xs font-bold">
-                <ShoppingBag className="h-3.5 w-3.5" /> Meesho Copy
+              <TabsTrigger value="catalog" className="gap-1.5 text-xs font-bold">
+                <ShoppingBag className="h-3.5 w-3.5" /> Marketplace Catalog
               </TabsTrigger>
               <TabsTrigger value="whatsapp" className="gap-1.5 text-xs font-bold">
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
@@ -756,13 +756,13 @@ export default function GeneratePage() {
               </div>
             </TabsContent>
 
-            {/* TAB 2: MEESHO CATALOG COPY */}
-            <TabsContent value="meesho" className="space-y-6 max-w-3xl">
+            {/* TAB 2: MARKETPLACE CATALOG COPY */}
+            <TabsContent value="catalog" className="space-y-6 max-w-3xl">
               <Card className="border-border/60 p-6 space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Product Title (Meesho Optimized)
+                      Marketplace Optimized Title (Amazon, Flipkart, Meesho, Shopify)
                     </span>
                     <Button
                       variant="ghost"
@@ -781,7 +781,7 @@ export default function GeneratePage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Catalog Description
+                      Marketplace Catalog Description & Specifications
                     </span>
                     <Button
                       variant="ghost"
@@ -796,6 +796,49 @@ export default function GeneratePage() {
                     {streamedText?.meeshoListing?.description}
                   </div>
                 </div>
+
+                {/* Key Features */}
+                {streamedText?.keyFeatures && streamedText.keyFeatures.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        SEO High-Converting Key Features
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyText(streamedText.keyFeatures.map((f: string) => `• ${f}`).join("\n"), "Key Features")}
+                        className="h-7 text-xs gap-1 font-semibold"
+                      >
+                        <Copy className="h-3 w-3" /> Copy Features
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {streamedText.keyFeatures.map((feat: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-muted/20 border border-border/30 text-xs">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Keywords */}
+                {streamedText?.keywords && streamedText.keywords.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                      Target Search Keywords
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {streamedText.keywords.map((kw: string, idx: number) => (
+                        <Badge key={idx} variant="outline" className="text-xs py-1 px-2.5 bg-muted/20">
+                          {kw}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Card>
             </TabsContent>
 

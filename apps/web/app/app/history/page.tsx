@@ -42,7 +42,7 @@ export default function HistoryPage() {
             Catalog History
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            All your generated studio product photos and Meesho listings ({total} total).
+            All your generated studio product photos and marketplace listings ({total} total).
           </p>
         </div>
 

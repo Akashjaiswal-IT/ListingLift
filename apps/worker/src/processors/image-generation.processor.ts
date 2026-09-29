@@ -8,13 +8,14 @@ import {
   generateThumbnail,
   enhancePromptWithVision,
   generateStudioImages,
+  generateListingText,
   renderSocialCards,
   refundCredits,
 } from "@repo/services";
 
 export async function processImageGeneration(job: Job<{ listingObjectId: string }>) {
   const { listingObjectId } = job.data;
-  logger.info(`Starting image generation for listing: ${listingObjectId} (Attempt ${job.attemptsMade + 1})`);
+  logger.info(`Starting image and SEO text generation for listing: ${listingObjectId} (Attempt ${job.attemptsMade + 1})`);
 
   const listing = await ListingObject.findById(listingObjectId);
   if (!listing) {
@@ -24,7 +25,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
   // Update status to processing
   await ListingObject.updateOne(
     { _id: listingObjectId },
-    { $set: { status: "processing" } }
+    { $set: { status: "processing", textStatus: "streaming" } }
   );
 
   try {
@@ -62,18 +63,37 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     });
     logger.info(`Enhanced prompt generated: "${enhancedPrompt.slice(0, 100)}..."`);
 
-    // 4. Generate Studio Images with Gemini
+    // 4. Generate Studio Images with Gemini AND SEO Deliverables with OpenAI concurrently
     const imageCount =
       listing.type === "listing_product"
         ? 2 // Quick Generate: 2 studio variations
         : Math.min(listing.originalImages.length * 2, 6); // Kit: 2 variations per photo, max 6
 
-    logger.info(`Generating ${imageCount} studio images with Gemini...`);
-    const generatedOutputs = await generateStudioImages({
-      originalImages: optimizedBuffers,
-      prompt: enhancedPrompt,
-      count: imageCount,
-    });
+    logger.info(`Generating ${imageCount} studio images with Gemini and SEO listing copy with OpenAI...`);
+    const user = await User.findById(listing.userId);
+
+    const [generatedOutputs, generatedText] = await Promise.all([
+      generateStudioImages({
+        originalImages: optimizedBuffers,
+        prompt: enhancedPrompt,
+        count: imageCount,
+      }),
+      generateListingText({
+        userTitle: listing.userTitle || "Product",
+        userDescription: listing.userDescription,
+        userPrompt: listing.userPrompt,
+        price: listing.price,
+        discountPrice: listing.discountPrice,
+        sizes: listing.sizes,
+        variants: listing.variants,
+        ctaText: listing.ctaText || user?.defaultCta?.text,
+        storeName: user?.storeName,
+        whatsappNumber: user?.whatsappNumber,
+        instagramHandle: user?.instagramHandle,
+        originalImageUrls: listing.originalImages.map((img) => img.url),
+      }),
+    ]);
+    logger.info(`OpenAI generated SEO Title: "${generatedText.seoTitle}"`);
 
     // 5. Upload generated images & thumbnails to R2
     const generatedImagesDocs = [];
@@ -102,16 +122,15 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     }
 
     // 6. Generate Social Cards
-    logger.info("Generating social cards (WhatsApp + Instagram)...");
-    const user = await User.findById(listing.userId);
-    const primaryImgBuffer = generatedOutputs[0]?.buffer || originalBuffers[0]!;
-
+    const primaryImgBuffer = generatedOutputs[0]?.buffer || optimizedBuffers[0]!;
+    const templateId = (listing as any).templateId || "minimal-luxury";
     const renderedCards = await renderSocialCards({
       productImage: primaryImgBuffer,
       productTitle: listing.userTitle || "Product",
       price: listing.price,
       discountPrice: listing.discountPrice,
       ctaText: listing.ctaText || user?.defaultCta?.text,
+      templateId,
       sellerInfo: {
         storeName: user?.storeName,
         whatsappNumber: user?.whatsappNumber,
@@ -129,36 +148,44 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
       uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/webp"),
     ]);
 
-    // 7. Update ListingObject to completed
+    // 7. Update ListingObject to completed with BOTH images and SEO text deliverables
     await ListingObject.updateOne(
       { _id: listing._id },
       {
         $set: {
           status: "completed",
+          textStatus: "completed",
+          aiGeneratedText: generatedText,
           enhancedPrompt,
           generatedImages: generatedImagesDocs,
           whatsappCard: {
             s3Key: waUpload.s3Key,
             url: waUpload.publicUrl,
+            templateId,
             generatedAt: new Date(),
           },
           instagramPost: {
             s3Key: igPostUpload.s3Key,
             url: igPostUpload.publicUrl,
+            templateId,
             generatedAt: new Date(),
           },
           instagramStory: {
             s3Key: igStoryUpload.s3Key,
             url: igStoryUpload.publicUrl,
+            templateId,
             generatedAt: new Date(),
           },
         },
       }
     );
 
-    logger.info(`Listing ${listingObjectId} generation completed successfully!`);
+    logger.info(`Listing ${listingObjectId} generation with images and text completed successfully!`);
   } catch (error: any) {
-    logger.error(`Error in image generation job for listing ${listingObjectId}:`, { error });
+    logger.error(`Error in image generation job for listing ${listingObjectId}:`, {
+      message: error?.message || String(error),
+      stack: error?.stack,
+    });
     await handleJobFailure(listingObjectId, error, job);
     throw error;
   }

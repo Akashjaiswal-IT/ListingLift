@@ -84,7 +84,7 @@ export default function DashboardPage() {
               </span>
               <div className="text-3xl font-black">{totalCount}</div>
               <span className="text-xs text-muted-foreground block">
-                Across Meesho & Social Catalogs
+                Across Marketplaces & Social Catalogs
               </span>
             </div>
             <div className="h-12 w-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
@@ -120,7 +120,7 @@ export default function DashboardPage() {
           <div>
             <h3 className="text-base font-bold">Need Studio Photos for your new inventory?</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Upload raw product photos from your phone. AI generates 8K studio variations, Meesho titles, and WhatsApp cards.
+              Upload raw product photos from your phone. AI generates 8K studio variations, marketplace titles, and branded social cards.
             </p>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
             <div>
               <h3 className="text-base font-bold">No catalogs created yet</h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                Upload your first product photo to see studio outputs, Meesho listing copy, and WhatsApp cards in seconds.
+                Upload your first product photo to see studio outputs, marketplace listing copy, and social cards in seconds.
               </p>
             </div>
             <Link href="/app/generate">
