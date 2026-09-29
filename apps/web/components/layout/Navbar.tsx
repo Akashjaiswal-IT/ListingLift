@@ -60,7 +60,6 @@ export function Navbar() {
   const handleTriggerTour = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("open-peshkar-tour"));
-      window.dispatchEvent(new Event("open-listinglift-tour"));
     }
   };
 

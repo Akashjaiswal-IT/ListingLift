@@ -2,12 +2,12 @@ services:
   mongodb:
     image: mongo:7
     restart: unless-stopped
-    container_name: listinglift-mongodb
+    container_name: peshkar-mongodb
 
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: listinglift
+      MONGO_INITDB_DATABASE: peshkar
 
     ports:
       - "27017:27017"
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    container_name: listinglift-redis
+    container_name: peshkar-redis
 
     ports:
       - "6379:6379"

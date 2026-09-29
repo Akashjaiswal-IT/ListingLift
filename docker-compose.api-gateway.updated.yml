@@ -35,7 +35,7 @@ services:
       - traefik
       - project-a-network
       - traefik-dozzle
-      - listinglift-network
+      - peshkar-network
 
 networks:
   traefik:
@@ -44,5 +44,5 @@ networks:
     name: project-a-network
   traefik-dozzle:
     name: traefik-dozzle
-  listinglift-network:
-    name: listinglift-network
+  peshkar-network:
+    name: peshkar-network

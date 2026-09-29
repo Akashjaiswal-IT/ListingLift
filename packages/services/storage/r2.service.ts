@@ -23,7 +23,7 @@ function getR2Client(): S3Client {
 }
 
 export function getR2BucketName(): string {
-  return process.env.R2_BUCKET_NAME || "listinglift";
+  return process.env.R2_BUCKET_NAME || "peshkar";
 }
 
 export function getPublicUrlForS3Key(s3Key: string): string {
