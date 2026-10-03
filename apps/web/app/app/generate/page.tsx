@@ -39,6 +39,7 @@ import { TemplateId } from "~/lib/card-templates";
 import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
+import { downloadFile } from "~/lib/download";
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -258,8 +259,8 @@ export default function GeneratePage() {
       const res = await downloadBundleMutation.mutateAsync({
         listingObjectId: activeListingId,
       });
-      window.open(res.downloadUrl, "_blank");
-      toast.success("Download started!");
+      await downloadFile(res.downloadUrl, "listing-bundle.zip");
+      toast.success("Download complete!");
     } catch (err: any) {
       toast.error(err.message || "Failed to create bundle");
     }
