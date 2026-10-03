@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { trackAIGeneration } from "./ai-observability";
 
 function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY || "sk-mock-key";
@@ -56,6 +57,7 @@ STRICT PRODUCT FIDELITY & PRESENTABILITY RULES:
 4. Return ONLY the final enhanced generation prompt string.
 `;
 
+  const startTime = Date.now();
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -72,11 +74,32 @@ STRICT PRODUCT FIDELITY & PRESENTABILITY RULES:
       temperature: 0.7,
     });
 
+    const latencySeconds = (Date.now() - startTime) / 1000;
     const enhanced = response.choices[0]?.message?.content?.trim();
+
+    trackAIGeneration({
+      provider: "openai",
+      model: "gpt-4o-mini",
+      input: promptText,
+      output: enhanced || "",
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
+      latencySeconds,
+    });
+
     if (enhanced) {
       return enhanced;
     }
-  } catch {
+  } catch (err) {
+    trackAIGeneration({
+      provider: "openai",
+      model: "gpt-4o-mini",
+      input: promptText,
+      output: "",
+      latencySeconds: (Date.now() - startTime) / 1000,
+      isError: true,
+      errorMessage: String(err),
+    });
     // Fall back to well-crafted template
   }
 

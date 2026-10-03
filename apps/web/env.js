@@ -13,6 +13,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: z.string().optional(),
     NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: z.string().optional(),
     NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
+    NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
+    NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
   },
   runtimeEnv: {
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
@@ -23,6 +25,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL,
     NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL,
     NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+    NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
+    NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
+import { trackEvent } from "~/lib/analytics";
 
 export default function GeneratePage() {
   const router = useRouter();
@@ -156,6 +157,10 @@ export default function GeneratePage() {
       });
 
       setActiveListingId(res.listingObjectId);
+      trackEvent("photos_uploaded", {
+        count: uploadedOriginals.length,
+        type: selectedType,
+      });
       setStep(2);
       toast.success("Photos uploaded successfully!");
     } catch (err: any) {
@@ -186,6 +191,13 @@ export default function GeneratePage() {
       utils.credits.getBalance.invalidate();
       utils.user.getCreditBalance.invalidate();
 
+      trackEvent("listing_generation_started", {
+        listingId: activeListingId,
+        type: selectedType,
+        templateId: selectedTemplateId,
+        creditsNeeded,
+      });
+
       const genRes = await startGenerationMutation.mutateAsync({
         listingObjectId: activeListingId,
         userTitle: title,
@@ -200,6 +212,10 @@ export default function GeneratePage() {
 
       toast.info(`Generation started! Charged ${genRes.creditsCharged} credits.`);
     } catch (err: any) {
+      trackEvent("listing_generation_failed", {
+        listingId: activeListingId,
+        error: err.message,
+      });
       toast.error(err.message || "Failed to start generation");
       setStep(2);
     }
@@ -216,6 +232,10 @@ export default function GeneratePage() {
       }
 
       if (status === "completed") {
+        trackEvent("listing_generation_completed", {
+          listingId: activeListingId,
+          type: selectedType,
+        });
         toast.success("Studio images and SEO deliverables ready!");
         if (aiGeneratedText) {
           setStreamedText(aiGeneratedText);
@@ -231,6 +251,10 @@ export default function GeneratePage() {
           router.push(`/app/listing/${activeListingId}`);
         }
       } else if (status === "failed") {
+        trackEvent("listing_generation_failed", {
+          listingId: activeListingId,
+          error: errorMessage,
+        });
         Promise.allSettled([
           utils.credits.getBalance.invalidate(),
           utils.user.getCreditBalance.invalidate(),
@@ -258,6 +282,10 @@ export default function GeneratePage() {
       toast.info("Generating high-compression ZIP package...");
       const res = await downloadBundleMutation.mutateAsync({
         listingObjectId: activeListingId,
+      });
+      trackEvent("listing_downloaded", {
+        listingId: activeListingId,
+        type: "zip_bundle",
       });
       await downloadFile(res.downloadUrl, "listing-bundle.zip");
       toast.success("Download complete!");
