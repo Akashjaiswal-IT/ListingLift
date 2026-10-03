@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
+import { trackAIGeneration } from "./ai-observability";
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -63,6 +64,7 @@ export async function generateStudioImages(params: {
         }
 
         // Generate via Google GenAI Interactions API (gemini-3.1-flash-image)
+        const geminiStart = Date.now();
         const interaction: any = await (ai as any).interactions.create({
           model: "gemini-3.1-flash-image",
           input: inputPayload,
@@ -72,11 +74,21 @@ export async function generateStudioImages(params: {
             aspect_ratio: "1:1",
           },
         });
+        const latencySeconds = (Date.now() - geminiStart) / 1000;
 
         const imageBase64 = interaction?.output_image?.data;
         const interactionId =
           interaction?.id ||
           `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        trackAIGeneration({
+          provider: "gemini",
+          model: "gemini-3.1-flash-image",
+          input: specializedPrompt,
+          output: imageBase64 ? `[Image generated: ${variation}]` : "[No image returned]",
+          latencySeconds,
+          traceId: interactionId,
+        });
 
         if (imageBase64) {
           const imgBuffer = Buffer.from(imageBase64, "base64");
@@ -93,6 +105,15 @@ export async function generateStudioImages(params: {
         return results;
       }
     } catch (err) {
+      trackAIGeneration({
+        provider: "gemini",
+        model: "gemini-3.1-flash-image",
+        input: prompt,
+        output: "",
+        latencySeconds: 0,
+        isError: true,
+        errorMessage: String(err),
+      });
       console.warn("Gemini generation failed, falling back to Sharp studio composite:", err);
     }
   }

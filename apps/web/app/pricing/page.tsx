@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "~/providers/LanguageContext";
+import { trackEvent } from "~/lib/analytics";
 
 export default function PricingPage() {
   const { user, isSignedIn } = useUser();
@@ -89,6 +90,13 @@ export default function PricingPage() {
             if (verifyRes.success) {
               const added = (verifyRes as any).creditsAdded || order.credits;
               addLocal(added);
+              trackEvent("checkout_completed", {
+                packId,
+                credits: added,
+                amount: order.amountPaise / 100,
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+              });
               await Promise.allSettled([
                 utils.credits.getBalance.invalidate(),
                 utils.user.getCreditBalance.invalidate(),
@@ -98,6 +106,11 @@ export default function PricingPage() {
               router.push("/app/dashboard");
             }
           } catch (err: any) {
+            trackEvent("checkout_failed", {
+              packId,
+              orderId: response.razorpay_order_id,
+              error: err.message,
+            });
             toast.error(err.message || "Payment verification failed");
           }
         },
@@ -107,8 +120,19 @@ export default function PricingPage() {
       };
 
       const rzp = new (window as any).Razorpay(options);
+      trackEvent("checkout_opened", {
+        packId,
+        credits: order.credits,
+        amount: order.amountPaise / 100,
+        currency: order.currency,
+        orderId: order.razorpayOrderId,
+      });
       rzp.open();
     } catch (err: any) {
+      trackEvent("checkout_failed", {
+        packId,
+        error: err.message,
+      });
       toast.error(err.message || "Failed to initiate payment");
     } finally {
       setSelectedPack(null);

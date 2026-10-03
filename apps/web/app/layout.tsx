@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { GlobalProviders } from "~/providers/global";
+import { PostHogProvider } from "~/providers/PostHogProvider";
 import { Navbar } from "~/components/layout/Navbar";
 import { Footer } from "~/components/layout/Footer";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -52,11 +53,13 @@ export default function RootLayout({
         <body
           className={`${sans.variable} ${serif.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
         >
-          <GlobalProviders>
-            <Navbar />
-            <div className="flex-1">{children}</div>
-            <Footer />
-          </GlobalProviders>
+          <PostHogProvider>
+            <GlobalProviders>
+              <Navbar />
+              <div className="flex-1">{children}</div>
+              <Footer />
+            </GlobalProviders>
+          </PostHogProvider>
         </body>
       </html>
     </ClerkProvider>

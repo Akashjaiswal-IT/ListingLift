@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
+import { trackEvent } from "~/lib/analytics";
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -56,6 +57,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return;
     navigator.clipboard.writeText(txt);
+    trackEvent("listing_copied", { label: label || "text", listingId });
     toast.success(`Copied ${label || "text"} to clipboard!`);
   };
 
@@ -65,6 +67,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       const res = await downloadBundleMutation.mutateAsync({
         listingObjectId: listingId,
       });
+      trackEvent("listing_downloaded", { listingId, type: "zip_bundle" });
       await downloadFile(res.downloadUrl, `listing-${listingId}-bundle.zip`);
       toast.success(isHi ? "डाउनलोड पूरा हुआ!" : "Download complete!");
     } catch (err: any) {
@@ -76,6 +79,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
     setIsRegenerating(true);
     try {
       toast.info(isHi ? "AI के साथ कॉपी फिर से लिखी जा रही है..." : "Regenerating SEO copy with OpenAI...");
+      trackEvent("listing_text_regenerated", { listingId });
       await regenerateTextMutation.mutateAsync({ id: listingId });
       await Promise.allSettled([
         listingQuery.refetch(),

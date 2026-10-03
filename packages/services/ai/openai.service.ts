@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { IAiGeneratedText } from "@repo/database";
+import { trackAIGeneration } from "./ai-observability";
 
 function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY || "sk-mock-key";
@@ -129,6 +130,7 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
 
   const { systemPrompt, userContent } = buildPrompts(params);
 
+  const startTime = Date.now();
   try {
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
@@ -141,7 +143,22 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
       temperature: 0.7,
     });
 
+    const latencySeconds = (Date.now() - startTime) / 1000;
     const raw = response.choices[0]?.message?.content?.trim() || "";
+
+    trackAIGeneration({
+      provider: "openai",
+      model: "gpt-4o-mini",
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      output: raw,
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
+      latencySeconds,
+    });
+
     if (!raw) {
       return generateFallbackListingText(params);
     }
@@ -166,6 +183,18 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
       instagramHashtags: Array.isArray(parsed.instagramHashtags) && parsed.instagramHashtags.length > 0 ? parsed.instagramHashtags : fallback.instagramHashtags,
     };
   } catch (error) {
+    trackAIGeneration({
+      provider: "openai",
+      model: "gpt-4o-mini",
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      output: "",
+      latencySeconds: (Date.now() - startTime) / 1000,
+      isError: true,
+      errorMessage: String(error),
+    });
     console.warn("[OpenAI Service] generateListingText encountered an error, using fallback SEO text:", error);
     return generateFallbackListingText(params);
   }

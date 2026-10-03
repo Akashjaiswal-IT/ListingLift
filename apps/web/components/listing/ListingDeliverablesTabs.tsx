@@ -22,6 +22,7 @@ import { CARD_TEMPLATES_MAP, TemplateId } from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
 import { useCallback } from "react";
 import { downloadFile } from "~/lib/download";
+import { trackEvent } from "~/lib/analytics";
 
 export interface ListingDeliverablesTabsProps {
   listing: any;
@@ -44,6 +45,7 @@ export function ListingDeliverablesTabs({
 
   const handleDownload = useCallback((url: string, filename: string) => {
     toast.info(isHi ? "डाउनलोड शुरू हो रहा है…" : "Starting download…");
+    trackEvent("listing_downloaded", { filename, listingId });
     downloadFile(url, filename)
       .then(() => {
         toast.success(isHi ? "डाउनलोड पूरा!" : "Download complete!");
@@ -51,11 +53,12 @@ export function ListingDeliverablesTabs({
       .catch((err) => {
         toast.error(isHi ? "डाउनलोड विफल रहा" : "Download failed");
       });
-  }, [isHi]);
+  }, [isHi, listingId]);
 
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return;
     navigator.clipboard.writeText(txt);
+    trackEvent("listing_copied", { label: label || "text", listingId });
     toast.success(isHi ? `${label || "टेक्स्ट"} कॉपी हो गया!` : `Copied ${label || "text"} to clipboard!`);
   };
 
