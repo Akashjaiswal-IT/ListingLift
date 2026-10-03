@@ -6,6 +6,7 @@ export default defineConfig({
   bundle: true,
   outDir: "./dist",
   clean: true,
+  noExternal: [/@repo\/.*/],
   external: ["sharp", "mongoose", "bullmq", "ioredis"],
   env: { IS_SERVER_BUILD: "true" },
   loader: { ".json": "copy" },
