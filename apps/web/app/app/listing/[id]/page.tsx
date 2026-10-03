@@ -22,6 +22,7 @@ import { trpc } from "~/trpc/client";
 import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
+import { downloadFile } from "~/lib/download";
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -64,8 +65,8 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       const res = await downloadBundleMutation.mutateAsync({
         listingObjectId: listingId,
       });
-      window.open(res.downloadUrl, "_blank");
-      toast.success(isHi ? "डाउनलोड शुरू हो गया!" : "Download started!");
+      await downloadFile(res.downloadUrl, `listing-${listingId}-bundle.zip`);
+      toast.success(isHi ? "डाउनलोड पूरा हुआ!" : "Download complete!");
     } catch (err: any) {
       toast.error(err.message || (isHi ? "बंडल डाउनलोड करने में विफल" : "Failed to download bundle"));
     }

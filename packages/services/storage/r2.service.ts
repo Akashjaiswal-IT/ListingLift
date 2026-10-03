@@ -70,9 +70,14 @@ export async function getPresignedDownloadUrl(
   const client = getR2Client();
   const bucket = getR2BucketName();
 
+  // Derive a human-friendly filename from the S3 key
+  const filename = s3Key.split("/").pop() || "download";
+
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: s3Key,
+    // Force browser to download instead of displaying inline
+    ResponseContentDisposition: `attachment; filename="${filename}"`,
   });
 
   return await getSignedUrl(client, command, {

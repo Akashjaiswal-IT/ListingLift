@@ -20,6 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { toast } from "sonner";
 import { CARD_TEMPLATES_MAP, TemplateId } from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
+import { useCallback } from "react";
+import { downloadFile } from "~/lib/download";
 
 export interface ListingDeliverablesTabsProps {
   listing: any;
@@ -39,6 +41,17 @@ export function ListingDeliverablesTabs({
 
   const listingId = listing._id || listing.id;
   const text = listing.aiGeneratedText;
+
+  const handleDownload = useCallback((url: string, filename: string) => {
+    toast.info(isHi ? "डाउनलोड शुरू हो रहा है…" : "Starting download…");
+    downloadFile(url, filename)
+      .then(() => {
+        toast.success(isHi ? "डाउनलोड पूरा!" : "Download complete!");
+      })
+      .catch((err) => {
+        toast.error(isHi ? "डाउनलोड विफल रहा" : "Download failed");
+      });
+  }, [isHi]);
 
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return;
@@ -88,11 +101,14 @@ export function ListingDeliverablesTabs({
                 <span className="text-xs text-muted-foreground font-medium">
                   {isHi ? `इनपुट फ़ोटो #${idx + 1}` : `Input Photo #${idx + 1}`}
                 </span>
-                <a href={orig.url} download target="_blank" rel="noreferrer">
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                    <Download className="h-3 w-3" /> {isHi ? "मूल फ़ोटो सेव करें" : "Save Original"}
-                  </Button>
-                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => handleDownload(orig.url, `original-photo-${idx + 1}.jpg`)}
+                >
+                  <Download className="h-3 w-3" /> {isHi ? "मूल फ़ोटो सेव करें" : "Save Original"}
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -136,11 +152,14 @@ export function ListingDeliverablesTabs({
                       </Button>
                     </Link>
                   ) : null}
-                  <a href={img.url} download target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                      <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Save"}
-                    </Button>
-                  </a>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1"
+                    onClick={() => handleDownload(img.url, `studio-variation-${idx + 1}.jpg`)}
+                  >
+                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Save"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -389,11 +408,14 @@ export function ListingDeliverablesTabs({
               </div>
               <CardContent className="p-3.5 flex items-center justify-between">
                 <span className="text-xs font-semibold">{isHi ? "व्हाट्सएप कार्ड" : "WhatsApp Card"}</span>
-                <a href={listing.whatsappCard.url} download target="_blank" rel="noreferrer">
-                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
-                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                  </Button>
-                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => handleDownload(listing.whatsappCard.url, "whatsapp-card.jpg")}
+                >
+                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -405,11 +427,14 @@ export function ListingDeliverablesTabs({
               </div>
               <CardContent className="p-3.5 flex items-center justify-between">
                 <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम पोस्ट (1:1)" : "Instagram Post (1:1)"}</span>
-                <a href={listing.instagramPost.url} download target="_blank" rel="noreferrer">
-                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
-                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                  </Button>
-                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => handleDownload(listing.instagramPost.url, "instagram-post.jpg")}
+                >
+                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -421,11 +446,14 @@ export function ListingDeliverablesTabs({
               </div>
               <CardContent className="p-3.5 flex items-center justify-between">
                 <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम स्टोरी (9:16)" : "Instagram Story (9:16)"}</span>
-                <a href={listing.instagramStory.url} download target="_blank" rel="noreferrer">
-                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
-                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                  </Button>
-                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1"
+                  onClick={() => handleDownload(listing.instagramStory.url, "instagram-story.jpg")}
+                >
+                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                </Button>
               </CardContent>
             </Card>
           )}
