@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
 dotenv.config();
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z.enum(["development", "production", "test", "prod"]).default("development"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   MONGODB_URI: z.string().default("mongodb://root:password@localhost:27017/peshkar?authSource=admin"),
   OPENAI_API_KEY: z.string().optional(),
