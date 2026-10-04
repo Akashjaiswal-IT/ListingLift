@@ -39,6 +39,9 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "application/zip",
   "application/x-zip-compressed",
   "application/octet-stream",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
 ]);
 
 export async function GET(req: NextRequest) {
