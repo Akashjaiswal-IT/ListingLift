@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Tag,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -50,9 +51,26 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   );
   const downloadBundleMutation = trpc.download.downloadBundle.useMutation();
   const regenerateTextMutation = trpc.listing.regenerateText.useMutation();
+  const exportExcelMutation = trpc.listing.exportExcel.useMutation();
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const listing = listingQuery.data;
+
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      toast.info(isHi ? "एक्सेल कैटलॉग शीट तैयार की जा रही है..." : "Generating marketplace Excel sheet...");
+      const res = await exportExcelMutation.mutateAsync({ id: listingId });
+      trackEvent("listing_downloaded", { listingId, type: "excel_catalog" });
+      await downloadFile(res.downloadUrl, res.fileName);
+      toast.success(isHi ? "एक्सेल शीट डाउनलोड हो गई!" : "Marketplace Excel downloaded successfully!");
+    } catch (err: any) {
+      toast.error(err.message || (isHi ? "एक्सेल डाउनलोड करने में विफल" : "Failed to export Excel"));
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return;
@@ -155,6 +173,37 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             {isRegenerating
               ? isHi ? "AI द्वारा फिर से लिखा जा रहा है..." : "Rewriting with AI..."
               : isHi ? "एसईओ कॉपी दोबारा लिखें" : "Regenerate SEO Copy"}
+          </Button>
+
+          {text?.whatsappCaption && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                copyText(text.whatsappCaption, isHi ? "व्हाट्सएप कॉपी" : "WhatsApp Caption");
+                window.open(
+                  `https://api.whatsapp.com/send?text=${encodeURIComponent(text.whatsappCaption)}`,
+                  "_blank"
+                );
+              }}
+              className="gap-1.5 font-bold text-xs h-9 rounded-xl text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 shadow-xs"
+            >
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              {isHi ? "व्हाट्सएप ब्रॉडकास्ट" : "Share to WhatsApp"}
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportExcel}
+            disabled={isExportingExcel}
+            className="gap-1.5 font-bold text-xs h-9 rounded-xl text-emerald-700 border-emerald-600/30 hover:bg-emerald-600/10 shadow-xs"
+          >
+            <FileSpreadsheet className={`h-4 w-4 ${isExportingExcel ? "animate-spin text-emerald-600" : "text-emerald-600"}`} />
+            {isExportingExcel
+              ? isHi ? "एक्सेल तैयार हो रहा है..." : "Exporting..."
+              : isHi ? "मीशो एक्सेल (.xlsx)" : "Export Excel (.xlsx)"}
           </Button>
 
           <Button

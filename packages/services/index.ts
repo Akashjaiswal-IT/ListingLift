@@ -9,5 +9,6 @@ export * from "./ai/ai-observability";
 export * from "./card/card-renderer.service";
 export * from "./queue/queue.service";
 export * from "./download/bundle.service";
+export * from "./export/excel-export.service";
 export * from "./rate-limit.service";
 

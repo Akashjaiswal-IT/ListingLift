@@ -19,6 +19,7 @@
     "@repo/logger": "workspace:*",
     "archiver": "^8.0.0",
     "bullmq": "^6.3.9",
+    "exceljs": "^4.4.0",
     "google-auth-library": "^10.5.0",
     "ioredis": "^6.0.0",
     "openai": "^7.23.0",

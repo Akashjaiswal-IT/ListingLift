@@ -2,7 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
-import { deleteObjectFromR2, generateListingText, getPresignedDownloadUrl } from "@repo/services";
+import {
+  deleteObjectFromR2,
+  generateListingText,
+  getPresignedDownloadUrl,
+  generateGenericMarketplaceExcel,
+  uploadBufferToR2,
+} from "@repo/services";
 
 async function ensureFreshSignedUrls(listing: any): Promise<boolean> {
   let modified = false;
@@ -284,5 +290,36 @@ export const listingRouter = router({
       );
 
       return generatedText;
+    }),
+
+  exportExcel: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const listing = await ListingObject.findOne({
+        _id: input.id,
+        userId: ctx.user._id,
+      });
+
+      if (!listing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
+      }
+
+      const excelBuffer = await generateGenericMarketplaceExcel(listing);
+      const s3Key = `exports/${listing._id}/marketplace-catalog-${listing._id}.xlsx`;
+      await uploadBufferToR2(
+        s3Key,
+        excelBuffer,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      const downloadUrl = await getPresignedDownloadUrl(s3Key, 3600);
+
+      const cleanTitle = listing.userTitle
+        ? listing.userTitle.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 30)
+        : "product";
+
+      return {
+        downloadUrl,
+        fileName: `marketplace-catalog-${cleanTitle}.xlsx`,
+      };
     }),
 });

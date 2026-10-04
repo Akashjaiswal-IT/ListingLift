@@ -1,6 +1,7 @@
 import * as archiver from "archiver";
 import { Writable } from "stream";
 import { fetchBufferFromR2, uploadBufferToR2, getPresignedDownloadUrl } from "../storage/r2.service";
+import { generateGenericMarketplaceExcel } from "../export/excel-export.service";
 import { IListingObject } from "@repo/database";
 
 function getZipArchiveInstance() {
@@ -108,6 +109,16 @@ ${t.instagramHashtags?.join(" ")}
     archive.append(Buffer.from(textMarkdown, "utf8"), {
       name: "listing-copy/product-listing-copy.md",
     });
+  }
+
+  // 4. Add generic multi-category marketplace bulk upload spreadsheet
+  try {
+    const excelBuffer = await generateGenericMarketplaceExcel(listing);
+    archive.append(excelBuffer, {
+      name: "marketplace-sheets/marketplace-bulk-catalog.xlsx",
+    });
+  } catch (err) {
+    console.warn("Failed to append marketplace excel to bundle:", err);
   }
 
   await archive.finalize();
