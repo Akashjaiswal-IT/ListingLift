@@ -300,9 +300,9 @@ export const translations: Record<Language, Translations> = {
     auth: {
       loginTitle: "अपने खाते में लॉग इन करें",
       signupTitle: "नया खाता बनाएं",
-      trialBadge: "साइनअप पर 10 मुफ़्त ट्रायल क्रेडिट्स",
+      trialBadge: "साइनअप पर ₹249 मूल्य के 10 मुफ़्त स्टूडियो क्रेडिट्स",
       heroHeadline: "सामान्य फ़ोन फ़ोटो को बनाएं मल्टी-चैनल बिज़नेस",
-      heroSubtitle: "आज ही अपना मुफ़्त खाता बनाएं और 10 क्रेडिट्स तुरंत पाएं।",
+      heroSubtitle: "आज ही अपना मुफ़्त खाता बनाएं और ₹249 मूल्य के 10 क्रेडिट्स तुरंत पाएं।",
       perk1: "AI स्टूडियो फ़ोटोग्राफ़ी (प्योर व्हाइट बैकग्राउंड और लक्ज़री पेडस्टल)",
       perk2: "मीशो, अमेज़ॅन और फ्लिपकार्ट के लिए ऑटोमेटेड SEO कॉपीराइटिंग",
       perk3: "व्हाट्सएप ब्रॉडकास्ट और इंस्टाग्राम स्टोरी कार्ड्स 1-क्लिक में",
@@ -462,9 +462,9 @@ export const translations: Record<Language, Translations> = {
     auth: {
       loginTitle: "Sign In to Your Account",
       signupTitle: "Create Your Account",
-      trialBadge: "10 Free Trial Credits on Signup",
+      trialBadge: "10 Free Studio Credits (Worth ₹249) on Signup",
       heroHeadline: "Turn ordinary phone snaps into multi-channel revenue.",
-      heroSubtitle: "Create your free account today & claim 10 credits instantly.",
+      heroSubtitle: "Create your free account today & claim 10 Studio Credits (Worth ₹249) instantly.",
       perk1: "AI Studio Photography (White background, luxury pedestals)",
       perk2: "Full Marketplace Catalog Copy + High-Converting Descriptions",
       perk3: "Ready-to-broadcast WhatsApp & Instagram Story Cards",

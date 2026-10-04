@@ -27,6 +27,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
 import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
+import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
 
 export default function HomePage() {
   const { t, language } = useLanguage();
@@ -38,10 +39,11 @@ export default function HomePage() {
   const [copied, setCopied] = useState(false);
 
   const calculateCustomPrice = (credits: number) => {
-    // Volume discount curve ~₹10-12/credit
-    if (credits >= 400) return Math.round(credits * 10);
-    if (credits >= 200) return Math.round(credits * 11);
-    return Math.round(credits * 12);
+    if (credits >= 500) return Math.round(credits * 11);
+    if (credits >= 200) return Math.round(credits * 14);
+    if (credits >= 80) return Math.round(credits * 17);
+    if (credits >= 30) return Math.round(credits * 20);
+    return Math.round(credits * 25);
   };
 
   const handleCopyCaption = () => {
@@ -257,45 +259,16 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right Visual Column: Side-by-Side Comparison Cards (Ref Image 2) */}
-            <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-              {/* Original Phone Photo */}
-              <div className="relative rounded-2xl overflow-hidden border border-stone-800 bg-stone-950 p-3 shadow-md flex flex-col justify-between group">
-                <div className="aspect-square rounded-xl overflow-hidden relative bg-stone-900">
-                  <img
-                    src="/images/hero-before.jpg"
-                    alt={t.hero.originalPhoto}
-                    className="w-full h-full object-cover filter brightness-90 contrast-95 group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute top-2 left-2">
-                    <Badge variant="secondary" className="bg-black/80 text-white text-[9px] font-bold border-stone-700">
-                      {t.hero.originalPhoto}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="mt-2 text-center text-[11px] text-stone-400 font-medium">
-                  {isHi ? "बिस्तर पर सामान्य फ़ोन फ़ोटो" : "Casual phone photo on bed"}
-                </div>
-              </div>
-
-              {/* AI Studio Revamp */}
-              <div className="relative rounded-2xl overflow-hidden border-2 border-primary bg-stone-900 p-3 shadow-xl shadow-primary/20 flex flex-col justify-between group">
-                <div className="aspect-square rounded-xl overflow-hidden relative bg-gradient-to-tr from-stone-900 to-stone-800">
-                  <img
-                    src="/images/hero-after.jpg"
-                    alt={t.hero.aiStudioRevamp}
-                    className="w-full h-full object-cover filter drop-shadow-2xl group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute top-2 left-2">
-                    <Badge className="bg-primary text-white text-[9px] font-black tracking-wide border-none shadow-sm">
-                      {t.hero.aiStudioRevamp}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="mt-2 text-center text-[11px] text-primary font-bold">
-                  {isHi ? "सीधा 8K स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright 8K Studio Lighting"}
-                </div>
-              </div>
+            {/* Right Visual Column: Interactive Before/After Comparison Slider */}
+            <div className="lg:col-span-5">
+              <BeforeAfterSlider
+                beforeImage="/images/hero-before.jpg"
+                afterImage="/images/hero-after.jpg"
+                beforeLabel={t.hero.originalPhoto}
+                afterLabel={t.hero.aiStudioRevamp}
+                beforeSubtitle={isHi ? "बिस्तर पर सामान्य फ़ोन फ़ोटो" : "Casual photo on bed"}
+                afterSubtitle={isHi ? "सीधा 8K स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright 8K Studio Lighting"}
+              />
             </div>
           </div>
         </div>
@@ -581,114 +554,246 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= SECTION 3: SIMPLE CREDIT PRICING (Ref Image 4) ================= */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 space-y-8 border-t border-border/40">
-        <div className="text-center max-w-xl mx-auto space-y-1">
-          <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight">
-            {t.sections.pricingTitle}
+      {/* ================= SECTION 3: UNIVERSAL CREDIT PRICING (Matches Pricing Page) ================= */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 space-y-12 border-t border-border/40">
+        <div className="text-center max-w-2xl mx-auto space-y-3">
+          <Badge className="bg-primary/10 text-primary border-primary/20 font-bold px-3.5 py-1 text-xs uppercase tracking-wider">
+            {t.pricingPage.badge}
+          </Badge>
+          <h2 className="text-2xl sm:text-4xl font-black font-serif tracking-tight text-foreground">
+            {t.pricingPage.title}{" "}
+            <span className="text-primary italic">{t.pricingPage.titleAccent}</span>
           </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            {t.sections.pricingSubtitle}
+          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            {t.pricingPage.subtitle}
           </p>
         </div>
 
-        {/* 4 Pricing Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {/* Card 1: Starter */}
-          <div className="p-6 rounded-2xl border border-border bg-card flex flex-col justify-between space-y-6 shadow-xs">
-            <div className="space-y-2 text-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t.sections.starterPack}
-              </span>
-              <div className="text-3xl font-black font-serif">₹99</div>
-              <span className="text-xs text-muted-foreground block">
-                6 {t.sections.creditsUnit}
-              </span>
-            </div>
-            <Link href="/pricing" className="block">
-              <Button variant="outline" className="w-full font-bold text-xs h-10 border-border">
-                {t.sections.buyNow}
-              </Button>
-            </Link>
-          </div>
+        {/* 4 Universal Pricing Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Pack 1: Studio Kickstart */}
+          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
+            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isHi ? "स्टूडियो किकस्टार्ट" : "Studio Kickstart"}
+                </h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl font-black font-serif text-foreground">₹249</span>
+                  <span className="text-xs text-muted-foreground">/ 10 {t.sections.creditsUnit}</span>
+                </div>
+                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
+                  ₹24.90 {t.pricingPage.perCredit}
+                </span>
+              </div>
 
-          {/* Card 2: Popular (Orange highlight, Ref Image 4) */}
-          <div className="p-6 rounded-2xl border-2 border-primary bg-primary/5 flex flex-col justify-between space-y-6 shadow-lg shadow-primary/10 relative">
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  {t.pricingPage.featuresIncluded}
+                </span>
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>5 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f1}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f3}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f4}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <Link href="/pricing" className="block w-full">
+                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
+                  {t.pricingPage.buyBtn} (₹249)
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Pack 2: Growth Seller */}
+          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
+            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isHi ? "ग्रोथ सेलर" : "Growth Seller"}
+                </h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl font-black font-serif text-foreground">₹599</span>
+                  <span className="text-xs text-muted-foreground">/ 30 {t.sections.creditsUnit}</span>
+                </div>
+                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
+                  ₹19.97 {t.pricingPage.perCredit}
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  {t.pricingPage.featuresIncluded}
+                </span>
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>15 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f1}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f3}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f4}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <Link href="/pricing" className="block w-full">
+                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
+                  {t.pricingPage.buyBtn} (₹599)
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Pack 3: Merchant Pro (Popular) */}
+          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-2 border-primary shadow-xl shadow-primary/10 bg-primary/5 ring-1 ring-primary/30 rounded-2xl">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <Badge className="bg-primary text-white text-[9px] font-bold uppercase px-2.5 py-0.5 shadow-xs">
-                {t.sections.popularPack}
+              <Badge className="bg-primary text-white font-black uppercase text-[10px] px-3 py-0.5 shadow-sm">
+                {t.pricingPage.popularBadge}
               </Badge>
             </div>
-            <div className="space-y-2 text-center pt-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                {t.sections.popularPack}
-              </span>
-              <div className="text-3xl font-black font-serif text-foreground">₹700</div>
-              <span className="text-xs text-muted-foreground block">
-                50 {t.sections.creditsUnit}
-              </span>
-            </div>
-            <Link href="/pricing" className="block">
-              <Button className="w-full font-bold text-xs h-10 bg-primary hover:bg-primary/90 text-white shadow-sm">
-                {t.sections.buyNow}
-              </Button>
-            </Link>
-          </div>
+            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isHi ? "मर्चेंट प्रो" : "Merchant Pro"}
+                </h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl font-black font-serif text-foreground">₹1,299</span>
+                  <span className="text-xs text-muted-foreground">/ 80 {t.sections.creditsUnit}</span>
+                </div>
+                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
+                  ₹16.24 {t.pricingPage.perCredit}
+                </span>
+              </div>
 
-          {/* Card 3: Value */}
-          <div className="p-6 rounded-2xl border border-border bg-card flex flex-col justify-between space-y-6 shadow-xs">
-            <div className="space-y-2 text-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t.sections.valuePack}
-              </span>
-              <div className="text-3xl font-black font-serif">₹1,000</div>
-              <span className="text-xs text-muted-foreground block">
-                75 {t.sections.creditsUnit}
-              </span>
-            </div>
-            <Link href="/pricing" className="block">
-              <Button variant="outline" className="w-full font-bold text-xs h-10 border-border">
-                {t.sections.buyNow}
-              </Button>
-            </Link>
-          </div>
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  {t.pricingPage.featuresIncluded}
+                </span>
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>40 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f1}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f3}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f4}</span>
+                  </li>
+                </ul>
+              </div>
 
-          {/* Card 4: Bulk */}
-          <div className="p-6 rounded-2xl border border-border bg-card flex flex-col justify-between space-y-6 shadow-xs">
-            <div className="space-y-2 text-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t.sections.bulkPack}
-              </span>
-              <div className="text-3xl font-black font-serif">₹5,000</div>
-              <span className="text-xs text-muted-foreground block">
-                450 {t.sections.creditsUnit}
-              </span>
-            </div>
-            <Link href="/pricing" className="block">
-              <Button variant="outline" className="w-full font-bold text-xs h-10 border-border">
-                {t.sections.buyNow}
-              </Button>
-            </Link>
-          </div>
+              <Link href="/pricing" className="block w-full">
+                <Button className="w-full font-bold h-11 rounded-xl shadow-md shadow-primary/20 text-xs bg-primary hover:bg-primary/90 text-white">
+                  {t.pricingPage.buyBtn} (₹1,299)
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Pack 4: Brand Studio (Best Value) */}
+          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
+            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isHi ? "ब्रांड स्टूडियो" : "Brand Studio"}
+                </h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl font-black font-serif text-foreground">₹2,799</span>
+                  <span className="text-xs text-muted-foreground">/ 200 {t.sections.creditsUnit}</span>
+                </div>
+                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
+                  ₹13.99 {t.pricingPage.perCredit}
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  {t.pricingPage.featuresIncluded}
+                </span>
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>100 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f1}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f3}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{t.pricingPage.f4}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <Link href="/pricing" className="block w-full">
+                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
+                  {t.pricingPage.buyBtn} (₹2,799)
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Custom Credit Pack Slider Card (Ref Image 4) */}
-        <div className="p-6 sm:p-8 rounded-2xl border border-border bg-card shadow-xs space-y-6 max-w-4xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <h3 className="font-bold text-base text-foreground">
-                {t.sections.customPack}
-              </h3>
+        {/* Custom Credit Pack Slider Card (Matches Pricing Page) */}
+        <div className="p-6 sm:p-10 rounded-3xl border-2 border-primary/20 bg-card shadow-lg max-w-4xl mx-auto space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-5">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Sliders className="h-5 w-5 text-primary" />
+                <h3 className="font-bold text-lg text-foreground">
+                  {t.pricingPage.customTitle}
+                </h3>
+              </div>
               <p className="text-xs text-muted-foreground">
-                {customCredits} {t.sections.creditsUnit} {isHi ? "चयनित" : "selected"}
+                {t.pricingPage.customSubtitle}
               </p>
             </div>
-            <div className="text-2xl sm:text-3xl font-black font-serif text-primary">
-              ₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")}
+            <div className="text-right">
+              <div className="text-3xl sm:text-4xl font-black font-serif text-primary">
+                ₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")}
+              </div>
+              <span className="text-xs text-muted-foreground font-semibold">
+                ≈ ₹{(calculateCustomPrice(customCredits) / customCredits).toFixed(1)} {t.pricingPage.perCredit}
+              </span>
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <input
               type="range"
               min={10}
@@ -696,12 +801,71 @@ export default function HomePage() {
               step={10}
               value={customCredits}
               onChange={(e) => setCustomCredits(Number(e.target.value))}
-              className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+              className="w-full accent-primary h-2.5 bg-muted rounded-lg cursor-pointer"
             />
-            <div className="flex justify-between text-[11px] text-muted-foreground font-semibold">
+            <div className="flex justify-between text-xs text-muted-foreground font-semibold">
               <span>10 {t.sections.creditsUnit}</span>
-              <span className="text-primary font-bold">{customCredits} {t.sections.creditsUnit}</span>
+              <span className="text-primary font-black text-sm">
+                {customCredits} {t.sections.creditsUnit} ({t.pricingPage.selected})
+              </span>
               <span>1,000 {t.sections.creditsUnit}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span>{isHi ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा" : "Instant Activation • Automatic Refund Protection"}</span>
+            </div>
+            <Link href="/pricing" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-md gap-2 text-xs"
+              >
+                <Sparkles className="h-4 w-4" />
+                {t.pricingPage.buyCustomBtn} (₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")})
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Pricing FAQs (Matches Pricing Page) */}
+        <div className="max-w-3xl mx-auto space-y-6 pt-4">
+          <div className="text-center space-y-1">
+            <h3 className="text-xl sm:text-2xl font-black font-serif tracking-tight text-foreground">
+              {t.pricingPage.faqTitle}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t.pricingPage.faqSubtitle}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                {t.pricingPage.faq1Q}
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.pricingPage.faq1A}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                {t.pricingPage.faq2Q}
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.pricingPage.faq2A}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                {t.pricingPage.faq3Q}
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.pricingPage.faq3A}
+              </p>
             </div>
           </div>
         </div>

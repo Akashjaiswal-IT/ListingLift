@@ -28,9 +28,11 @@ export default function PricingPage() {
   const verifyPaymentMutation = trpc.payments.verifyPayment.useMutation();
 
   const calculateCustomPrice = (credits: number) => {
-    if (credits >= 400) return Math.round(credits * 10);
-    if (credits >= 200) return Math.round(credits * 11);
-    return Math.round(credits * 12);
+    if (credits >= 500) return Math.round(credits * 11);
+    if (credits >= 200) return Math.round(credits * 14);
+    if (credits >= 80) return Math.round(credits * 17);
+    if (credits >= 30) return Math.round(credits * 20);
+    return Math.round(credits * 25);
   };
 
   const handleBuyPack = async (packId: string) => {
@@ -196,14 +198,18 @@ export default function PricingPage() {
               <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
                 <div>
                   <h3 className="text-lg font-bold text-foreground">
-                    {isHi && pack.id === "pack_starter"
-                      ? "स्टार्टर पैक"
-                      : isHi && pack.id === "pack_growth"
-                      ? "पॉपुलर पैक"
-                      : isHi && pack.id === "pack_pro"
-                      ? "वैल्यू पैक"
-                      : isHi && pack.id === "pack_bulk"
-                      ? "बल्क पैक"
+                    {isHi && pack.id === "trial"
+                      ? "स्टूडियो किकस्टार्ट"
+                      : isHi && pack.id === "starter"
+                      ? "ग्रोथ सेलर"
+                      : isHi && pack.id === "standard"
+                      ? "मर्चेंट प्रो"
+                      : isHi && pack.id === "pro"
+                      ? "ब्रांड स्टूडियो"
+                      : isHi && pack.id === "business_s"
+                      ? "बिजनेस स्टूडियो"
+                      : isHi && pack.id === "business_l"
+                      ? "एजेंसी बल्क"
                       : pack.name}
                   </h3>
                   <div className="mt-4 flex items-baseline gap-1">
