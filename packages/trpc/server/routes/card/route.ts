@@ -11,7 +11,7 @@ import {
 
 export const cardRouter = router({
   regenerateCards: protectedProcedure
-    .input(z.object({ listingObjectId: z.string() }))
+    .input(z.object({ listingObjectId: z.string(), templateId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const listing = await ListingObject.findOne({
         _id: input.listingObjectId,
@@ -20,6 +20,10 @@ export const cardRouter = router({
 
       if (!listing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
+      }
+
+      if (input.templateId) {
+        listing.templateId = input.templateId;
       }
 
       // Pick best active generated image or original image
@@ -42,6 +46,7 @@ export const cardRouter = router({
         price: listing.price,
         discountPrice: listing.discountPrice,
         ctaText: listing.ctaText || ctx.user.defaultCta?.text,
+        templateId: input.templateId || listing.templateId,
         sellerInfo: {
           storeName: ctx.user.storeName,
           whatsappNumber: ctx.user.whatsappNumber,

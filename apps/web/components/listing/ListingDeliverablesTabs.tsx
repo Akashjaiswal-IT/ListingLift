@@ -17,12 +17,14 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { CARD_TEMPLATES_MAP, TemplateId } from "~/lib/card-templates";
+import { CARD_TEMPLATES_INFO, CARD_TEMPLATES_MAP, CardTemplateInfo, TemplateId } from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
-import { useCallback } from "react";
 import { downloadFile } from "~/lib/download";
 import { trackEvent } from "~/lib/analytics";
+import { trpc } from "~/trpc/client";
+import { Loader2 } from "lucide-react";
 
 export interface ListingDeliverablesTabsProps {
   listing: any;
@@ -42,6 +44,37 @@ export function ListingDeliverablesTabs({
 
   const listingId = listing._id || listing.id;
   const text = listing.aiGeneratedText;
+  const utils = trpc.useUtils();
+  const [renderingTemplateId, setRenderingTemplateId] = useState<string | null>(null);
+
+  const regenerateCardsMutation = trpc.card.regenerateCards.useMutation({
+    onSuccess: () => {
+      toast.success(
+        isHi
+          ? "कार्ड्स सफलतापूर्वक नए स्टाइल में तैयार हो गए!"
+          : "Cards successfully rendered in selected festival style!"
+      );
+      utils.listing.getById.invalidate({ id: listingId });
+      setRenderingTemplateId(null);
+    },
+    onError: (err) => {
+      toast.error(
+        isHi
+          ? `कार्ड तैयार करने में त्रुटि: ${err.message}`
+          : `Failed to render cards: ${err.message}`
+      );
+      setRenderingTemplateId(null);
+    },
+  });
+
+  const handleApplyTemplate = (templateId: TemplateId) => {
+    setRenderingTemplateId(templateId);
+    toast.info(isHi ? "कार्ड्स रेंडर हो रहे हैं…" : "Rendering festival cards…");
+    regenerateCardsMutation.mutate({
+      listingObjectId: listingId,
+      templateId,
+    });
+  };
 
   const handleDownload = useCallback((url: string, filename: string) => {
     toast.info(isHi ? "डाउनलोड शुरू हो रहा है…" : "Starting download…");
@@ -389,78 +422,265 @@ export function ListingDeliverablesTabs({
       </TabsContent>
 
       {/* 6. CARDS TAB */}
-      <TabsContent value="cards" className="space-y-6">
-        {listing.templateId && CARD_TEMPLATES_MAP[listing.templateId as TemplateId] && (
-          <div className="flex items-center justify-between p-3 rounded-lg border border-[#E05822]/20 bg-[#E05822]/5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{isHi ? "सक्रिय डिज़ाइन टेम्पलेट:" : "Active Template:"}</span>
-              <Badge variant="outline" className="font-semibold text-xs border-[#E05822]/30 text-[#E05822]">
-                {CARD_TEMPLATES_MAP[listing.templateId as TemplateId].name}
-              </Badge>
-              <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                — {CARD_TEMPLATES_MAP[listing.templateId as TemplateId].description}
-              </span>
+      <TabsContent value="cards" className="space-y-8">
+        {/* Active rendered cards preview */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-xl border border-[#E05822]/20 bg-[#E05822]/5">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="h-4 w-4 text-[#E05822]" />
+              <div>
+                <span className="text-xs text-muted-foreground">{isHi ? "वर्तमान सक्रिय कार्ड टेम्पलेट:" : "Currently Active Template:"} </span>
+                <span className="font-bold text-xs text-foreground">
+                  {listing.templateId && CARD_TEMPLATES_MAP[listing.templateId as TemplateId]?.name || "Standard Luxury"}
+                </span>
+                {listing.templateId && CARD_TEMPLATES_MAP[listing.templateId as TemplateId]?.description && (
+                  <span className="text-[11px] text-muted-foreground hidden sm:inline ml-1.5">
+                    — {CARD_TEMPLATES_MAP[listing.templateId as TemplateId].description}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[10px] w-fit border-[#E05822]/30 text-[#E05822] font-semibold">
+              {isHi ? "1080x1080 & 9:16 फ़ॉर्मैट्स" : "1080x1080 & 9:16 Formats"}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {listing.whatsappCard?.url && (
+              <Card className="overflow-hidden border-border/60">
+                <div className="aspect-square bg-muted">
+                  <img src={listing.whatsappCard.url} alt="WhatsApp Card" className="w-full h-full object-cover" />
+                </div>
+                <CardContent className="p-3.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold">{isHi ? "व्हाट्सएप कार्ड (1:1)" : "WhatsApp Card (1:1)"}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1"
+                    onClick={() => handleDownload(listing.whatsappCard.url, "whatsapp-card.jpg")}
+                  >
+                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {listing.instagramPost?.url && (
+              <Card className="overflow-hidden border-border/60">
+                <div className="aspect-square bg-muted">
+                  <img src={listing.instagramPost.url} alt="Instagram Post" className="w-full h-full object-cover" />
+                </div>
+                <CardContent className="p-3.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम पोस्ट (1:1)" : "Instagram Post (1:1)"}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1"
+                    onClick={() => handleDownload(listing.instagramPost.url, "instagram-post.jpg")}
+                  >
+                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {listing.instagramStory?.url && (
+              <Card className="overflow-hidden border-border/60">
+                <div className="aspect-[9/16] bg-muted max-h-[400px]">
+                  <img src={listing.instagramStory.url} alt="Instagram Story" className="w-full h-full object-cover" />
+                </div>
+                <CardContent className="p-3.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम स्टोरी (9:16)" : "Instagram Story (9:16)"}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1"
+                    onClick={() => handleDownload(listing.instagramStory.url, "instagram-story.jpg")}
+                  >
+                    <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* 4 Festive & Studio Collections (35 Cards Total) */}
+        {[
+          {
+            sectionId: "diwali",
+            title: isHi ? "🪔 शुभ दीपावली स्पेशल (9 विशेष टेम्पलेट्स)" : "🪔 Shubh Deepavali Special (9 Festival Templates)",
+            subtitle: isHi ? "रॉयल झरोखा मेहराब, गेंद फूल माला, 3D गोल्डन पैडेस्टल, प्रज्वलित मिट्टी के दीये एवं 24K गोल्ड रिबन" : "Royal jharokha arch, cascading marigold garlands, 3D golden pedestal, lit clay diyas & gold ribbon",
+            badgeText: "SHUBH DIWALI",
+            badgeClass: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30",
+            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "diwali"),
+          },
+          {
+            sectionId: "navratri",
+            title: isHi ? "🌟 नवरात्रि स्पेशल कार्ड्स (8 विशेष टेम्पलेट्स)" : "🌟 Navratri Utsav Cards (8 Festival Templates)",
+            subtitle: isHi ? "डांडिया स्टिक्स, दुर्गा शक्ति त्रिशूल, कच्छी मिरर एम्ब्रॉयडरी एवं रास लीला वेक्टर्स" : "Authored Gujarati dandiya sticks, Durga trishul, Kutch mirror & Raas Leela vectors",
+            badgeText: "NAVRATRI UTSAV",
+            badgeClass: "bg-pink-500/10 text-pink-600 border-pink-500/30",
+            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "navratri"),
+          },
+          {
+            sectionId: "dussehra",
+            title: isHi ? "🏹 दशहरा एवं विजयादशमी स्पेशल (8 विशेष टेम्पलेट्स)" : "🏹 Dussehra & Vijayadashami Special (8 Festival Templates)",
+            subtitle: isHi ? "विजय धनुष बाण, विजय अग्नि, शुभ आप्टा पत्तियां एवं राजपूताना शस्त्र पूजा कलाकृति" : "Authored Vijay Dhanush bow, victory agni, golden apta leaves & shastra puja crest",
+            badgeText: "VIJAYADASHAMI",
+            badgeClass: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "dussehra"),
+          },
+          {
+            sectionId: "luxury",
+            title: isHi ? "👑 लग्जरी स्टूडियो एवं एडिटोरियल (10 विशेष टेम्पलेट्स)" : "👑 Luxury Studio & Editorial (10 Premium Templates)",
+            subtitle: isHi ? "मिनिमलिस्ट आइवरी, 24K गोल्ड फॉयल, एमराल्ड प्रेस्टीज, और सायबर नियॉन ड्रॉप लेआउट्स" : "Minimalist ivory, 24K gold foil, royal emerald, and cyber neon drop layouts",
+            badgeText: "STUDIO LUXE",
+            badgeClass: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30",
+            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "luxury" || !t.festivalSection),
+          },
+        ].map((sec) => (
+          <div key={sec.sectionId} className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  {sec.title}
+                  <Badge variant="outline" className={`text-[10px] font-bold ${sec.badgeClass}`}>
+                    {sec.badgeText}
+                  </Badge>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{sec.subtitle}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {sec.templates.map((tpl) => {
+                const isCurrent = listing.templateId === tpl.id;
+                const isRendering = renderingTemplateId === tpl.id;
+
+                return (
+                  <Card
+                    key={tpl.id}
+                    className={`overflow-hidden border transition-all duration-200 flex flex-col justify-between ${
+                      isCurrent
+                        ? "border-[#E05822] ring-2 ring-[#E05822]/20 bg-[#E05822]/5"
+                        : "border-border/60 hover:border-border hover:shadow-xs"
+                    }`}
+                  >
+                    {/* Rich Visual Card Preview Box (Accurate Reference Rendering) */}
+                    <div
+                      className={`aspect-[4/3] p-2.5 bg-gradient-to-b ${tpl.cardGradClass} border-b ${tpl.borderClass} flex flex-col justify-between relative overflow-hidden`}
+                    >
+                      {/* Top Royal Arch Contour Silhouette */}
+                      <div className="absolute top-0 inset-x-0 h-6 border-b border-amber-400/40 bg-black/20 rounded-b-2xl pointer-events-none" />
+
+                      {/* Side Marigold Garland Dots */}
+                      <div className="absolute left-1.5 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 shadow-xs" />
+                      </div>
+                      <div className="absolute right-1.5 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shadow-xs" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 shadow-xs" />
+                      </div>
+
+                      {/* Header Pill & Active Badge */}
+                      <div className="relative z-10 flex items-center justify-between">
+                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${tpl.tagBadgeClass}`}>
+                          {tpl.tag}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-[8px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-xs">
+                            {isHi ? "सक्रिय" : "ACTIVE"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Center 3D Stepped Golden Pedestal with Title */}
+                      <div className="relative z-10 my-auto text-center px-3 space-y-1">
+                        <p className={`text-[10px] font-serif font-black tracking-tight ${tpl.titleColorClass} line-clamp-1`}>
+                          {tpl.headline || tpl.name}
+                        </p>
+                        {/* 3D Circular Pedestal Simulation */}
+                        <div className="mx-auto w-24 h-4 rounded-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 border border-amber-300 shadow-sm flex items-center justify-center">
+                          <span className="text-[7px] font-bold text-stone-900 truncate px-1">
+                            {listing.userTitle?.slice(0, 14) || "Product"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Pricing & Metallic Gold Ribbon Preview */}
+                      <div className="relative z-10 space-y-1 pt-1">
+                        {/* Strikethrough MRP and Price */}
+                        <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold">
+                          {listing.price && listing.discountPrice ? (
+                            <>
+                              <span className="line-through text-muted-foreground/80 opacity-70 text-[8px]">
+                                ₹{listing.price}
+                              </span>
+                              <span className={`font-black text-[11px] ${tpl.priceColorClass}`}>
+                                ₹{listing.discountPrice}
+                              </span>
+                            </>
+                          ) : (
+                            <span className={`font-black text-[11px] ${tpl.priceColorClass}`}>
+                              {listing.price ? `₹${listing.price}` : "₹699"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Gold Ribbon Bar */}
+                        <div className="w-full h-4 rounded bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-400 flex items-center justify-between px-1.5 text-[7px] font-black text-amber-950 shadow-xs">
+                          <span className="truncate max-w-[85px]">🎁 {tpl.tagline?.slice(0, 18) || "Special Offer"}</span>
+                          <span>🔗 SHARE</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <CardContent className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold truncate text-foreground">{tpl.name}</h4>
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
+                          {tpl.description}
+                        </p>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant={isCurrent ? "secondary" : "outline"}
+                        disabled={isRendering || isCurrent}
+                        onClick={() => handleApplyTemplate(tpl.id)}
+                        className={`w-full h-7 text-[11px] font-bold gap-1 mt-2 ${
+                          isCurrent
+                            ? "bg-muted text-muted-foreground"
+                            : "border-[#E05822]/30 text-[#E05822] hover:bg-[#E05822] hover:text-white"
+                        }`}
+                      >
+                        {isRendering ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {isHi ? "रेंडर हो रहा है…" : "Rendering…"}
+                          </>
+                        ) : isCurrent ? (
+                          isHi ? "लागू है" : "Currently Applied"
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3" />
+                            {isHi ? "यह कार्ड बनाएं" : "Render Card"}
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {listing.whatsappCard?.url && (
-            <Card className="overflow-hidden border-border/60">
-              <div className="aspect-square bg-muted">
-                <img src={listing.whatsappCard.url} alt="WhatsApp Card" className="w-full h-full object-cover" />
-              </div>
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <span className="text-xs font-semibold">{isHi ? "व्हाट्सएप कार्ड" : "WhatsApp Card"}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs gap-1"
-                  onClick={() => handleDownload(listing.whatsappCard.url, "whatsapp-card.jpg")}
-                >
-                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {listing.instagramPost?.url && (
-            <Card className="overflow-hidden border-border/60">
-              <div className="aspect-square bg-muted">
-                <img src={listing.instagramPost.url} alt="Instagram Post" className="w-full h-full object-cover" />
-              </div>
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम पोस्ट (1:1)" : "Instagram Post (1:1)"}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs gap-1"
-                  onClick={() => handleDownload(listing.instagramPost.url, "instagram-post.jpg")}
-                >
-                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {listing.instagramStory?.url && (
-            <Card className="overflow-hidden border-border/60">
-              <div className="aspect-[9/16] bg-muted max-h-[400px]">
-                <img src={listing.instagramStory.url} alt="Instagram Story" className="w-full h-full object-cover" />
-              </div>
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम स्टोरी (9:16)" : "Instagram Story (9:16)"}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs gap-1"
-                  onClick={() => handleDownload(listing.instagramStory.url, "instagram-story.jpg")}
-                >
-                  <Download className="h-3 w-3" /> {isHi ? "डाउनलोड" : "Download"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        ))}
       </TabsContent>
     </Tabs>
   );
