@@ -210,3 +210,123 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Processing failed" });
   }
 });
+
+// =======================================================
+// Meta WhatsApp Cloud API Webhook Endpoints
+// =======================================================
+
+/**
+ * Meta Webhook Verification Handshake
+ * Triggered when configuring webhook URL in Meta App Dashboard
+ */
+webhookRouter.get("/whatsapp", (req: Request, res: Response) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "peshkar_ai_webhook_secret";
+
+  if (mode === "subscribe" && token === verifyToken) {
+    logger.info("[WHATSAPP WEBHOOK] Handshake verified successfully with Meta");
+    return res.status(200).send(challenge);
+  }
+
+  logger.warn("[WHATSAPP WEBHOOK] Verification token mismatch or invalid mode", { mode, token });
+  return res.status(403).json({ error: "Verification token mismatch" });
+});
+
+/**
+ * Meta WhatsApp Message Ingestion Webhook
+ * Receives messages, images, and statuses from sellers on WhatsApp
+ */
+webhookRouter.post("/whatsapp", async (req: Request, res: Response) => {
+  // Optional Meta HMAC signature verification if WHATSAPP_APP_SECRET is configured
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (appSecret) {
+    const signature = req.headers["x-hub-signature-256"] as string;
+    const rawBodyBuf = (req as any).rawBody;
+    if (signature && rawBodyBuf) {
+      const expectedSig = `sha256=${crypto.createHmac("sha256", appSecret).update(rawBodyBuf).digest("hex")}`;
+      if (signature !== expectedSig) {
+        logger.warn("[WHATSAPP WEBHOOK] Invalid signature rejected");
+        return res.status(403).json({ error: "Invalid signature" });
+      }
+    }
+  }
+
+  // Acknowledge Meta immediately with 200 OK within 5s to avoid retry storms
+  res.status(200).json({ status: "received" });
+
+  try {
+    const body = req.body;
+    if (body.object !== "whatsapp_business_account") {
+      return;
+    }
+
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const messages = value?.messages;
+
+    if (!messages || messages.length === 0) {
+      return; // Status notification (sent, delivered, read) - ignore
+    }
+
+    const msg = messages[0];
+    const rawFrom = msg.from; // e.g. "919876543210"
+    const messageType = msg.type; // "image" | "text" | "interactive"
+
+    // Sanitize phone number strictly to numeric digits (prevents regex injection & ReDoS)
+    const cleanDigits = String(rawFrom || "").replace(/\D/g, "");
+    if (cleanDigits.length < 10) {
+      logger.warn(`[WHATSAPP WEBHOOK] Received message with invalid phone length: ${rawFrom}`);
+      return;
+    }
+
+    const last10Digits = cleanDigits.slice(-10);
+
+    logger.info(`[WHATSAPP WEBHOOK] Received ${messageType} message from ${cleanDigits}`);
+
+    await connectToDatabase();
+
+    // Match seller by phone number safely
+    const user = await User.findOne({
+      $or: [
+        { phone: cleanDigits },
+        { phone: `+${cleanDigits}` },
+        { phone: { $regex: `${last10Digits}$` } },
+        { whatsappNumber: cleanDigits },
+        { whatsappNumber: `+${cleanDigits}` },
+        { whatsappNumber: { $regex: `${last10Digits}$` } },
+      ],
+    });
+
+    if (!user) {
+      logger.info(
+        `[WHATSAPP WEBHOOK] Unregistered phone number ${rawFrom}. User needs to link WhatsApp on profile.`
+      );
+      return;
+    }
+
+    logger.info(
+      `[WHATSAPP WEBHOOK] Matched seller: ${user.fullName} (${user._id}), Credit Balance: ${user.creditBalance}`
+    );
+
+    if (messageType === "image") {
+      const imageId = msg.image?.id;
+      const caption = msg.image?.caption || "";
+      logger.info(
+        `[WHATSAPP WEBHOOK] Image received (Media ID: ${imageId}) from user ${user._id}. Caption: "${caption}"`
+      );
+      // In production, fetch media from Graph API using imageId, upload to S3/R2, and enqueue listing generation
+    } else if (messageType === "text") {
+      const textBody = msg.text?.body?.trim()?.toLowerCase() || "";
+      logger.info(`[WHATSAPP WEBHOOK] Text command from ${user.fullName}: "${textBody}"`);
+    }
+  } catch (err: any) {
+    logger.error("[WHATSAPP WEBHOOK] Error processing incoming WhatsApp event", {
+      error: err.message || String(err),
+    });
+  }
+});
+

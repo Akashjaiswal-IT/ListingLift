@@ -35,6 +35,12 @@ export interface IUser extends Document {
   lifetimeCreditsSpent: number;
   creditHistory: ICreditHistoryEntry[];
 
+  // Referral system ("Give 5, Get 5")
+  referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
+  referralCreditsEarned?: number;
+
   role: "user" | "admin";
   createdAt: Date;
   updatedAt: Date;
@@ -80,6 +86,12 @@ const UserSchema = new Schema<IUser>(
     lifetimeCreditsEarned: { type: Number, default: 0 },
     lifetimeCreditsSpent: { type: Number, default: 0 },
     creditHistory: [CreditHistorySchema],
+
+    // Referral system
+    referralCode: { type: String, unique: true, sparse: true, index: true },
+    referredBy: { type: String, index: true },
+    referralCount: { type: Number, default: 0 },
+    referralCreditsEarned: { type: Number, default: 0 },
 
     role: { type: String, enum: ["user", "admin"], default: "user" },
   },

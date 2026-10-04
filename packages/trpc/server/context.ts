@@ -25,9 +25,16 @@ export async function createContext(
       await connectToDatabase();
       user = await User.findOne({ clerkId: clerkUserId });
 
+      // Ensure existing users have a referral code
+      if (user && !user.referralCode) {
+        user.referralCode = `PESH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        await user.save().catch(() => {});
+      }
+
       // Just-In-Time Provisioning: If user logged in but webhook has not created them yet
       if (!user) {
         const trialCredits = 10;
+        const newReferralCode = `PESH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         try {
           const clerkUser = await clerkClient.users.getUser(clerkUserId);
           const primaryEmail =
@@ -45,6 +52,7 @@ export async function createContext(
             creditBalance: trialCredits,
             lifetimeCreditsEarned: trialCredits,
             lifetimeCreditsSpent: 0,
+            referralCode: newReferralCode,
             creditHistory: [
               {
                 type: "TRIAL",

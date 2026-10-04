@@ -18,68 +18,61 @@ export interface CreditPack {
 export const CREDIT_PACKS: CreditPack[] = [
   {
     id: "trial",
-    name: "Trial Pack",
+    name: "Studio Kickstart",
     credits: 10,
-    priceRupees: 99,
-    amountPaise: 9900,
-    perCreditRupees: 9.9,
+    priceRupees: 249,
+    amountPaise: 24900,
+    perCreditRupees: 24.9,
     badge: "First Purchase",
   },
   {
     id: "starter",
-    name: "Starter Pack",
-    credits: 25,
-    priceRupees: 299,
-    amountPaise: 29900,
-    perCreditRupees: 11.96,
+    name: "Growth Seller",
+    credits: 30,
+    priceRupees: 599,
+    amountPaise: 59900,
+    perCreditRupees: 19.97,
+    savingsPercent: 20,
+    badge: "Starter Studio",
   },
   {
     id: "standard",
-    name: "Standard Pack",
-    credits: 60,
-    priceRupees: 599,
-    amountPaise: 59900,
-    perCreditRupees: 9.98,
-    savingsPercent: 17,
+    name: "Merchant Pro",
+    credits: 80,
+    priceRupees: 1299,
+    amountPaise: 129900,
+    perCreditRupees: 16.24,
+    savingsPercent: 35,
     isPopular: true,
     badge: "Most Popular",
   },
   {
     id: "pro",
-    name: "Pro Pack",
-    credits: 100,
-    priceRupees: 899,
-    amountPaise: 89900,
-    perCreditRupees: 8.99,
-    savingsPercent: 25,
+    name: "Brand Studio",
+    credits: 200,
+    priceRupees: 2799,
+    amountPaise: 279900,
+    perCreditRupees: 13.99,
+    savingsPercent: 44,
     badge: "Best Value",
   },
   {
     id: "business_s",
-    name: "Business Small",
-    credits: 200,
-    priceRupees: 1699,
-    amountPaise: 169900,
-    perCreditRupees: 8.5,
-    savingsPercent: 29,
-  },
-  {
-    id: "business_m",
-    name: "Business Medium",
-    credits: 500,
-    priceRupees: 3999,
-    amountPaise: 399900,
-    perCreditRupees: 8.0,
-    savingsPercent: 33,
+    name: "Business Studio",
+    credits: 450,
+    priceRupees: 5499,
+    amountPaise: 549900,
+    perCreditRupees: 12.22,
+    savingsPercent: 51,
   },
   {
     id: "business_l",
-    name: "Business Large",
-    credits: 1200,
-    priceRupees: 8999,
-    amountPaise: 899900,
-    perCreditRupees: 7.5,
-    savingsPercent: 37,
+    name: "Agency Bulk",
+    credits: 1000,
+    priceRupees: 9999,
+    amountPaise: 999900,
+    perCreditRupees: 9.99,
+    savingsPercent: 60,
   },
 ];
 
@@ -117,7 +110,12 @@ export async function createOrder(params: {
   if (packId === "topup") {
     const qty = Math.max(1, topupQuantity || 1);
     credits = qty;
-    amountPaise = qty * 1200; // ₹12 per credit = 1200 paise
+    let perCreditPaise = 2500; // default ₹25 per credit
+    if (qty >= 500) perCreditPaise = 1100; // ₹11
+    else if (qty >= 200) perCreditPaise = 1400; // ₹14
+    else if (qty >= 80) perCreditPaise = 1700; // ₹17
+    else if (qty >= 30) perCreditPaise = 2000; // ₹20
+    amountPaise = qty * perCreditPaise;
   } else {
     const pack = getPackById(packId);
     if (!pack) {

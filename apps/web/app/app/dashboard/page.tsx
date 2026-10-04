@@ -12,22 +12,69 @@ import {
   Layers,
   ShoppingBag,
   ExternalLink,
+  Gift,
+  Users,
+  Copy,
+  MessageCircle,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "~/providers/LanguageContext";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const { language } = useLanguage();
   const isHi = language === "hi";
   const { balance, setBalance, isInitialized } = useCreditStore();
+  const utils = trpc.useUtils();
 
   const balanceQuery = trpc.credits.getBalance.useQuery();
   const listingsQuery = trpc.listing.list.useQuery({ page: 1, limit: 6 });
+  const referralQuery = trpc.user.getReferralStats.useQuery();
+
+  const [inputCode, setInputCode] = useState("");
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const applyReferralMutation = trpc.user.applyReferralCode.useMutation({
+    onSuccess: (data) => {
+      toast.success(
+        isHi
+          ? `रेफ़रल कोड लागू हुआ! आपको 5 मुफ़्त क्रेडिट्स मिले (${data.referrerName} द्वारा आमंत्रित)`
+          : `Referral applied! 5 bonus credits awarded (Invited by ${data.referrerName})`
+      );
+      setInputCode("");
+      utils.user.getReferralStats.invalidate();
+      utils.credits.getBalance.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || (isHi ? "रेफ़रल कोड अमान्य है" : "Invalid referral code"));
+    },
+  });
+
+  const referralData = referralQuery.data;
+  const myCode = referralData?.referralCode || "";
+
+  const handleCopyCode = () => {
+    if (!myCode) return;
+    navigator.clipboard.writeText(myCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+    toast.success(isHi ? "रेफ़रल कोड कॉपी हुआ!" : "Referral code copied to clipboard!");
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!myCode) return;
+    const msg = isHi
+      ? `नमस्ते! मैं अपने प्रॉडक्ट्स की 8K AI स्टूडियो फ़ोटो और कैटलॉग बनाने के लिए Peshkar AI का उपयोग कर रहा हूँ। मेरे रेफ़रल कोड ${myCode} का उपयोग करें और 5 मुफ़्त बोनस क्रेडिट्स पाएं: https://peshkar.ai`
+      : `Hey! I'm using Peshkar AI to turn phone photos into 8K studio e-commerce listings in seconds. Use my code ${myCode} on signup to get 5 free bonus credits: https://peshkar.ai`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
+  };
 
   useEffect(() => {
     if (balanceQuery.data?.balance !== undefined) {
@@ -69,9 +116,16 @@ export default function DashboardPage() {
         <Card className="border-border/60 bg-card hover:border-[#E05822]/40 transition-all shadow-sm">
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                {isHi ? "उपलब्ध क्रेडिट्स" : "Available Credits"}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                  {isHi ? "उपलब्ध क्रेडिट्स" : "Available Credits"}
+                </span>
+                {balance >= 10 && (
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 font-bold">
+                    {isHi ? "₹249 मूल्य" : "₹249 Value"}
+                  </Badge>
+                )}
+              </div>
               <div className="text-3xl font-black text-[#E05822]">
                 {isInitialized ? balance : (balanceQuery.isLoading ? "..." : balance)}
               </div>
@@ -143,6 +197,106 @@ export default function DashboardPage() {
           </Button>
         </Link>
       </div>
+
+      {/* "Give 5, Get 5" Merchant Referral Program */}
+      <Card className="rounded-2xl border border-border/70 bg-gradient-to-br from-card via-card to-amber-500/5 p-6 shadow-sm overflow-hidden relative">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold text-xs gap-1.5 py-0.5">
+                <Gift className="h-3.5 w-3.5" />
+                {isHi ? "सेलर इनवाइट प्रोग्राम" : "Give 5, Get 5 Referral Program"}
+              </Badge>
+              <span className="text-xs text-muted-foreground font-semibold">
+                {isHi ? "5 क्रेडिट्स दें, 5 क्रेडिट्स पाएं" : "Each Friend = 5 Free Credits"}
+              </span>
+            </div>
+            <h3 className="text-xl font-serif font-black tracking-tight text-foreground">
+              {isHi
+                ? "साथी सेलर्स को आमंत्रित करें — दोनों को मिलेंगे 5-5 मुफ़्त क्रेडिट्स!"
+                : "Invite Fellow Sellers — Both Get 5 Free Studio Credits!"}
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isHi
+                ? "जब आपका कोई दोस्त आपके कोड का उपयोग करके Peshkar AI पर जुड़ता है, तो उन्हें तुरंत 5 बोनस क्रेडिट्स मिलते हैं और आपको भी 5 मुफ़्त क्रेडिट्स मिलते हैं।"
+                : "Share your code with sellers on WhatsApp or Meesho/Amazon groups. When they register or redeem, they get 5 free credits instantly and you earn 5 credits too."}
+            </p>
+
+            <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Users className="h-3.5 w-3.5 text-foreground" />
+                <strong className="text-foreground">{referralData?.referralCount ?? 0}</strong> {isHi ? "सेलर्स जुड़े" : "Sellers Invited"}
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <Coins className="h-3.5 w-3.5 text-amber-500" />
+                <strong className="text-foreground">{referralData?.referralCreditsEarned ?? 0}</strong> {isHi ? "क्रेडिट्स कमाए" : "Credits Earned"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-3 min-w-[320px]">
+            {/* My Referral Code Pill */}
+            <div className="p-3 rounded-xl border border-border/80 bg-muted/30 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">
+                  {isHi ? "आपका रेफ़रल कोड" : "Your Referral Code"}
+                </span>
+                <span className="font-mono text-base font-black tracking-wider text-foreground">
+                  {myCode || "..."}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyCode}
+                  className="h-8 text-xs gap-1 font-bold"
+                >
+                  {copiedCode ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedCode ? (isHi ? "कॉपी हुआ" : "Copied") : (isHi ? "कॉपी" : "Copy")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleShareWhatsApp}
+                  className="h-8 text-xs gap-1 font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {isHi ? "व्हाट्सएप" : "Share"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Redeem code input (if not already referred) */}
+            {!referralData?.referredBy && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!inputCode.trim()) return;
+                  applyReferralMutation.mutate({ code: inputCode.trim() });
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  placeholder={isHi ? "दोस्त का कोड दर्ज करें (उदा. PESH-XXXX)" : "Have a code? Enter (e.g. PESH-XXXX)"}
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                  className="flex-1 h-9 px-3 text-xs uppercase font-mono rounded-lg border border-border/80 bg-background text-foreground placeholder:normal-case placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-[#E05822]"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!inputCode.trim() || applyReferralMutation.isPending}
+                  className="h-9 px-3.5 text-xs font-bold bg-[#E05822] hover:bg-[#c94917] text-white"
+                >
+                  {applyReferralMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : (isHi ? "रिडीम करें" : "Claim 5 Cr")}
+                </Button>
+              </form>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Recent Listings Grid */}
       <div className="space-y-4">
