@@ -3,8 +3,11 @@ import { env } from "./env";
 
 type LoggerLevel = "error" | "info" | "debug";
 
+// Default to "info" in production, not "error" — otherwise every logger.info
+// (job started/completed, credits refunded, webhooks processed) is silently
+// dropped and you're blind to normal operation. Override with LOGGER_LEVEL.
 const level: LoggerLevel =
-  env.LOGGER_LEVEL ?? (env.NODE_ENV === "development" ? "debug" : "error");
+  env.LOGGER_LEVEL ?? (env.NODE_ENV === "development" ? "debug" : "info");
 
 const isDevelopment = env.NODE_ENV === "development";
 

@@ -6,7 +6,8 @@
     "start": "node dist/index.js",
     "dev": "dotenv -e ../../.env -- tsx watch ./src/index.ts",
     "build": "tsup",
-    "lint": "eslint src/*"
+    "lint": "eslint src",
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -32,8 +33,10 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "mongoose": "^8.14.1",
+    "pdfkit": "^0.20.2",
     "sharp": "^0.35.4",
     "svix": "^2.5.0",
     "trpc-to-openapi": "^3.1.0",

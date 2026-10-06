@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
