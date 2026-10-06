@@ -54,10 +54,17 @@ export function getReEditQueue(): Queue {
 
 export async function enqueueImageGeneration(listingObjectId: string): Promise<string> {
   const queue = getImageGenerationQueue();
+  // IMPORTANT: the jobId must be UNIQUE per enqueue. BullMQ treats jobId as an
+  // idempotency/dedup key and *silently ignores* a second add() with an id that
+  // already exists in the queue (including failed jobs, which we keep via
+  // removeOnFail: 500). A fixed `gen_<listingId>` meant that retrying a failed
+  // generation added nothing and the listing was stuck in "queued" forever.
+  // We guard against accidental double-enqueue at the route layer via the
+  // listing status check, so a unique id here is safe.
   const job = await queue.add(
     "generate-listing-images",
     { listingObjectId },
-    { jobId: `gen_${listingObjectId}` }
+    { jobId: `gen_${listingObjectId}_${Date.now()}` }
   );
   return job.id || `gen_${listingObjectId}`;
 }

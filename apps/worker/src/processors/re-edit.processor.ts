@@ -1,6 +1,6 @@
 import { Job } from "bullmq";
 import { logger } from "@repo/logger";
-import { ListingObject, User, Types } from "@repo/database";
+import { ListingObject, User, CreditLedger, Types } from "@repo/database";
 import {
   fetchBufferFromR2,
   uploadBufferToR2,
@@ -173,11 +173,12 @@ export async function processReEdit(
     if (retryCount >= maxRetries) {
       try {
         const refundReferenceId = `reedit_${listingObjectId}_${job.id}`;
-        // Verify user hasn't already been refunded for this referenceId
-        const targetUser = await User.findById(listing.userId);
-        const alreadyRefunded = targetUser?.creditHistory?.some(
-          (h) => h.referenceId === refundReferenceId
-        );
+        // Verify user hasn't already been refunded for this referenceId (now a
+        // ledger lookup instead of scanning an embedded array).
+        const alreadyRefunded = !!(await CreditLedger.exists({
+          userId: listing.userId,
+          referenceId: refundReferenceId,
+        }));
 
         if (!alreadyRefunded) {
           await refundCredits({

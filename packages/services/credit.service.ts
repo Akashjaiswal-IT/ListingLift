@@ -1,4 +1,4 @@
-import { User, IUser } from "@repo/database";
+import { User, CreditLedger } from "@repo/database";
 import { Types } from "mongoose";
 
 export class InsufficientCreditsError extends Error {
@@ -24,6 +24,33 @@ export function calculateGenerationCredits(
 
 export const RE_EDIT_CREDIT_COST = 1;
 
+/**
+ * Insert one immutable ledger row. Called AFTER the user's balance has been
+ * updated atomically, with the post-update balance passed in as `balanceAfter`.
+ * Because each row is its own document, there is no second save() on the user
+ * and no race on a running-balance field.
+ */
+async function recordLedgerEntry(params: {
+  userId: Types.ObjectId | string;
+  type: "PURCHASE" | "DEBIT" | "REFUND" | "BONUS" | "TRIAL";
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  referenceId?: string;
+  referenceType?: "payment" | "listing_object" | "re_edit";
+}): Promise<void> {
+  await CreditLedger.create({
+    userId: params.userId,
+    type: params.type,
+    amount: params.amount,
+    balanceAfter: params.balanceAfter,
+    description: params.description,
+    referenceId: params.referenceId,
+    referenceType: params.referenceType,
+    createdAt: new Date(),
+  });
+}
+
 export async function deductCredits(params: {
   userId: Types.ObjectId | string;
   amount: number;
@@ -38,29 +65,11 @@ export async function deductCredits(params: {
     return { success: true, newBalance: user?.creditBalance ?? 0 };
   }
 
-  // Atomically check balance and deduct
+  // Atomically check balance and deduct. The `creditBalance >= amount` filter
+  // means two concurrent requests can never both overdraw the same balance.
   const updatedUser = await User.findOneAndUpdate(
-    {
-      _id: userId,
-      creditBalance: { $gte: amount },
-    },
-    {
-      $inc: {
-        creditBalance: -amount,
-        lifetimeCreditsSpent: amount,
-      },
-      $push: {
-        creditHistory: {
-          type: "DEBIT",
-          amount: -amount,
-          balanceAfter: 0, // placeholder updated below
-          description,
-          referenceId,
-          referenceType,
-          createdAt: new Date(),
-        },
-      },
-    },
+    { _id: userId, creditBalance: { $gte: amount } },
+    { $inc: { creditBalance: -amount, lifetimeCreditsSpent: amount } },
     { new: true }
   );
 
@@ -70,17 +79,17 @@ export async function deductCredits(params: {
     );
   }
 
-  // Fix balanceAfter in the latest entry
-  const lastEntryIndex = updatedUser.creditHistory.length - 1;
-  if (lastEntryIndex >= 0) {
-    updatedUser.creditHistory[lastEntryIndex]!.balanceAfter = updatedUser.creditBalance;
-    await updatedUser.save();
-  }
+  await recordLedgerEntry({
+    userId,
+    type: "DEBIT",
+    amount: -amount,
+    balanceAfter: updatedUser.creditBalance,
+    description,
+    referenceId,
+    referenceType,
+  });
 
-  return {
-    success: true,
-    newBalance: updatedUser.creditBalance,
-  };
+  return { success: true, newBalance: updatedUser.creditBalance };
 }
 
 export async function refundCredits(params: {
@@ -99,33 +108,21 @@ export async function refundCredits(params: {
 
   const user = await User.findOneAndUpdate(
     { _id: userId },
-    {
-      $inc: {
-        creditBalance: amount,
-        lifetimeCreditsSpent: -amount,
-      },
-      $push: {
-        creditHistory: {
-          type: "REFUND",
-          amount: amount,
-          balanceAfter: 0,
-          description,
-          referenceId,
-          referenceType,
-          createdAt: new Date(),
-        },
-      },
-    },
+    { $inc: { creditBalance: amount, lifetimeCreditsSpent: -amount } },
     { new: true }
   );
 
   if (!user) throw new Error("User not found for refund");
 
-  const lastEntryIndex = user.creditHistory.length - 1;
-  if (lastEntryIndex >= 0) {
-    user.creditHistory[lastEntryIndex]!.balanceAfter = user.creditBalance;
-    await user.save();
-  }
+  await recordLedgerEntry({
+    userId,
+    type: "REFUND",
+    amount,
+    balanceAfter: user.creditBalance,
+    description,
+    referenceId,
+    referenceType,
+  });
 
   return { success: true, newBalance: user.creditBalance };
 }
@@ -142,33 +139,21 @@ export async function addCredits(params: {
 
   const user = await User.findOneAndUpdate(
     { _id: userId },
-    {
-      $inc: {
-        creditBalance: amount,
-        lifetimeCreditsEarned: amount,
-      },
-      $push: {
-        creditHistory: {
-          type,
-          amount,
-          balanceAfter: 0,
-          description,
-          referenceId,
-          referenceType,
-          createdAt: new Date(),
-        },
-      },
-    },
+    { $inc: { creditBalance: amount, lifetimeCreditsEarned: amount } },
     { new: true }
   );
 
   if (!user) throw new Error("User not found to add credits");
 
-  const lastEntryIndex = user.creditHistory.length - 1;
-  if (lastEntryIndex >= 0) {
-    user.creditHistory[lastEntryIndex]!.balanceAfter = user.creditBalance;
-    await user.save();
-  }
+  await recordLedgerEntry({
+    userId,
+    type,
+    amount,
+    balanceAfter: user.creditBalance,
+    description,
+    referenceId,
+    referenceType,
+  });
 
   return user.creditBalance;
 }

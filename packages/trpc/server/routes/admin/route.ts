@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, adminProcedure } from "../../trpc";
-import { User, ListingObject, Payment } from "@repo/database";
+import { User, ListingObject, Payment, CreditLedger } from "@repo/database";
 import { enqueueImageGeneration } from "@repo/services";
 
 export const adminRouter = router({
@@ -97,17 +97,23 @@ export const adminRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const user = await User.findById(input.userId);
+      const incFields: Record<string, number> = { creditBalance: input.amount };
+      if (input.amount > 0) {
+        incFields.lifetimeCreditsEarned = input.amount;
+      }
+
+      const user = await User.findOneAndUpdate(
+        { _id: input.userId },
+        { $inc: incFields },
+        { new: true }
+      );
+
       if (!user) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
 
-      user.creditBalance += input.amount;
-      if (input.amount > 0) {
-        user.lifetimeCreditsEarned += input.amount;
-      }
-
-      user.creditHistory.push({
+      await CreditLedger.create({
+        userId: user._id,
         type: input.amount >= 0 ? "BONUS" : "DEBIT",
         amount: input.amount,
         balanceAfter: user.creditBalance,
@@ -115,7 +121,6 @@ export const adminRouter = router({
         createdAt: new Date(),
       });
 
-      await user.save();
       return { success: true, newBalance: user.creditBalance };
     }),
 

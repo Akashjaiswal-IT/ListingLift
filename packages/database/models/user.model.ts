@@ -40,6 +40,7 @@ export interface IUser extends Document {
   referredBy?: string;
   referralCount?: number;
   referralCreditsEarned?: number;
+  referralRewardGranted?: boolean; // true once the referrer has been paid for this user's first purchase
 
   role: "user" | "admin";
   createdAt: Date;
@@ -92,6 +93,7 @@ const UserSchema = new Schema<IUser>(
     referredBy: { type: String, index: true },
     referralCount: { type: Number, default: 0 },
     referralCreditsEarned: { type: Number, default: 0 },
+    referralRewardGranted: { type: Boolean, default: false },
 
     role: { type: String, enum: ["user", "admin"], default: "user" },
   },

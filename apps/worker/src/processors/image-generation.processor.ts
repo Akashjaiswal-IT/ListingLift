@@ -11,6 +11,7 @@ import {
   generateListingText,
   renderSocialCards,
   refundCredits,
+  captureServerException,
 } from "@repo/services";
 
 export async function processImageGeneration(job: Job<{ listingObjectId: string }>) {
@@ -186,6 +187,11 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
       message: error?.message || String(error),
       stack: error?.stack,
     });
+    captureServerException(error, {
+      job: "image-generation",
+      listingObjectId,
+      attempt: job.attemptsMade + 1,
+    });
     await handleJobFailure(listingObjectId, error, job);
     throw error;
   }
@@ -206,25 +212,37 @@ async function handleJobFailure(listingObjectId: string, error: any, job: Job) {
     }
   );
 
-  // If retries exhausted, automatically refund credits to user
+  // If retries exhausted, automatically refund credits to user.
+  //
+  // We "claim" the refund atomically BEFORE issuing it: findOneAndUpdate only
+  // matches when creditsRefunded is still false and flips it to true in the same
+  // operation. MongoDB guarantees that update is atomic, so if two failed
+  // attempts race here, exactly one gets a non-null `claimed` and performs the
+  // refund; the other sees null and does nothing. This prevents double refunds.
   if (retryCount >= maxRetries) {
-    const listing = await ListingObject.findById(listingObjectId);
-    if (listing && !listing.creditsRefunded && listing.creditsCharged > 0) {
+    const claimed = await ListingObject.findOneAndUpdate(
+      { _id: listingObjectId, creditsRefunded: false, creditsCharged: { $gt: 0 } },
+      { $set: { creditsRefunded: true } },
+      { new: true }
+    );
+
+    if (claimed) {
       try {
         await refundCredits({
-          userId: listing.userId,
-          amount: listing.creditsCharged,
-          description: `Automatic refund for failed generation of ${listing.userTitle || "listing"}`,
-          referenceId: String(listing._id),
+          userId: claimed.userId,
+          amount: claimed.creditsCharged,
+          description: `Automatic refund for failed generation of ${claimed.userTitle || "listing"}`,
+          referenceId: String(claimed._id),
           referenceType: "listing_object",
         });
-
+        logger.info(`Refunded ${claimed.creditsCharged} credits to user ${claimed.userId}`);
+      } catch (refundErr) {
+        // The refund itself failed — release the claim so it can be retried
+        // later (e.g. by a sweeper) instead of being silently lost.
         await ListingObject.updateOne(
           { _id: listingObjectId },
-          { $set: { creditsRefunded: true } }
+          { $set: { creditsRefunded: false } }
         );
-        logger.info(`Refunded ${listing.creditsCharged} credits to user ${listing.userId}`);
-      } catch (refundErr) {
         logger.error("Failed to refund credits after job failure:", { refundErr });
       }
     }

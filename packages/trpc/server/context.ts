@@ -1,6 +1,6 @@
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { User, IUser, connectToDatabase } from "@repo/database";
+import { User, IUser, CreditLedger, connectToDatabase } from "@repo/database";
 
 export interface Context {
   clerkUserId: string | null;
@@ -53,16 +53,15 @@ export async function createContext(
             lifetimeCreditsEarned: trialCredits,
             lifetimeCreditsSpent: 0,
             referralCode: newReferralCode,
-            creditHistory: [
-              {
-                type: "TRIAL",
-                amount: trialCredits,
-                balanceAfter: trialCredits,
-                description: "Welcome bonus trial credits",
-                createdAt: new Date(),
-              },
-            ],
             role: "user",
+          });
+          await CreditLedger.create({
+            userId: user._id,
+            type: "TRIAL",
+            amount: trialCredits,
+            balanceAfter: trialCredits,
+            description: "Welcome bonus trial credits",
+            createdAt: new Date(),
           });
         } catch (fetchErr) {
           if (process.env.NODE_ENV === "production") {
@@ -81,16 +80,15 @@ export async function createContext(
               creditBalance: trialCredits,
               lifetimeCreditsEarned: trialCredits,
               lifetimeCreditsSpent: 0,
-              creditHistory: [
-                {
-                  type: "TRIAL",
-                  amount: trialCredits,
-                  balanceAfter: trialCredits,
-                  description: "Welcome bonus trial credits (Dev Fallback)",
-                  createdAt: new Date(),
-                },
-              ],
               role: "user",
+            });
+            await CreditLedger.create({
+              userId: user._id,
+              type: "TRIAL",
+              amount: trialCredits,
+              balanceAfter: trialCredits,
+              description: "Welcome bonus trial credits (Dev Fallback)",
+              createdAt: new Date(),
             });
           }
         }
