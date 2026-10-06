@@ -25,6 +25,7 @@ import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverable
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
 import { trackEvent } from "~/lib/analytics";
+import { adaptiveStatusInterval } from "~/lib/polling";
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -43,7 +44,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
           data?.status === "queued" ||
           data?.status === "processing"
         ) {
-          return 2500;
+          return adaptiveStatusInterval(query.state.dataUpdateCount);
         }
         return false;
       },
@@ -115,7 +116,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   if (listingQuery.isLoading) {
     return (
       <div className="container mx-auto max-w-5xl py-20 text-center">
-        <div className="h-10 w-10 mx-auto rounded-full border-2 border-[#E05822] border-t-transparent animate-spin mb-4" />
+        <div className="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin mb-4" />
         <p className="text-muted-foreground text-sm font-medium">
           {isHi ? "कैटलॉग परिणाम लोड हो रहे हैं..." : "Loading listing deliverables..."}
         </p>
@@ -169,7 +170,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             disabled={isRegenerating}
             className="gap-2 font-semibold text-xs h-9 rounded-xl border-border"
           >
-            <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin text-[#E05822]" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin text-primary" : ""}`} />
             {isRegenerating
               ? isHi ? "AI द्वारा फिर से लिखा जा रहा है..." : "Rewriting with AI..."
               : isHi ? "एसईओ कॉपी दोबारा लिखें" : "Regenerate SEO Copy"}
@@ -208,7 +209,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
           <Button
             onClick={handleDownloadBundle}
-            className="font-bold bg-[#E05822] hover:bg-[#c94917] text-white gap-2 shadow-md rounded-xl text-xs h-9"
+            className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 shadow-md rounded-xl text-xs h-9"
           >
             <Download className="h-4 w-4" /> {isHi ? "पूरा ZIP डाउनलोड करें" : "Download Complete ZIP"}
           </Button>
@@ -217,8 +218,8 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Live Re-edit Progress Banner */}
       {(listing as any).reEditStatus?.status === "processing" && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-[#E05822]/40 bg-[#E05822]/10 text-[#E05822] text-sm animate-pulse">
-          <RefreshCw className="h-5 w-5 animate-spin shrink-0 text-[#E05822]" />
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-primary/40 bg-primary/10 text-primary text-sm animate-pulse">
+          <RefreshCw className="h-5 w-5 animate-spin shrink-0 text-primary" />
           <div className="flex-1">
             <span className="font-semibold block text-foreground">
               {isHi ? "AI फ़ोटो री-एडिट प्रक्रिया जारी है..." : "AI Photo Re-edit in Progress..."}

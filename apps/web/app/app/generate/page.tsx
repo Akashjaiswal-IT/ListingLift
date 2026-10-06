@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Upload,
@@ -29,6 +29,7 @@ import { Badge } from "~/components/ui/badge";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { Card, CardContent } from "~/components/ui/card";
+import { Progress } from "~/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "~/components/ui/dialog";
 import { trpc } from "~/trpc/client";
@@ -40,10 +41,14 @@ import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
-import { trackEvent } from "~/lib/analytics";
+import { trackEvent, captureError } from "~/lib/analytics";
+import { calculateGenerationCredits } from "~/lib/pricing";
+import { adaptiveStatusInterval } from "~/lib/polling";
+import { compressImage, putWithProgress } from "~/lib/upload-image";
 
 export default function GeneratePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { balance, deductLocal } = useCreditStore();
   const { language } = useLanguage();
@@ -53,7 +58,10 @@ export default function GeneratePage() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<"listing_product" | "listing_kit">("listing_product");
   const [selectedFiles, setSelectedFiles] = useState<{ file: File; preview: string }[]>([]);
+  const selectedFilesRef = useRef(selectedFiles);
+  selectedFilesRef.current = selectedFiles;
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Form State
   const [title, setTitle] = useState("");
@@ -87,7 +95,7 @@ export default function GeneratePage() {
       refetchInterval: (query) => {
         const s = query.state.data?.status;
         if (s === "completed" || s === "failed") return false;
-        return 2500;
+        return adaptiveStatusInterval(query.state.dataUpdateCount);
       },
     }
   );
@@ -99,6 +107,20 @@ export default function GeneratePage() {
   );
   const reEditMutation = trpc.generate.reEditImage.useMutation();
   const downloadBundleMutation = trpc.download.downloadBundle.useMutation();
+
+  // Resume an in-progress generation after a refresh. If the URL carries
+  // ?listing=<id> and we have no active listing in memory, adopt it and jump to
+  // the progress step; the status query then takes over and the completion
+  // effect will forward to the finished listing page once it's done.
+  useEffect(() => {
+    const resumeId = searchParams.get("listing");
+    if (resumeId && !activeListingId) {
+      setActiveListingId(resumeId);
+      setStep(3);
+    }
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle image files selection
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +139,41 @@ export default function GeneratePage() {
   };
 
   const removeFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => {
+      // Free the blob URL we created for the preview, or it leaks memory until
+      // the tab is closed (each createObjectURL holds the file in memory).
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      selectedFilesRef.current.forEach((item) => URL.revokeObjectURL(item.preview));
+    };
+  }, []);
+
+  // Onboarding helper: load a bundled sample product photo so a first-time user
+  // can run the whole flow immediately without hunting for a photo. It behaves
+  // exactly like a normally-selected file from here on.
+  const handleUseSample = async () => {
+    try {
+      const res = await fetch("/images/hero-before.jpg");
+      if (!res.ok) throw new Error("sample unavailable");
+      const blob = await res.blob();
+      const file = new File([blob], "sample-product.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+      selectedFiles.forEach((it) => URL.revokeObjectURL(it.preview));
+      setSelectedType("listing_product");
+      setSelectedFiles([{ file, preview: URL.createObjectURL(file) }]);
+      toast.success(
+        isHi ? "सैंपल फ़ोटो लोड हो गई — अब जनरेट करें!" : "Sample photo loaded — try generating it!"
+      );
+    } catch {
+      toast.error(isHi ? "सैंपल लोड करने में विफल" : "Couldn't load the sample photo");
+    }
   };
 
   // Upload to R2 and transition to Step 2
@@ -128,27 +184,37 @@ export default function GeneratePage() {
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
     try {
       const uploadedOriginals = [];
-      for (const item of selectedFiles) {
+      const total = selectedFiles.length;
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const item = selectedFiles[i]!;
+
+        // 1. Compress/resize in the browser first (saves the user's data and
+        //    speeds up slow mobile connections). Falls back to the original on
+        //    failure, and passes HEIC through untouched.
+        const fileToUpload = await compressImage(item.file);
+        const contentType = fileToUpload.type || "image/jpeg";
+
         const presigned = await getPresignedUrlMutation.mutateAsync({
-          fileName: item.file.name,
-          mimeType: item.file.type || "image/jpeg",
+          fileName: fileToUpload.name,
+          mimeType: contentType,
         });
 
-        // Direct PUT to Cloudflare R2
-        await fetch(presigned.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": item.file.type || "image/jpeg" },
-          body: item.file,
+        // 2. Upload via XHR so we get real progress. Aggregate per-file progress
+        //    into an overall percentage across all selected photos.
+        await putWithProgress(presigned.uploadUrl, fileToUpload, contentType, (pct) => {
+          setUploadProgress(Math.round(((i + pct / 100) / total) * 100));
         });
 
         uploadedOriginals.push({
           s3Key: presigned.s3Key,
-          fileName: item.file.name,
+          fileName: fileToUpload.name,
           url: presigned.publicUrl,
         });
       }
+      setUploadProgress(100);
 
       // Confirm upload and initialize listingObject in MongoDB
       const res = await confirmUploadMutation.mutateAsync({
@@ -165,12 +231,13 @@ export default function GeneratePage() {
       toast.success("Photos uploaded successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to upload photos");
+      captureError(err, { where: "handleProceedToDetails", type: selectedType });
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Step 2 -> Step 3: Trigger generation & SSE streaming
+  // Step 2 -> Step 3: Trigger generation
   const handleStartGeneration = async () => {
     if (!activeListingId) return;
     if (!title.trim()) {
@@ -178,7 +245,9 @@ export default function GeneratePage() {
       return;
     }
 
-    const creditsNeeded = selectedType === "listing_product" ? 2 : selectedFiles.length <= 3 ? 5 : 6;
+    // Use the shared pricing helper so the quote here always matches what the
+    // server actually charges (see lib/pricing.ts).
+    const creditsNeeded = calculateGenerationCredits(selectedType, selectedFiles.length);
     if (balance < creditsNeeded) {
       toast.error(`You need at least ${creditsNeeded} credits. Current balance: ${balance}`);
       router.push("/pricing");
@@ -187,6 +256,12 @@ export default function GeneratePage() {
 
     try {
       setStep(3);
+      // Reflect the in-progress generation in the URL. If the user refreshes or
+      // comes back, we can resume the progress view (see the resume effect below)
+      // instead of dumping them back to an empty step 1. Steps 1–2 hold local,
+      // not-yet-uploaded File objects that can't survive a refresh anyway, so we
+      // only make the generating state (step 3) URL-addressable.
+      router.replace(`/app/generate?listing=${activeListingId}`);
       deductLocal(creditsNeeded);
       utils.credits.getBalance.invalidate();
       utils.user.getCreditBalance.invalidate();
@@ -336,7 +411,7 @@ export default function GeneratePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-black tracking-tight flex items-center gap-2 text-foreground">
-              <Sparkles className="h-6 w-6 text-[#E05822]" />
+              <Sparkles className="h-6 w-6 text-primary" />
               {isHi ? "AI स्टूडियो लिस्टिंग जनरेटर" : "AI Studio Listing Generator"}
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
@@ -357,7 +432,7 @@ export default function GeneratePage() {
                 <div
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                     step === s.num
-                      ? "bg-[#E05822] text-white shadow-md shadow-[#E05822]/20"
+                      ? "bg-primary text-white shadow-md shadow-primary/20"
                       : step > s.num
                       ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                       : "bg-muted text-muted-foreground"
@@ -379,26 +454,42 @@ export default function GeneratePage() {
       {step === 1 && (
         <div className="space-y-6 max-w-4xl mx-auto">
           {/* Generation Type Selector */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            role="radiogroup"
+            aria-label={isHi ? "जनरेशन प्रकार चुनें" : "Choose generation type"}
+          >
             <Card
+              role="radio"
+              aria-checked={selectedType === "listing_product"}
+              tabIndex={0}
+              aria-label={isHi ? "क्विक स्टूडियो" : "Quick Generate"}
               onClick={() => {
                 setSelectedType("listing_product");
                 if (selectedFiles.length > 1) setSelectedFiles([selectedFiles[0]!]);
               }}
-              className={`cursor-pointer transition-all border-border/60 ${
+              onKeyDown={(e) => {
+                // Enter/Space select the option, matching native radio behaviour.
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedType("listing_product");
+                  if (selectedFiles.length > 1) setSelectedFiles([selectedFiles[0]!]);
+                }
+              }}
+              className={`cursor-pointer transition-all border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                 selectedType === "listing_product"
-                  ? "border-[#E05822] bg-[#E05822]/5 shadow-md ring-1 ring-[#E05822]/30"
+                  ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/30"
                   : "hover:border-border"
               }`}
             >
               <CardContent className="p-5 flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-[#E05822]/10 flex items-center justify-center text-[#E05822] shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-base">{isHi ? "क्विक स्टूडियो" : "Quick Generate"}</h3>
-                    <Badge className="bg-[#E05822] text-white text-[10px]">
+                    <Badge className="bg-primary text-white text-[10px]">
                       {isHi ? "2 क्रेडिट्स" : "2 Credits"}
                     </Badge>
                   </div>
@@ -412,10 +503,20 @@ export default function GeneratePage() {
             </Card>
 
             <Card
+              role="radio"
+              aria-checked={selectedType === "listing_kit"}
+              tabIndex={0}
+              aria-label={isHi ? "फुल लिस्टिंग किट" : "Full Listing Kit"}
               onClick={() => setSelectedType("listing_kit")}
-              className={`cursor-pointer transition-all border-border/60 ${
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedType("listing_kit");
+                }
+              }}
+              className={`cursor-pointer transition-all border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                 selectedType === "listing_kit"
-                  ? "border-[#E05822] bg-[#E05822]/5 shadow-md ring-1 ring-[#E05822]/30"
+                  ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/30"
                   : "hover:border-border"
               }`}
             >
@@ -442,8 +543,17 @@ export default function GeneratePage() {
 
           {/* Upload Dropzone */}
           <div
+            role="button"
+            tabIndex={0}
+            aria-label={isHi ? "फ़ोटो अपलोड करें" : "Upload photos"}
             onClick={() => fileInputRef.current?.click()}
-            className="group relative cursor-pointer rounded-2xl border-2 border-dashed border-border/80 hover:border-[#E05822]/80 bg-muted/20 hover:bg-[#E05822]/5 p-10 text-center transition-all space-y-4"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            className="group relative cursor-pointer rounded-2xl border-2 border-dashed border-border/80 hover:border-primary/80 bg-muted/20 hover:bg-primary/5 p-10 text-center transition-all space-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <input
               ref={fileInputRef}
@@ -453,7 +563,7 @@ export default function GeneratePage() {
               onChange={handleFilesSelected}
               className="hidden"
             />
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E05822]/10 text-[#E05822] group-hover:scale-110 transition-transform">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
               <Upload className="h-8 w-8" />
             </div>
             <div className="space-y-1">
@@ -469,6 +579,19 @@ export default function GeneratePage() {
               </p>
             </div>
           </div>
+
+          {/* Onboarding: try a sample photo (only before anything is selected) */}
+          {selectedFiles.length === 0 && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleUseSample}
+                className="text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+              >
+                {isHi ? "फ़ोटो नहीं है? एक सैंपल आज़माएँ →" : "No photo handy? Try a sample →"}
+              </button>
+            </div>
+          )}
 
           {/* Selected Previews */}
           {selectedFiles.length > 0 && (
@@ -503,17 +626,29 @@ export default function GeneratePage() {
             </div>
           )}
 
+          {/* Upload progress */}
+          {isUploading && (
+            <div className="space-y-2 pt-2" aria-live="polite">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{isHi ? "फ़ोटो अपलोड हो रही हैं..." : "Uploading photos..."}</span>
+                <span className="font-semibold tabular-nums">{uploadProgress}%</span>
+              </div>
+              <Progress value={uploadProgress} className="h-2" />
+            </div>
+          )}
+
           {/* Action Button */}
           <div className="flex justify-end pt-4">
             <Button
               size="lg"
               disabled={selectedFiles.length === 0 || isUploading}
               onClick={handleProceedToDetails}
-              className="font-bold bg-[#E05822] hover:bg-[#c94917] text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
+              className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
             >
               {isUploading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> {isHi ? "क्लाउड पर अपलोड हो रहा है..." : "Uploading to R2..."}
+                  <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                  {isHi ? `अपलोड हो रहा है... ${uploadProgress}%` : `Uploading... ${uploadProgress}%`}
                 </>
               ) : (
                 <>
@@ -528,9 +663,9 @@ export default function GeneratePage() {
       {/* ================= STEP 2: DETAILS FORM ================= */}
       {step === 2 && (
         <div className="space-y-6 max-w-3xl mx-auto">
-          <div className="p-4 rounded-xl border border-[#E05822]/20 bg-[#E05822]/5 flex items-center justify-between">
+          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Sparkles className="h-5 w-5 text-[#E05822]" />
+              <Sparkles className="h-5 w-5 text-primary" />
               <div>
                 <span className="text-sm font-bold block">
                   {selectedType === "listing_product"
@@ -544,7 +679,7 @@ export default function GeneratePage() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 font-bold text-[#E05822] text-sm">
+            <div className="flex items-center gap-1.5 font-bold text-primary text-sm">
               <Coins className="h-4 w-4" />
               <span>{isHi ? "शेष क्रेडिट:" : "Balance:"} {balance}</span>
             </div>
@@ -615,7 +750,7 @@ export default function GeneratePage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                <span>{isHi ? "कस्टम स्टूडियो आर्ट डायरेक्शन / प्रॉम्प्ट" : "Custom Studio Art Direction / Prompt"} <span className="text-[#E05822] font-normal">({isHi ? "वैकल्पिक" : "Optional"})</span></span>
+                <span>{isHi ? "कस्टम स्टूडियो आर्ट डायरेक्शन / प्रॉम्प्ट" : "Custom Studio Art Direction / Prompt"} <span className="text-primary font-normal">({isHi ? "वैकल्पिक" : "Optional"})</span></span>
               </label>
               <Input
                 placeholder={isHi ? "उदा. क्लीन व्हाइट मार्बल पोडियम, सॉफ्ट सुबह की धूप, लक्ज़री स्टाइल" : "e.g. Clean white marble podium, soft morning sunlight, luxury aesthetic"}
@@ -656,7 +791,7 @@ export default function GeneratePage() {
             <Button
               size="lg"
               onClick={handleStartGeneration}
-              className="font-bold bg-[#E05822] hover:bg-[#c94917] text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
+              className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
             >
               <Sparkles className="h-4 w-4" /> {isHi ? "स्टूडियो जेनरेशन शुरू करें" : "Start Studio Generation"}
             </Button>
@@ -668,7 +803,7 @@ export default function GeneratePage() {
       {step === 3 && (
         <div className="space-y-8 max-w-4xl mx-auto py-8">
           <div className="text-center space-y-3">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E05822]/10 text-[#E05822] animate-bounce">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary animate-bounce">
               <Sparkles className="h-7 w-7" />
             </div>
             <h2 className="text-2xl font-serif font-black text-foreground">
@@ -686,7 +821,7 @@ export default function GeneratePage() {
             <Card className="border-border/60 bg-card p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-border/40 pb-3">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-[#E05822]" />
+                  <ShoppingBag className="h-4 w-4 text-primary" />
                   <span className="font-bold text-sm text-foreground">
                     {isHi ? "लिस्टिंग कॉपी (लाइव)" : "Listing Copy (Streaming)"}
                   </span>
@@ -725,7 +860,7 @@ export default function GeneratePage() {
             <Card className="border-border/60 bg-card p-5 space-y-5">
               <div className="flex items-center justify-between border-b border-border/40 pb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-[#E05822]" />
+                  <Sparkles className="h-4 w-4 text-primary" />
                   <span className="font-bold text-sm text-foreground">
                     {isHi ? "स्टूडियो फ़ोटो और कार्ड्स" : "Studio Photos & Cards"}
                   </span>
@@ -761,7 +896,7 @@ export default function GeneratePage() {
                     {s.done ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     ) : (
-                      <Loader2 className="h-4 w-4 text-[#E05822] animate-spin" />
+                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
                     )}
                   </div>
                 ))}
@@ -802,7 +937,7 @@ export default function GeneratePage() {
               )}
               <Button
                 onClick={handleDownloadBundle}
-                className="font-bold bg-[#E05822] hover:bg-[#c94917] text-white gap-2 shadow-md rounded-xl text-xs h-9"
+                className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 shadow-md rounded-xl text-xs h-9"
               >
                 <Download className="h-4 w-4" /> {isHi ? "पूरा ZIP डाउनलोड करें" : "Download Complete ZIP"}
               </Button>
@@ -825,7 +960,7 @@ export default function GeneratePage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-serif font-bold text-foreground">
-              <RotateCw className="h-5 w-5 text-[#E05822]" />
+              <RotateCw className="h-5 w-5 text-primary" />
               {isHi ? "स्टूडियो फ़ोटो री-एडिट करें (1 क्रेडिट)" : "Re-Edit Studio Photo (1 Credit)"}
             </DialogTitle>
           </DialogHeader>
@@ -844,6 +979,35 @@ export default function GeneratePage() {
                 value={reEditPrompt}
                 onChange={(e) => setReEditPrompt(e.target.value)}
               />
+              {/* Preset prompts: a blank box is intimidating. One tap fills a
+                  common edit so users discover what re-editing can do. */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {(isHi
+                  ? [
+                      "प्योर व्हाइट बैकग्राउंड",
+                      "लाइटिंग ब्राइट करें",
+                      "सॉफ्ट पिंक बैकग्राउंड",
+                      "लक्ज़री स्टूडियो लुक",
+                      "फेस्टिव दिवाली थीम",
+                    ]
+                  : [
+                      "Pure white background",
+                      "Brighten the lighting",
+                      "Soft pink background",
+                      "Luxury studio look",
+                      "Festive Diwali theme",
+                    ]
+                ).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setReEditPrompt(preset)}
+                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
               {isHi
@@ -858,7 +1022,7 @@ export default function GeneratePage() {
             <Button
               onClick={handleExecuteReEdit}
               disabled={isReEditing || !reEditPrompt.trim()}
-              className="bg-[#E05822] hover:bg-[#c94917] text-white font-bold"
+              className="bg-primary hover:bg-primary/90 text-white font-bold"
             >
               {isReEditing ? <Loader2 className="h-4 w-4 animate-spin" /> : isHi ? "पुनः जनरेट करें (1 क्रेडिट)" : "Regenerate (1 Credit)"}
             </Button>
