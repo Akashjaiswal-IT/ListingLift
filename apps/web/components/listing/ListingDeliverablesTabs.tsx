@@ -47,6 +47,16 @@ export function ListingDeliverablesTabs({
   const utils = trpc.useUtils();
   const [renderingTemplateId, setRenderingTemplateId] = useState<string | null>(null);
 
+  const undoReEditMutation = trpc.generate.undoReEdit.useMutation({
+    onSuccess: () => {
+      toast.success(isHi ? "पिछला वर्ज़न बहाल कर दिया गया!" : "Reverted to the previous version!");
+      utils.listing.getById.invalidate({ id: listingId });
+    },
+    onError: (err) => {
+      toast.error(err.message || (isHi ? "वापस लाने में विफल" : "Could not undo"));
+    },
+  });
+
   const regenerateCardsMutation = trpc.card.regenerateCards.useMutation({
     onSuccess: () => {
       toast.success(
@@ -172,18 +182,44 @@ export function ListingDeliverablesTabs({
                   {isHi ? `वेरिएशन #${idx + 1}` : `Variation #${idx + 1}`}
                 </span>
                 <div className="flex items-center gap-1.5">
+                  {/* Undo appears only when this image replaced an earlier one
+                      (some hidden version points at it via replacedBy). */}
+                  {(listing.generatedImages || []).some(
+                    (h: any) => String(h.replacedBy) === String(img._id)
+                  ) && listingId ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={undoReEditMutation.isPending}
+                      onClick={() =>
+                        undoReEditMutation.mutate({
+                          listingObjectId: listingId,
+                          generatedImageId: String(img._id),
+                        })
+                      }
+                      className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                      title={isHi ? "री-एडिट वापस लें" : "Undo re-edit"}
+                    >
+                      {undoReEditMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RotateCw className="h-3 w-3 -scale-x-100" />
+                      )}
+                      {isHi ? "वापस लें" : "Undo"}
+                    </Button>
+                  ) : null}
                   {onReEditClick ? (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => onReEditClick(img)}
-                      className="h-8 text-xs gap-1 text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                      className="h-8 text-xs gap-1 text-primary hover:text-primary/90 hover:bg-primary/10"
                     >
                       <RotateCw className="h-3 w-3" /> {isHi ? "री-एडिट" : "Re-edit"}
                     </Button>
                   ) : listingId ? (
                     <Link href={`/app/re-edit/${listingId}/${img._id}`}>
-                      <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10">
+                      <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-primary hover:text-primary/90 hover:bg-primary/10">
                         <RotateCw className="h-3 w-3" /> {isHi ? "री-एडिट" : "Re-edit"}
                       </Button>
                     </Link>
@@ -215,7 +251,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.meeshoListing?.title || text?.seoTitle, isHi ? "टाइटल" : "Title")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "टाइटल कॉपी करें" : "Copy Title"}
               </Button>
@@ -243,7 +279,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.meeshoListing?.description, isHi ? "विवरण" : "Description")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "विवरण कॉपी करें" : "Copy Description"}
               </Button>
@@ -267,7 +303,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.seoTitle, "SEO Title")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "कॉपी करें" : "Copy"}
               </Button>
@@ -286,7 +322,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.seoDescription, "Meta Description")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "कॉपी करें" : "Copy"}
               </Button>
@@ -305,7 +341,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.keyFeatures?.map((f: string) => `• ${f}`).join("\n"), isHi ? "बुलेट पॉइंट्स" : "Bullet Points")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "सभी कॉपी करें" : "Copy All"}
               </Button>
@@ -348,7 +384,7 @@ export function ListingDeliverablesTabs({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 text-xs font-semibold gap-1 text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-8 text-xs font-semibold gap-1 text-primary hover:text-primary/90 hover:bg-primary/10"
                 onClick={() => copyText(text?.whatsappCaption, isHi ? "व्हाट्सएप कॉपी" : "WhatsApp Caption")}
               >
                 <Copy className="h-3 w-3" /> {isHi ? "टेक्स्ट कॉपी करें" : "Copy Text"}
@@ -384,7 +420,7 @@ export function ListingDeliverablesTabs({
                 variant="ghost"
                 size="sm"
                 onClick={() => copyText(text?.instagramCaption, isHi ? "इंस्टाग्राम कैप्शन" : "Instagram Caption")}
-                className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
               >
                 <Copy className="h-3 w-3" /> {isHi ? "कैप्शन कॉपी करें" : "Copy Caption"}
               </Button>
@@ -404,14 +440,14 @@ export function ListingDeliverablesTabs({
                   variant="ghost"
                   size="sm"
                   onClick={() => copyText(text?.instagramHashtags?.join(" "), isHi ? "हैशटैग्स" : "Hashtags")}
-                  className="h-7 text-xs gap-1 font-semibold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10"
+                  className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10"
                 >
                   <Copy className="h-3 w-3" /> {isHi ? "सभी हैशटैग्स कॉपी करें" : "Copy All Hashtags"}
                 </Button>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {text.instagramHashtags.map((tag: string, i: number) => (
-                  <Badge key={i} variant="secondary" className="text-xs text-[#E05822] py-1 px-2.5">
+                  <Badge key={i} variant="secondary" className="text-xs text-primary py-1 px-2.5">
                     {tag}
                   </Badge>
                 ))}
@@ -425,9 +461,9 @@ export function ListingDeliverablesTabs({
       <TabsContent value="cards" className="space-y-8">
         {/* Active rendered cards preview */}
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-xl border border-[#E05822]/20 bg-[#E05822]/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-xl border border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2.5">
-              <Sparkles className="h-4 w-4 text-[#E05822]" />
+              <Sparkles className="h-4 w-4 text-primary" />
               <div>
                 <span className="text-xs text-muted-foreground">{isHi ? "वर्तमान सक्रिय कार्ड टेम्पलेट:" : "Currently Active Template:"} </span>
                 <span className="font-bold text-xs text-foreground">
@@ -440,7 +476,7 @@ export function ListingDeliverablesTabs({
                 )}
               </div>
             </div>
-            <Badge variant="outline" className="text-[10px] w-fit border-[#E05822]/30 text-[#E05822] font-semibold">
+            <Badge variant="outline" className="text-[10px] w-fit border-primary/30 text-primary font-semibold">
               {isHi ? "1080x1080 & 9:16 फ़ॉर्मैट्स" : "1080x1080 & 9:16 Formats"}
             </Badge>
           </div>
@@ -563,7 +599,7 @@ export function ListingDeliverablesTabs({
                     key={tpl.id}
                     className={`overflow-hidden border transition-all duration-200 flex flex-col justify-between ${
                       isCurrent
-                        ? "border-[#E05822] ring-2 ring-[#E05822]/20 bg-[#E05822]/5"
+                        ? "border-primary ring-2 ring-primary/20 bg-primary/5"
                         : "border-border/60 hover:border-border hover:shadow-xs"
                     }`}
                   >
@@ -657,7 +693,7 @@ export function ListingDeliverablesTabs({
                         className={`w-full h-7 text-[11px] font-bold gap-1 mt-2 ${
                           isCurrent
                             ? "bg-muted text-muted-foreground"
-                            : "border-[#E05822]/30 text-[#E05822] hover:bg-[#E05822] hover:text-white"
+                            : "border-primary/30 text-primary hover:bg-primary hover:text-white"
                         }`}
                       >
                         {isRendering ? (

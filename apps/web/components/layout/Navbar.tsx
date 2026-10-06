@@ -157,16 +157,31 @@ export function Navbar() {
             <HelpCircle className="h-4 w-4" />
           </Button>
 
-          {/* Credit Badge (when signed in) */}
-          {isSignedIn && (
-            <Link href="/app/credits">
-              <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors shadow-xs">
-                <Coins className="h-3.5 w-3.5 text-amber-500" />
-                <span>{isInitialized ? balance : (creditQuery.isLoading ? "..." : balance)}</span>
-                <span className="text-[10px] opacity-75 font-normal">{t.nav.creditsRemaining}</span>
-              </div>
-            </Link>
-          )}
+          {/* Credit Badge (when signed in). Turns into a red "top up" cue when
+              the balance falls below the cheapest generation (2 credits), and
+              routes to /pricing instead of the ledger so the user can act. */}
+          {isSignedIn &&
+            (() => {
+              const isLow = isInitialized && balance < 2;
+              return (
+                <Link href={isLow ? "/pricing" : "/app/credits"}>
+                  <div
+                    className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors shadow-xs ${
+                      isLow
+                        ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                    }`}
+                    title={isLow ? (language === "hi" ? "क्रेडिट कम हैं — टॉप अप करें" : "Low credits — top up") : undefined}
+                  >
+                    <Coins className={`h-3.5 w-3.5 ${isLow ? "text-destructive" : "text-amber-500"}`} />
+                    <span>{isInitialized ? balance : creditQuery.isLoading ? "..." : balance}</span>
+                    <span className="text-[10px] opacity-75 font-normal">
+                      {isLow ? (language === "hi" ? "टॉप अप करें" : "Top up") : t.nav.creditsRemaining}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })()}
 
           {/* User state / Sign In */}
           {isSignedIn ? (
