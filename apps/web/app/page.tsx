@@ -123,7 +123,7 @@ export default function HomePage() {
         </div>
 
         {/* Vibrant Orange Mobile Banner (Ref Image 1) */}
-        <div className="p-6 rounded-3xl bg-gradient-to-br from-[#E05822] via-[#E8632E] to-amber-600 text-white space-y-4 shadow-lg shadow-primary/20">
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-primary via-[#E8632E] to-amber-600 text-white space-y-4 shadow-lg shadow-primary/20">
           <div>
             <h2 className="text-2xl font-black tracking-tight leading-snug">
               {t.mobile.boostSales}

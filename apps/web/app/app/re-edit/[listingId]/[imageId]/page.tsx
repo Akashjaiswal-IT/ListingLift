@@ -151,7 +151,7 @@ export default function ReEditPage({
   if (listingQuery.isLoading) {
     return (
       <div className="container mx-auto max-w-4xl py-20 text-center">
-        <div className="h-10 w-10 mx-auto rounded-full border-2 border-[#E05822] border-t-transparent animate-spin mb-4" />
+        <div className="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin mb-4" />
         <p className="text-muted-foreground text-sm font-medium">
           {isHi ? "री-एडिट के लिए स्टूडियो इमेज लोड हो रही है..." : "Loading studio image for re-edit..."}
         </p>
@@ -231,13 +231,13 @@ export default function ReEditPage({
             </Card>
 
             {/* Current Generated Photo */}
-            <Card className="border-[#E05822]/40 overflow-hidden bg-card shadow-md">
-              <CardHeader className="py-3 px-4 border-b border-[#E05822]/20 bg-[#E05822]/5">
-                <CardTitle className="text-xs font-semibold flex items-center justify-between text-[#E05822]">
+            <Card className="border-primary/40 overflow-hidden bg-card shadow-md">
+              <CardHeader className="py-3 px-4 border-b border-primary/20 bg-primary/5">
+                <CardTitle className="text-xs font-semibold flex items-center justify-between text-primary">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5" /> {isHi ? "वर्तमान स्टूडियो शॉट" : "Current Studio Shot"}
                   </span>
-                  <Badge variant="outline" className="text-[10px] uppercase font-mono border-[#E05822]/30 text-[#E05822]">
+                  <Badge variant="outline" className="text-[10px] uppercase font-mono border-primary/30 text-primary">
                     {currentImage.variationType}
                   </Badge>
                 </CardTitle>
@@ -252,8 +252,8 @@ export default function ReEditPage({
                   {isPolling && (
                     <div className="absolute inset-0 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-10 animate-in fade-in duration-300">
                       <div className="relative mb-4">
-                        <div className="h-14 w-14 rounded-full border-4 border-[#E05822]/20 border-t-[#E05822] animate-spin" />
-                        <Sparkles className="h-6 w-6 text-[#E05822] absolute inset-0 m-auto animate-pulse" />
+                        <div className="h-14 w-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                        <Sparkles className="h-6 w-6 text-primary absolute inset-0 m-auto animate-pulse" />
                       </div>
                       <p className="text-sm font-bold text-foreground">
                         {isHi ? "AI री-एडिट प्रक्रिया में है..." : "AI Re-edit in Progress..."}
@@ -263,8 +263,8 @@ export default function ReEditPage({
                           ? "Gemini आपके निर्देशों के आधार पर इमेज तैयार कर रहा है।"
                           : "Gemini & Prompt Enhancer are synthesizing your changes."}
                       </p>
-                      <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-[#E05822]/10 border border-[#E05822]/20 text-[11px] text-[#E05822] font-medium">
-                        <span className="h-2 w-2 rounded-full bg-[#E05822] animate-ping" />
+                      <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-[11px] text-primary font-medium">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
                         {isHi ? "वर्कर की प्रतीक्षा..." : "Waiting for worker completion..."}
                       </div>
                     </div>
@@ -290,7 +290,7 @@ export default function ReEditPage({
           <Card className="border-border/60 bg-card shadow-sm">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2 font-serif font-bold text-foreground">
-                <Wand2 className="h-4 w-4 text-[#E05822]" />
+                <Wand2 className="h-4 w-4 text-primary" />
                 {isHi ? "अपने बदलाव का विवरण दें" : "Describe Your Changes"}
               </CardTitle>
               <CardDescription className="text-xs">
@@ -320,7 +320,7 @@ export default function ReEditPage({
                       type="button"
                       onClick={() => setPrompt(p)}
                       disabled={isSubmitting || isPolling}
-                      className="text-left text-xs px-2.5 py-1.5 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-[#E05822]/40 text-muted-foreground hover:text-foreground transition-all truncate"
+                      className="text-left text-xs px-2.5 py-1.5 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-primary/40 text-muted-foreground hover:text-foreground transition-all truncate"
                     >
                       + {p}
                     </button>
@@ -348,7 +348,7 @@ export default function ReEditPage({
               <Button
                 onClick={handleReEdit}
                 disabled={isSubmitting || isPolling || !prompt.trim() || balance < 1}
-                className="w-full h-11 bg-[#E05822] hover:bg-[#c94917] text-white font-bold rounded-xl shadow-md gap-2"
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-md gap-2"
               >
                 {isSubmitting || isPolling ? (
                   <>

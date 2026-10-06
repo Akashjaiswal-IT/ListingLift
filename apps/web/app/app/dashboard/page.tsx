@@ -103,7 +103,7 @@ export default function DashboardPage() {
         <Link href="/app/generate">
           <Button
             size="lg"
-            className="h-11 px-6 font-bold bg-[#E05822] hover:bg-[#c94917] text-white shadow-md rounded-xl gap-2 transition-all active:scale-[0.98]"
+            className="h-11 px-6 font-bold bg-primary hover:bg-primary/90 text-white shadow-md rounded-xl gap-2 transition-all active:scale-[0.98]"
           >
             <PlusCircle className="h-5 w-5" />
             {isHi ? "नया स्टूडियो कैटलॉग बनाएं" : "New Studio Listing"}
@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <Card className="border-border/60 bg-card hover:border-[#E05822]/40 transition-all shadow-sm">
+        <Card className="border-border/60 bg-card hover:border-primary/40 transition-all shadow-sm">
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -126,14 +126,14 @@ export default function DashboardPage() {
                   </Badge>
                 )}
               </div>
-              <div className="text-3xl font-black text-[#E05822]">
+              <div className="text-3xl font-black text-primary">
                 {isInitialized ? balance : (balanceQuery.isLoading ? "..." : balance)}
               </div>
               <span className="text-xs text-muted-foreground block">
                 ≈ {Math.floor(balance / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Studio Generations"}
               </span>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-[#E05822]/10 border border-[#E05822]/20 flex items-center justify-center text-[#E05822]">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
               <Coins className="h-6 w-6" />
             </div>
           </CardContent>
@@ -175,9 +175,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Launch Banner - Warm Espresso / Terracotta */}
-      <div className="rounded-2xl border border-[#E05822]/20 bg-[#161311] text-[#FAF7F2] p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+      <div className="rounded-2xl border border-primary/20 bg-[#161311] text-[#FAF7F2] p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-[#E05822] flex items-center justify-center text-white shrink-0 shadow-md">
+          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shrink-0 shadow-md">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <Link href="/app/generate">
-          <Button size="sm" className="bg-[#E05822] hover:bg-[#c94917] text-white font-bold rounded-xl px-5 shadow-sm whitespace-nowrap">
+          <Button size="sm" className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl px-5 shadow-sm whitespace-nowrap">
             {isHi ? "कैटलॉग बनाएं (2 क्रेडिट्स)" : "Start Generation (2 Credits)"}
           </Button>
         </Link>
@@ -282,13 +282,13 @@ export default function DashboardPage() {
                   placeholder={isHi ? "दोस्त का कोड दर्ज करें (उदा. PESH-XXXX)" : "Have a code? Enter (e.g. PESH-XXXX)"}
                   value={inputCode}
                   onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                  className="flex-1 h-9 px-3 text-xs uppercase font-mono rounded-lg border border-border/80 bg-background text-foreground placeholder:normal-case placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-[#E05822]"
+                  className="flex-1 h-9 px-3 text-xs uppercase font-mono rounded-lg border border-border/80 bg-background text-foreground placeholder:normal-case placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <Button
                   type="submit"
                   size="sm"
                   disabled={!inputCode.trim() || applyReferralMutation.isPending}
-                  className="h-9 px-3.5 text-xs font-bold bg-[#E05822] hover:bg-[#c94917] text-white"
+                  className="h-9 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-white"
                 >
                   {applyReferralMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : (isHi ? "रिडीम करें" : "Claim 5 Cr")}
                 </Button>
@@ -304,7 +304,7 @@ export default function DashboardPage() {
           <h2 className="text-xl sm:text-2xl font-serif font-bold tracking-tight text-foreground">
             {isHi ? "हाल ही में बनाए गए कैटलॉग" : "Recent Catalogs"}
           </h2>
-          <Link href="/app/history" className="text-xs font-bold text-[#E05822] hover:underline">
+          <Link href="/app/history" className="text-xs font-bold text-primary hover:underline">
             {isHi ? `सभी देखें (${totalCount}) →` : `View All Catalogs (${totalCount}) →`}
           </Link>
         </div>
@@ -331,7 +331,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <Link href="/app/generate">
-              <Button size="sm" className="font-bold bg-[#E05822] hover:bg-[#c94917] text-white rounded-xl shadow-sm">
+              <Button size="sm" className="font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-sm">
                 {isHi ? "पहला कैटलॉग बनाएं" : "Create First Listing"}
               </Button>
             </Link>
@@ -346,7 +346,7 @@ export default function DashboardPage() {
               return (
                 <Card
                   key={item._id}
-                  className="overflow-hidden border-border/60 hover:border-[#E05822]/40 transition-all hover:shadow-md flex flex-col justify-between group bg-card"
+                  className="overflow-hidden border-border/60 hover:border-primary/40 transition-all hover:shadow-md flex flex-col justify-between group bg-card"
                 >
                   <CardContent className="p-4 space-y-3">
                     <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
@@ -401,7 +401,7 @@ export default function DashboardPage() {
                         {new Date(item.createdAt).toLocaleDateString()}
                       </span>
                       <Link href={`/app/listing/${item._id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 font-bold text-[#E05822] hover:text-[#c94917] hover:bg-[#E05822]/10">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 font-bold text-primary hover:text-primary/90 hover:bg-primary/10">
                           {isHi ? "किट देखें" : "View Deliverables"} <ArrowRight className="h-3 w-3" />
                         </Button>
                       </Link>

@@ -58,7 +58,7 @@ export default function ProfilePage() {
     <div className="container mx-auto max-w-3xl px-4 py-8 sm:px-6 space-y-8">
       <div className="border-b border-border/40 pb-6">
         <h1 className="text-3xl font-serif font-black tracking-tight flex items-center gap-2 text-foreground">
-          <Store className="h-6 w-6 text-[#E05822]" />
+          <Store className="h-6 w-6 text-primary" />
           {isHi ? "सेलर ब्रांडिंग प्रोफ़ाइल" : "Seller Branding Profile"}
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
@@ -72,7 +72,7 @@ export default function ProfilePage() {
         <CardContent className="p-6 space-y-5">
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Store className="h-3.5 w-3.5 text-[#E05822]" /> {isHi ? "स्टोर / ब्रांड का नाम" : "Store / Brand Name"}
+              <Store className="h-3.5 w-3.5 text-primary" /> {isHi ? "स्टोर / ब्रांड का नाम" : "Store / Brand Name"}
             </label>
             <Input
               placeholder={isHi ? "उदा. रॉयल हेरिटेज साड़ीज़" : "e.g. Royal Heritage Sarees"}
@@ -139,7 +139,7 @@ export default function ProfilePage() {
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-[#E05822] hover:bg-[#c94917] text-white font-bold gap-2 px-6 rounded-xl shadow-sm text-xs"
+              className="bg-primary hover:bg-primary/90 text-white font-bold gap-2 px-6 rounded-xl shadow-sm text-xs"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isHi ? "प्रोफ़ाइल सेटिंग्स सेव करें" : "Save Profile Settings"}

@@ -79,7 +79,7 @@ export default function SignUpPage() {
               },
               elements: {
                 card: "border border-border/80 shadow-lg rounded-2xl",
-                formButtonPrimary: "bg-[#E05822] hover:bg-[#c94917] text-white font-bold",
+                formButtonPrimary: "bg-primary hover:bg-primary/90 text-white font-bold",
               },
             }}
           />
