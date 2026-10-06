@@ -2,7 +2,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
-import { getPresignedUploadUrl, deleteObjectFromR2, checkRateLimit } from "@repo/services";
+import {
+  getPresignedUploadUrl,
+  getPresignedDownloadUrl,
+  deleteObjectFromR2,
+  checkRateLimit,
+} from "@repo/services";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -72,12 +77,35 @@ export const uploadRouter = router({
         });
       }
 
+      // SECURITY (IDOR defense): getPresignedUrl only ever issues keys under
+      // `uploads/<thisUser>/`. The browser then sends those keys back here, but
+      // nothing stops a malicious client from sending someone ELSE's key (or an
+      // arbitrary path). If we trusted it, the worker would happily process
+      // another user's private image. So we verify every key belongs to the
+      // caller, and we REBUILD the public url server-side instead of trusting
+      // the one the client supplied (which could point anywhere).
+      const userPrefix = `uploads/${ctx.user._id}/`;
+      const safeOriginals = await Promise.all(
+        input.originalImages.map(async (img) => {
+          if (!img.s3Key.startsWith(userPrefix)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Invalid upload reference.",
+            });
+          }
+          return {
+            ...img,
+            url: await getPresignedDownloadUrl(img.s3Key, 7 * 24 * 3600),
+          };
+        })
+      );
+
       const listingObject = await ListingObject.create({
         userId: ctx.user._id,
         type: input.type,
         status: "uploaded",
         textStatus: "pending",
-        originalImages: input.originalImages,
+        originalImages: safeOriginals,
         creditsCharged: 0,
       });
 

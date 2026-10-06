@@ -38,11 +38,20 @@ export async function checkRateLimit(
 
   try {
     const redis = getRedisConnection();
-    const current = await redis.incr(key);
 
-    if (current === 1) {
-      await redis.expire(key, config.windowSeconds);
-    }
+    // Atomic increment-and-expire via a Lua script. Previously this was two
+    // separate calls (INCR then EXPIRE): if the process died in between, the key
+    // would live forever with no TTL and the user would be rate-limited
+    // permanently. A Lua script runs atomically on the Redis server, so the
+    // EXPIRE is guaranteed to be set the first time the key is created.
+    const current = (await redis.eval(
+      `local c = redis.call('INCR', KEYS[1])
+       if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+       return c`,
+      1,
+      key,
+      String(config.windowSeconds)
+    )) as number;
 
     const ttl = await redis.ttl(key);
 

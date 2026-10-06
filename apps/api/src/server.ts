@@ -5,10 +5,14 @@ import dotenv from "dotenv";
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
 
+import crypto from "node:crypto";
+import mongoose from "mongoose";
 import express from "express";
+import helmet from "helmet";
 import { logger } from "@repo/logger";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
+import { getRedisConnection } from "@repo/services";
 
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { generateOpenApiDocument, createOpenApiExpressMiddleware } from "trpc-to-openapi";
@@ -32,6 +36,28 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
   version: "1.0.0",
   baseUrl: env.BASE_URL.concat("/api"),
 });
+
+// Attach a request id to every request (generated, or trusted from an upstream
+// proxy's X-Request-Id). Echoing it back in the response header lets you trace a
+// single request across the web app, the API logs and your error tracker.
+app.use((req, res, next) => {
+  const raw = req.headers["x-request-id"];
+  const id = typeof raw === "string" && raw.length <= 128 && /^[\w\-.:]+$/.test(raw) ? raw : crypto.randomUUID();
+  (req as any).requestId = id;
+  res.setHeader("x-request-id", id);
+  next();
+});
+
+// Secure HTTP headers. CSP is disabled here on purpose: this is a JSON API (the
+// Next.js app owns page-level CSP), and the Scalar docs UI at /docs needs inline
+// scripts. CORP is set to cross-origin so the web app on another origin can read
+// responses normally.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // Production-hardened CORS
 const allowedOriginsList = [
@@ -72,6 +98,10 @@ app.use(
 // Preserve raw body buffer for Clerk and Razorpay webhook signature verification
 app.use(
   express.json({
+    // Cap the request body. Image uploads go directly to R2 via presigned URLs,
+    // so API payloads are always small JSON — 1mb is generous and stops a client
+    // from sending a huge body to exhaust memory.
+    limit: "1mb",
     verify: (req, _res, buf) => {
       (req as any).rawBody = buf;
     },
@@ -95,8 +125,34 @@ app.get("/", (_req, res) => {
   return res.json({ message: "Peshkar AI API is running..." });
 });
 
-app.get("/health", (_req, res) => {
-  return res.json({ message: "Peshkar AI server is healthy", healthy: true });
+// A real health check: verify the dependencies the server actually needs, so an
+// orchestrator (Docker/Caddy/Kubernetes) can restart the process when it's
+// genuinely unable to serve. A 200 means "I can do my job"; 503 means "don't
+// send me traffic". We time-box the checks so a hung dependency can't hang here.
+app.get("/health", async (_req, res) => {
+  const withTimeout = <T>(p: Promise<T>, ms = 2000) =>
+    Promise.race([
+      p,
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+    ]);
+
+  const checks: Record<string, "ok" | "down"> = { mongo: "down", redis: "down" };
+
+  try {
+    await withTimeout(mongoose.connection.db!.admin().ping());
+    checks.mongo = "ok";
+  } catch {
+    /* stays "down" */
+  }
+  try {
+    await withTimeout(getRedisConnection().ping());
+    checks.redis = "ok";
+  } catch {
+    /* stays "down" */
+  }
+
+  const healthy = checks.mongo === "ok" && checks.redis === "ok";
+  return res.status(healthy ? 200 : 503).json({ healthy, checks });
 });
 
 // Webhooks

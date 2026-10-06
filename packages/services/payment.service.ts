@@ -76,10 +76,27 @@ export const CREDIT_PACKS: CreditPack[] = [
   },
 ];
 
+/**
+ * Read a required Razorpay credential. In PRODUCTION a missing value throws
+ * immediately — a silent placeholder would create real orders / verify
+ * signatures against the wrong secret, which fails confusingly or, worse,
+ * mis-handles money. In dev/test we keep a placeholder so the app still boots
+ * without real keys.
+ */
+function requireRazorpayEnv(name: "RAZORPAY_KEY_ID" | "RAZORPAY_KEY_SECRET"): string {
+  const value = process.env[name];
+  if (value) return value;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(`[config] ${name} is not configured`);
+  }
+  return name === "RAZORPAY_KEY_ID" ? "rzp_test_placeholder" : "rzp_secret_placeholder";
+}
+
 function getRazorpayClient(): Razorpay {
-  const key_id = process.env.RAZORPAY_KEY_ID || "rzp_test_placeholder";
-  const key_secret = process.env.RAZORPAY_KEY_SECRET || "rzp_secret_placeholder";
-  return new Razorpay({ key_id, key_secret });
+  return new Razorpay({
+    key_id: requireRazorpayEnv("RAZORPAY_KEY_ID"),
+    key_secret: requireRazorpayEnv("RAZORPAY_KEY_SECRET"),
+  });
 }
 
 export function getCreditPacks(): CreditPack[] {
@@ -108,7 +125,10 @@ export async function createOrder(params: {
   let credits = 0;
 
   if (packId === "topup") {
-    const qty = Math.max(1, topupQuantity || 1);
+    // Clamp to a sane range. Without an upper bound a client could request an
+    // absurd quantity (huge Razorpay order) and the lower bound stops 0/negative
+    // amounts. 2000 mirrors the largest named pack.
+    const qty = Math.min(2000, Math.max(1, topupQuantity || 1));
     credits = qty;
     let perCreditPaise = 2500; // default ₹25 per credit
     if (qty >= 500) perCreditPaise = 1100; // ₹11
@@ -156,7 +176,7 @@ export async function createOrder(params: {
     razorpayOrderId: order.id,
     amountPaise,
     currency: "INR",
-    razorpayKey: process.env.RAZORPAY_KEY_ID || "rzp_test_placeholder",
+    razorpayKey: requireRazorpayEnv("RAZORPAY_KEY_ID"),
     packId,
     credits,
   };
@@ -168,12 +188,19 @@ export function verifyPaymentSignature(params: {
   razorpaySignature: string;
 }): boolean {
   const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = params;
-  const secret = process.env.RAZORPAY_KEY_SECRET || "rzp_secret_placeholder";
+  const secret = requireRazorpayEnv("RAZORPAY_KEY_SECRET");
 
   const generatedSignature = crypto
     .createHmac("sha256", secret)
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest("hex");
 
-  return generatedSignature === razorpaySignature;
+  // Constant-time comparison. A normal `===` returns as soon as it hits the
+  // first differing character, so an attacker can measure response time to
+  // discover the signature one character at a time. timingSafeEqual always
+  // compares the whole buffer. Lengths must match first (it throws otherwise).
+  const a = Buffer.from(generatedSignature, "utf8");
+  const b = Buffer.from(razorpaySignature || "", "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }

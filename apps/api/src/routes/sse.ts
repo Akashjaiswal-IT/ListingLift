@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { ListingObject, User, connectToDatabase } from "@repo/database";
 import { logger } from "@repo/logger";
-import { generateListingTextStream } from "@repo/services";
+import { generateListingTextStream, checkRateLimit } from "@repo/services";
 
 export const sseRouter = Router();
 
@@ -22,6 +22,17 @@ sseRouter.post("/:listingObjectId/text-stream", async (req: Request, res: Respon
   const user = await User.findOne({ clerkId: auth.userId });
   if (!user) {
     return res.status(401).json({ error: "User not found" });
+  }
+
+  // This endpoint calls a paid AI model (OpenAI) on every request. Without a
+  // limit, any logged-in user could loop it and run up the bill. We reuse the
+  // "generate" bucket (10/hour/user) as a cheap abuse brake. Note this must run
+  // BEFORE we write SSE headers, so we can still return a clean JSON 429.
+  const rateLimit = await checkRateLimit(String(user._id), "generate");
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: `Rate limit reached. Please wait ${Math.ceil(rateLimit.resetInSeconds / 60)} minutes.`,
+    });
   }
 
   const listing = await ListingObject.findOne({

@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { Webhook } from "svix";
 import crypto from "crypto";
-import { User, Payment, connectToDatabase } from "@repo/database";
-import { addCredits } from "@repo/services";
+import { User, Payment, ListingObject, CreditLedger, connectToDatabase } from "@repo/database";
+import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase } from "@repo/services";
 import { logger } from "@repo/logger";
 
 export const webhookRouter = Router();
@@ -64,7 +64,7 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
 
       const existingUser = await User.findOne({ clerkId: id });
       if (!existingUser) {
-        await User.create({
+        const createdUser = await User.create({
           clerkId: id,
           fullName,
           email: primaryEmail,
@@ -73,16 +73,16 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
           creditBalance: trialCredits,
           lifetimeCreditsEarned: trialCredits,
           lifetimeCreditsSpent: 0,
-          creditHistory: [
-            {
-              type: "TRIAL",
-              amount: trialCredits,
-              balanceAfter: trialCredits,
-              description: "Welcome bonus trial credits",
-              createdAt: new Date(),
-            },
-          ],
           role: "user",
+        });
+        // Record the trial grant in the append-only ledger.
+        await CreditLedger.create({
+          userId: createdUser._id,
+          type: "TRIAL",
+          amount: trialCredits,
+          balanceAfter: trialCredits,
+          description: "Welcome bonus trial credits",
+          createdAt: new Date(),
         });
         logger.info(`User created and seeded with ${trialCredits} trial credits: ${id}`);
       }
@@ -106,8 +106,35 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
       logger.info(`User updated from Clerk: ${id}`);
     } else if (eventType === "user.deleted") {
       const { id } = evt.data;
-      await User.deleteOne({ clerkId: id });
-      logger.info(`User deleted from Clerk: ${id}`);
+      // Cascade delete: when a user is removed, their listings, uploaded/
+      // generated files and payment records must go too. Leaving them behind is
+      // both a storage leak and, under India's DPDP Act, a data-retention
+      // violation (personal data kept after the account is gone).
+      const user = await User.findOne({ clerkId: id });
+      if (user) {
+        const listings = await ListingObject.find({ userId: user._id }).lean();
+        // Best-effort R2 cleanup — never let a storage hiccup block the DB delete.
+        for (const listing of listings) {
+          const keys: string[] = [];
+          (listing.originalImages || []).forEach((img: any) => img?.s3Key && keys.push(img.s3Key));
+          (listing.generatedImages || []).forEach((img: any) => img?.s3Key && keys.push(img.s3Key));
+          [listing.whatsappCard, listing.instagramPost, listing.instagramStory].forEach(
+            (c: any) => c?.s3Key && keys.push(c.s3Key)
+          );
+          for (const key of keys) {
+            try {
+              await deleteObjectFromR2(key);
+            } catch (err) {
+              logger.warn(`Failed to delete R2 object during user purge: ${key}`, { err });
+            }
+          }
+        }
+        await ListingObject.deleteMany({ userId: user._id });
+        await Payment.deleteMany({ userId: user._id });
+        await CreditLedger.deleteMany({ userId: user._id });
+        await User.deleteOne({ _id: user._id });
+      }
+      logger.info(`User and associated data deleted from Clerk: ${id}`);
     }
 
     return res.status(200).json({ success: true });
@@ -143,7 +170,9 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
     .update(rawBody)
     .digest("hex");
 
-  if (signature !== expectedSignature) {
+  const sigBuf = Buffer.from(signature, "utf8");
+  const expBuf = Buffer.from(expectedSignature, "utf8");
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     logger.error("Invalid Razorpay webhook signature");
     return res.status(400).json({ error: "Invalid signature" });
   }
@@ -202,6 +231,10 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
       logger.info(
         `Successfully credited ${payment.creditsPurchased} credits to user ${payment.userId}`
       );
+
+      // Pay the referrer (if any) now that this buyer has made a purchase.
+      // Idempotent and non-blocking so it never jeopardises the webhook 200.
+      grantReferralRewardOnFirstPurchase(payment.userId).catch(() => {});
     }
 
     return res.status(200).json({ received: true });
