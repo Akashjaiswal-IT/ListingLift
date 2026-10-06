@@ -2,7 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { Payment, User } from "@repo/database";
-import { createOrder, verifyPaymentSignature, addCredits } from "@repo/services";
+import {
+  createOrder,
+  verifyPaymentSignature,
+  addCredits,
+  grantReferralRewardOnFirstPurchase,
+  generateReceiptPdf,
+} from "@repo/services";
 
 export const paymentsRouter = router({
   createOrder: protectedProcedure
@@ -18,7 +24,7 @@ export const paymentsRouter = router({
           "business_m",
           "business_l",
         ]),
-        topupQuantity: z.number().int().min(1).optional(),
+        topupQuantity: z.number().int().min(1).max(2000).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -112,6 +118,10 @@ export const paymentsRouter = router({
         referenceType: "payment",
       });
 
+      // If this buyer was invited by someone, pay that referrer now (once).
+      // Non-blocking: a referral hiccup must never fail a real payment.
+      grantReferralRewardOnFirstPurchase(ctx.user._id).catch(() => {});
+
       return {
         success: true,
         newBalance,
@@ -143,6 +153,49 @@ export const paymentsRouter = router({
         total,
         page: input.page,
         limit: input.limit,
+      };
+    }),
+
+  // Generate a payment-receipt PDF for a captured payment. Returns it as a
+  // base64 data URI so the browser can download it directly — no extra storage
+  // or download-proxy changes needed (receipts are a few KB).
+  getInvoice: protectedProcedure
+    .input(z.object({ paymentId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const payment = await Payment.findOne({
+        _id: input.paymentId,
+        userId: ctx.user._id,
+      });
+
+      if (!payment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found" });
+      }
+      if (payment.status !== "captured") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A receipt is only available for successful payments.",
+        });
+      }
+
+      const receiptNumber = `RCPT-${new Date(payment.createdAt).getFullYear()}-${String(payment._id).slice(-8).toUpperCase()}`;
+
+      const pdf = await generateReceiptPdf(
+        {
+          receiptNumber,
+          date: payment.createdAt,
+          razorpayOrderId: payment.razorpayOrderId,
+          razorpayPaymentId: payment.razorpayPaymentId,
+          packId: payment.packId,
+          creditsPurchased: payment.creditsPurchased,
+          amountPaise: payment.amountPaise,
+          currency: payment.currency || "INR",
+        },
+        { name: ctx.user.fullName, email: ctx.user.email }
+      );
+
+      return {
+        fileName: `${receiptNumber}.pdf`,
+        dataUri: `data:application/pdf;base64,${pdf.toString("base64")}`,
       };
     }),
 });
