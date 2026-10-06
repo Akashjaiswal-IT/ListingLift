@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Coins, ArrowUpRight, ArrowDownLeft, Sparkles, Clock, RefreshCw } from "lucide-react";
+import { Coins, ArrowUpRight, ArrowDownLeft, Sparkles, Clock, RefreshCw, FileText, Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "~/providers/LanguageContext";
+import { toast } from "sonner";
 
 export default function CreditsPage() {
   const { language } = useLanguage();
@@ -17,6 +18,9 @@ export default function CreditsPage() {
 
   const balanceQuery = trpc.user.getCreditBalance.useQuery();
   const historyQuery = trpc.user.getCreditHistory.useQuery({ limit: 50 });
+  const paymentsQuery = trpc.payments.getHistory.useQuery({ limit: 20 });
+  const invoiceMutation = trpc.payments.getInvoice.useMutation();
+  const [invoicingId, setInvoicingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (balanceQuery.data?.balance !== undefined) {
@@ -25,6 +29,27 @@ export default function CreditsPage() {
   }, [balanceQuery.data, setBalance]);
 
   const history = historyQuery.data || [];
+  const payments = (paymentsQuery.data?.payments || []).filter(
+    (p: any) => p.status === "captured"
+  );
+
+  // Download the receipt PDF returned as a base64 data URI (no server storage).
+  const handleDownloadInvoice = async (paymentId: string) => {
+    setInvoicingId(paymentId);
+    try {
+      const res = await invoiceMutation.mutateAsync({ paymentId });
+      const a = document.createElement("a");
+      a.href = res.dataUri;
+      a.download = res.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: any) {
+      toast.error(err.message || (isHi ? "रसीद बनाने में विफल" : "Could not generate receipt"));
+    } finally {
+      setInvoicingId(null);
+    }
+  };
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6 space-y-8">
@@ -154,7 +179,7 @@ export default function CreditsPage() {
                             : tx.type}
                         </Badge>
                       </div>
-                      <span className="text-xs text-muted-foreground mt-0.5 block flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {new Date(tx.createdAt).toLocaleString()}
                       </span>
@@ -179,6 +204,52 @@ export default function CreditsPage() {
           </div>
         )}
       </div>
+
+      {/* Payments & GST Invoices */}
+      {payments.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold font-serif tracking-tight text-foreground">
+            {isHi ? "भुगतान और रसीदें" : "Payments & Receipts"}
+          </h2>
+          <div className="rounded-xl border border-border/60 overflow-hidden divide-y divide-border/40">
+            {payments.map((p: any) => (
+              <div
+                key={p._id}
+                className="p-4 flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
+              >
+                <div>
+                  <span className="font-semibold text-sm capitalize">
+                    {p.packId} {isHi ? "पैक" : "pack"} · {p.creditsPurchased} {isHi ? "क्रेडिट्स" : "credits"}
+                  </span>
+                  <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(p.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-sm text-foreground">
+                    ₹{(p.amountPaise / 100).toFixed(2)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={invoicingId === p._id}
+                    onClick={() => handleDownloadInvoice(p._id)}
+                    className="h-8 gap-1 text-xs rounded-lg"
+                  >
+                    {invoicingId === p._id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5" />
+                    )}
+                    {isHi ? "रसीद" : "Receipt"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

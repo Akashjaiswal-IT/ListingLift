@@ -139,15 +139,22 @@ export const listingRouter = router({
         status: z
           .enum(["uploaded", "queued", "processing", "completed", "failed"])
           .optional(),
+        search: z.string().trim().max(100).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { page, limit, type, status } = input;
+      const { page, limit, type, status, search } = input;
       const skip = (page - 1) * limit;
 
       const query: any = { userId: ctx.user._id };
       if (type) query.type = type;
       if (status) query.status = status;
+      if (search) {
+        // Case-insensitive title search. Escape regex metacharacters so a user
+        // typing e.g. "(" can't create an invalid or catastrophic pattern.
+        const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        query.userTitle = { $regex: escaped, $options: "i" };
+      }
 
       const [items, total] = await Promise.all([
         ListingObject.find(query)
@@ -255,6 +262,40 @@ export const listingRouter = router({
 
       await ListingObject.deleteOne({ _id: listing._id });
       return { success: true };
+    }),
+
+  bulkDelete: protectedProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1).max(50) }))
+    .mutation(async ({ ctx, input }) => {
+      // Scope strictly to the caller's own listings — an attacker can't delete
+      // someone else's by passing their ids.
+      const listings = await ListingObject.find({
+        _id: { $in: input.ids },
+        userId: ctx.user._id,
+      });
+
+      const keysToDelete: string[] = [];
+      for (const listing of listings) {
+        listing.originalImages.forEach((img) => keysToDelete.push(img.s3Key));
+        listing.generatedImages.forEach((img) => keysToDelete.push(img.s3Key));
+        if (listing.whatsappCard?.s3Key) keysToDelete.push(listing.whatsappCard.s3Key);
+        if (listing.instagramPost?.s3Key) keysToDelete.push(listing.instagramPost.s3Key);
+        if (listing.instagramStory?.s3Key) keysToDelete.push(listing.instagramStory.s3Key);
+      }
+
+      // Best-effort R2 cleanup; never let a storage hiccup block the DB delete.
+      for (const key of keysToDelete) {
+        try {
+          await deleteObjectFromR2(key);
+        } catch {}
+      }
+
+      const result = await ListingObject.deleteMany({
+        _id: { $in: listings.map((l) => l._id) },
+        userId: ctx.user._id,
+      });
+
+      return { success: true, deletedCount: result.deletedCount ?? 0 };
     }),
 
   regenerateText: protectedProcedure
