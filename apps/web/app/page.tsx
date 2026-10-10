@@ -20,6 +20,9 @@ import {
   Check,
   Play,
   Share2,
+  Heart,
+  Send,
+  Bookmark,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -36,10 +39,72 @@ import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
 // - demo-headphones:            https://unsplash.com/photos/black-wireless-headphones-on-white-table-lUMj2Zv5HUE
 // - demo-leather-bag:           https://unsplash.com/photos/a-brown-leather-handbag-on-a-white-background-zxPo13geJ5U
 
+type KitTab = "whatsapp" | "meesho" | "instagram";
+const KIT_TABS: KitTab[] = ["whatsapp", "meesho", "instagram"];
+
+// Demo copy for the "Your Listing Kit" tabs. Same product and prices (₹1,299 / ₹2,499) on every tab.
+const KIT_DEMO = {
+  whatsapp: {
+    cardLabel: { en: "WhatsApp Card", hi: "व्हाट्सएप कार्ड" },
+    copyLabel: { en: "WhatsApp Caption", hi: "व्हाट्सएप कैप्शन" },
+    caption: {
+      en: "✨ New Arrival: Premium Smartwatch 🔥\nUpgrade your style today!\n✅ Water Resistant\n✅ 7 Day Battery\n✅ Heart Rate Monitor\n*Price:* ₹1,299 only\n*Free Shipping* across India 🇮🇳\nTo order, reply with your address.",
+      hi: "✨ नया कलेक्शन: प्रीमियम स्मार्टवॉच 🔥\nआज ही अपना स्टाइल अपग्रेड करें!\n✅ वाटर रेसिस्टेंट\n✅ 7 दिन की बैटरी\n✅ हार्ट रेट मॉनिटर\n*ऑफ़र प्राइस:* ₹1,299 मात्र\n*मुफ़्त शिपिंग* पूरे भारत में 🇮🇳\nऑर्डर करने के लिए अपना पता भेजें।",
+    },
+  },
+  meesho: {
+    cardLabel: { en: "Meesho Listing Preview", hi: "मीशो लिस्टिंग प्रीव्यू" },
+    copyLabel: { en: "Meesho Catalog", hi: "मीशो कैटलॉग" },
+    productTitle: { en: "Premium White Smartwatch", hi: "प्रीमियम व्हाइट स्मार्टवॉच" },
+    delivery: { en: "Free Delivery · Cash on Delivery", hi: "मुफ़्त डिलीवरी · कैश ऑन डिलीवरी" },
+    cta: { en: "Add to Cart", hi: "कार्ट में जोड़ें" },
+    catalogTitle: {
+      en: "Premium Bluetooth Smartwatch for Men & Women - White Silicone Strap",
+      hi: "पुरुषों और महिलाओं के लिए प्रीमियम ब्लूटूथ स्मार्टवॉच - व्हाइट सिलिकॉन स्ट्रैप",
+    },
+    category: { en: "Smart Watches", hi: "स्मार्ट वॉच" },
+    specs: [
+      { label: { en: "Material", hi: "मटेरियल" }, value: { en: "Aluminium alloy case, soft silicone strap", hi: "एल्यूमीनियम अलॉय केस, सॉफ्ट सिलिकॉन स्ट्रैप" } },
+      { label: { en: "Display", hi: "डिस्प्ले" }, value: { en: "1.9\" HD always-on touch display", hi: "1.9\" HD ऑलवेज-ऑन टच डिस्प्ले" } },
+      { label: { en: "Battery", hi: "बैटरी" }, value: { en: "Up to 7 days with fast charge", hi: "फास्ट चार्ज के साथ 7 दिन तक" } },
+      { label: { en: "Features", hi: "फ़ीचर्स" }, value: { en: "Heart rate monitor, water resistant, sports modes", hi: "हार्ट रेट मॉनिटर, वाटर रेसिस्टेंट, स्पोर्ट्स मोड्स" } },
+      { label: { en: "Country of Origin", hi: "मूल देश" }, value: { en: "India", hi: "भारत" } },
+    ],
+  },
+  instagram: {
+    cardLabel: { en: "Instagram Post", hi: "इंस्टाग्राम पोस्ट" },
+    copyLabel: { en: "Instagram Caption", hi: "इंस्टाग्राम कैप्शन" },
+    handle: "@yourstore",
+    likes: { en: "1,204 likes", hi: "1,204 लाइक्स" },
+    caption: {
+      en: "Meet your new everyday companion ✨\nClean white design, 7-day battery and all-day health tracking.\nTap the link in bio to order. Cash on Delivery available!",
+      hi: "मिलिए अपने नए रोज़ के साथी से ✨\nक्लीन व्हाइट डिज़ाइन, 7 दिन की बैटरी और पूरे दिन हेल्थ ट्रैकिंग।\nऑर्डर करने के लिए बायो में दिया लिंक टैप करें। कैश ऑन डिलीवरी उपलब्ध!",
+    },
+    hashtags: "#smartwatch #whitesmartwatch #fitnesstracker #onlineshoppingindia #styleupgrade #newarrival",
+  },
+};
+
+// Plain text copied by the Copy button for the active tab
+function getKitCopyText(tab: KitTab, lang: "en" | "hi"): string {
+  if (tab === "meesho") {
+    const m = KIT_DEMO.meesho;
+    return [
+      m.catalogTitle[lang],
+      `${lang === "hi" ? "कैटेगरी" : "Category"}: ${m.category[lang]}`,
+      "",
+      ...m.specs.map((spec) => `${spec.label[lang]}: ${spec.value[lang]}`),
+    ].join("\n");
+  }
+  if (tab === "instagram") {
+    return `${KIT_DEMO.instagram.caption[lang]}\n\n${KIT_DEMO.instagram.hashtags}`;
+  }
+  return KIT_DEMO.whatsapp.caption[lang];
+}
+
 export default function HomePage() {
   const { t, language } = useLanguage();
   const isHi = language === "hi";
-  const [activeTab, setActiveTab] = useState<"whatsapp" | "meesho" | "instagram">("whatsapp");
+  const [activeTab, setActiveTab] = useState<KitTab>("whatsapp");
   const [activeHistoryFilter, setActiveHistoryFilter] = useState<"all" | "whatsapp" | "meesho">("all");
   const [customCredits, setCustomCredits] = useState(220);
   const [selectedStyle, setSelectedStyle] = useState("studio_white");
@@ -54,9 +119,7 @@ export default function HomePage() {
   };
 
   const handleCopyCaption = () => {
-    const textToCopy = isHi
-      ? `✨ नया कलेक्शन: प्रीमियम स्मार्टवॉच 🔥\nआज ही अपना स्टाइल अपग्रेड करें!\n✅ वाटर रेसिस्टेंट\n✅ 7 दिन की बैटरी\n✅ हार्ट रेट मॉनिटर\n*ऑफ़र प्राइस:* ₹1,299 मात्र\n*मुफ़्त शिपिंग* पूरे भारत में 🇮🇳\nऑर्डर करने के लिए अपना पता भेजें।`
-      : `✨ New Arrival: Premium Smartwatch 🔥\nUpgrade your style today!\n✅ Water Resistant\n✅ 7 Day Battery\n✅ Heart Rate Monitor\n*Price:* ₹1,299 only\n*Free Shipping* across India 🇮🇳\nTo order, reply with your address.`;
+    const textToCopy = getKitCopyText(activeTab, isHi ? "hi" : "en");
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     toast.success(t.sections.copied);
@@ -459,7 +522,7 @@ export default function HomePage() {
         </div>
 
         {/* Platform Tabs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="tablist" aria-label={isHi ? "प्लेटफ़ॉर्म" : "Platform"}>
           {[
             { id: "whatsapp", label: t.sections.tabWhatsapp },
             { id: "meesho", label: t.sections.tabMeesho },
@@ -467,7 +530,24 @@ export default function HomePage() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              type="button"
+              role="tab"
+              id={`kit-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`kit-card-${tab.id} kit-copy-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => {
+                setActiveTab(tab.id as KitTab);
+                setCopied(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                const i = KIT_TABS.indexOf(tab.id as KitTab);
+                const next = KIT_TABS[(i + (e.key === "ArrowRight" ? 1 : KIT_TABS.length - 1)) % KIT_TABS.length]!;
+                setActiveTab(next);
+                setCopied(false);
+                document.getElementById(`kit-tab-${next}`)?.focus();
+              }}
               className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                 activeTab === tab.id
                   ? "bg-primary text-white shadow-xs"
@@ -479,64 +559,202 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* 3-Card Grid Matching Ref Image 3 */}
+        {/* 3-Card Grid. Left/middle columns switch with the tab; every tab's panel is stacked in the
+            same grid cell so the section keeps one height (no jump) and the columns stay level. */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-          {/* Left: WhatsApp Card Preview */}
-          <div className="h-full flex flex-col p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {isHi ? "व्हाट्सएप कार्ड" : "WhatsApp Card"}
-            </span>
-            <div className="flex-1 flex flex-col rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
-              <div className="aspect-square rounded-lg bg-stone-50 flex items-center justify-center p-2">
-                <img
-                  src="/images/demo-watch-white-band.webp"
-                  alt="White smartwatch with a white strap on a light background"
-                  className="w-full h-full object-cover rounded-md"
-                />
-              </div>
-              <div>
-                <h4 className="font-bold text-xs text-stone-900">
-                  {isHi ? "प्रीमियम व्हाइट स्मार्टवॉच" : "Premium White Smartwatch"}
-                </h4>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-sm font-black text-stone-900">₹1,299</span>
-                  <span className="text-[10px] text-stone-400 line-through">₹2,499</span>
-                  <Badge className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-0 border-none">
-                    48% OFF
-                  </Badge>
+          {/* Left: platform preview card */}
+          <div className="grid">
+            {KIT_TABS.map((tab) => {
+              const active = activeTab === tab;
+              return (
+                <div
+                  key={tab}
+                  id={`kit-card-${tab}`}
+                  role="tabpanel"
+                  aria-labelledby={`kit-tab-${tab}`}
+                  aria-hidden={!active}
+                  inert={!active}
+                  className={`col-start-1 row-start-1 transition-opacity duration-200 ${
+                    active ? "opacity-100" : "opacity-0 invisible pointer-events-none"
+                  }`}
+                >
+                  <div className="h-full flex flex-col p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {KIT_DEMO[tab].cardLabel[isHi ? "hi" : "en"]}
+                    </span>
+
+                    {tab === "whatsapp" && (
+                      <div className="flex-1 flex flex-col rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
+                        <div className="aspect-square rounded-lg bg-stone-50 flex items-center justify-center p-2">
+                          <img
+                            src="/images/demo-watch-white-band.webp"
+                            alt="White smartwatch with a white strap on a light background"
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-stone-900">
+                            {isHi ? "प्रीमियम व्हाइट स्मार्टवॉच" : "Premium White Smartwatch"}
+                          </h4>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-sm font-black text-stone-900">₹1,299</span>
+                            <span className="text-[10px] text-stone-400 line-through">₹2,499</span>
+                            <Badge className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-0 border-none">
+                              48% OFF
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                            {isHi ? "मुफ़्त शिपिंग | COD उपलब्ध" : "Free Shipping | COD Available"}
+                          </span>
+                        </div>
+                        <Button size="sm" className="w-full mt-auto bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8">
+                          <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                          {t.sections.messageToOrder}
+                        </Button>
+                      </div>
+                    )}
+
+                    {tab === "meesho" && (
+                      <div className="flex-1 flex flex-col rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
+                        <div className="aspect-square rounded-lg bg-stone-50 flex items-center justify-center p-2">
+                          <img
+                            src="/images/demo-watch-white-band.webp"
+                            alt="White smartwatch with a white strap on a light background"
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-stone-900">{KIT_DEMO.meesho.productTitle[isHi ? "hi" : "en"]}</h4>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-sm font-black text-stone-900">₹1,299</span>
+                            <span className="text-[10px] text-stone-400 line-through">₹2,499</span>
+                            <span className="text-[10px] font-bold text-emerald-700">48% {isHi ? "छूट" : "off"}</span>
+                          </div>
+                          <span className="text-[10px] text-stone-600 font-medium block mt-1">
+                            {KIT_DEMO.meesho.delivery[isHi ? "hi" : "en"]}
+                          </span>
+                        </div>
+                        <Link href="/app/generate" className="block mt-auto">
+                          <Button size="sm" className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs h-8">
+                            <ShoppingBag className="h-3.5 w-3.5 mr-1" />
+                            {KIT_DEMO.meesho.cta[isHi ? "hi" : "en"]}
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+
+                    {tab === "instagram" && (
+                      <div className="flex-1 flex flex-col rounded-xl overflow-hidden bg-white border border-stone-200 text-stone-900">
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="h-7 w-7 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]">
+                            <div className="h-full w-full rounded-full bg-white flex items-center justify-center text-[9px] font-black">
+                              YS
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold">{KIT_DEMO.instagram.handle}</span>
+                        </div>
+                        <div className="aspect-square bg-stone-50">
+                          <img
+                            src="/images/demo-watch-white-band.webp"
+                            alt="White smartwatch with a white strap on a light background"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3 px-3 pt-2.5">
+                          <Heart className="h-5 w-5" aria-hidden="true" />
+                          <MessageCircle className="h-5 w-5" aria-hidden="true" />
+                          <Send className="h-5 w-5" aria-hidden="true" />
+                          <Bookmark className="h-5 w-5 ml-auto" aria-hidden="true" />
+                        </div>
+                        <span className="text-xs font-bold px-3 pt-1.5 pb-3 mt-auto block">
+                          {KIT_DEMO.instagram.likes[isHi ? "hi" : "en"]}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                  {isHi ? "मुफ़्त शिपिंग | COD उपलब्ध" : "Free Shipping | COD Available"}
-                </span>
-              </div>
-              <Button size="sm" className="w-full mt-auto bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8">
-                <MessageCircle className="h-3.5 w-3.5 mr-1" />
-                {t.sections.messageToOrder}
-              </Button>
-            </div>
+              );
+            })}
           </div>
 
-          {/* Middle: WhatsApp Caption with One-Click Copy */}
-          <div className="h-full flex flex-col p-5 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {isHi ? "व्हाट्सएप कैप्शन" : "WhatsApp Caption"}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyCaption}
-                className="h-7 text-xs gap-1 font-bold text-primary"
-              >
-                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied ? t.sections.copied : t.sections.copyCaption}
-              </Button>
-            </div>
-            <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs font-mono whitespace-pre-wrap leading-relaxed">
-              {isHi
-                ? "✨ नया कलेक्शन: प्रीमियम स्मार्टवॉच 🔥\nआज ही अपना स्टाइल अपग्रेड करें!\n✅ वाटर रेसिस्टेंट\n✅ 7 दिन की बैटरी\n✅ हार्ट रेट मॉनिटर\n*ऑफ़र प्राइस:* ₹1,299 मात्र\n*मुफ़्त शिपिंग* पूरे भारत में 🇮🇳\nऑर्डर करने के लिए अपना पता भेजें।"
-                : "✨ New Arrival: Premium Smartwatch 🔥\nUpgrade your style today!\n✅ Water Resistant\n✅ 7 Day Battery\n✅ Heart Rate Monitor\n*Price:* ₹1,299 only\n*Free Shipping* across India 🇮🇳\nTo order, reply with your address."}
-            </div>
+          {/* Middle: platform copy with One-Click Copy */}
+          <div className="grid">
+            {KIT_TABS.map((tab) => {
+              const active = activeTab === tab;
+              const lang = isHi ? "hi" : "en";
+              return (
+                <div
+                  key={tab}
+                  id={`kit-copy-${tab}`}
+                  role="tabpanel"
+                  aria-labelledby={`kit-tab-${tab}`}
+                  aria-hidden={!active}
+                  inert={!active}
+                  className={`col-start-1 row-start-1 transition-opacity duration-200 ${
+                    active ? "opacity-100" : "opacity-0 invisible pointer-events-none"
+                  }`}
+                >
+                  <div className="h-full flex flex-col p-5 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {KIT_DEMO[tab].copyLabel[lang]}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopyCaption}
+                        className="h-7 text-xs gap-1 font-bold text-primary"
+                      >
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copied ? t.sections.copied : t.sections.copyCaption}
+                      </Button>
+                    </div>
+
+                    {tab === "whatsapp" && (
+                      <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs font-mono whitespace-pre-wrap leading-relaxed">
+                        {KIT_DEMO.whatsapp.caption[lang]}
+                      </div>
+                    )}
+
+                    {tab === "meesho" && (
+                      <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs leading-relaxed space-y-3">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                            {isHi ? "टाइटल" : "Title"}
+                          </span>
+                          <p className="font-semibold text-foreground mt-0.5">{KIT_DEMO.meesho.catalogTitle[lang]}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                            {isHi ? "कैटेगरी" : "Category"}
+                          </span>
+                          <p className="text-foreground mt-0.5">{KIT_DEMO.meesho.category[lang]}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                            {isHi ? "विवरण" : "Description"}
+                          </span>
+                          <ul className="mt-1 space-y-1 text-muted-foreground">
+                            {KIT_DEMO.meesho.specs.map((spec) => (
+                              <li key={spec.label.en}>
+                                <span className="font-semibold text-foreground">{spec.label[lang]}:</span> {spec.value[lang]}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {tab === "instagram" && (
+                      <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs leading-relaxed space-y-3">
+                        <p className="whitespace-pre-wrap">{KIT_DEMO.instagram.caption[lang]}</p>
+                        <p className="text-primary font-medium break-words">{KIT_DEMO.instagram.hashtags}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Right: AI Product Details & Download Entire Kit */}
