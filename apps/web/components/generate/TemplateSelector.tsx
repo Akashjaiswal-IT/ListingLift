@@ -1,10 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
-import { Check, Sparkles, Palette } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Check, Sparkles, Palette, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
+import { nextCursor, initialCursor } from "~/lib/paginate";
 import { CARD_TEMPLATES_INFO, CardTemplateInfo, TemplateId } from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
+
+const PAGE_SIZE = 10;
+
+function filterTemplates(filter: string) {
+  return CARD_TEMPLATES_INFO.filter((tpl) => {
+    if (filter === "all") return true;
+    if (filter === "diwali") return tpl.festivalSection === "diwali";
+    if (filter === "navratri") return tpl.festivalSection === "navratri";
+    if (filter === "dussehra") return tpl.festivalSection === "dussehra";
+    if (filter === "classic") return tpl.festivalSection === "luxury" || !tpl.festivalSection;
+    return true;
+  });
+}
 
 interface TemplateSelectorProps {
   selectedTemplateId: TemplateId;
@@ -35,14 +50,60 @@ export function TemplateSelector({
     { id: "classic", label: isHi ? "👑 लग्जरी स्टूडियो (10)" : "👑 Studio Luxe (10)" },
   ];
 
-  const filteredTemplates = CARD_TEMPLATES_INFO.filter((tpl) => {
-    if (filter === "all") return true;
-    if (filter === "diwali") return tpl.festivalSection === "diwali";
-    if (filter === "navratri") return tpl.festivalSection === "navratri";
-    if (filter === "dussehra") return tpl.festivalSection === "dussehra";
-    if (filter === "classic") return tpl.festivalSection === "luxury" || !tpl.festivalSection;
-    return true;
-  });
+  const filteredTemplates = filterTemplates(filter);
+  const total = filteredTemplates.length;
+  const selectedIndex = filteredTemplates.findIndex((tpl) => tpl.id === selectedTemplateId);
+
+  // Cursor = index of the next template to load. "Show more" turns on infinite
+  // scroll (the sentinel below the grid keeps loading pages as it scrolls into view).
+  const [cursor, setCursor] = useState(() => initialCursor(selectedIndex, total, PAGE_SIZE));
+  const [infiniteScroll, setInfiniteScroll] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const visibleTemplates = filteredTemplates.slice(0, cursor);
+  const remaining = total - cursor;
+
+  const changeFilter = (id: string) => {
+    const list = filterTemplates(id);
+    setFilter(id);
+    setInfiniteScroll(false);
+    setCursor(
+      initialCursor(
+        list.findIndex((tpl) => tpl.id === selectedTemplateId),
+        list.length,
+        PAGE_SIZE
+      )
+    );
+  };
+
+  const showMore = () => {
+    setInfiniteScroll(true);
+    setCursor((c) => nextCursor(c, total, PAGE_SIZE));
+  };
+
+  const showLess = () => {
+    setInfiniteScroll(false);
+    setCursor(initialCursor(selectedIndex, total, PAGE_SIZE));
+    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  useEffect(() => {
+    if (!infiniteScroll || cursor >= total) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setCursor((c) => nextCursor(c, total, PAGE_SIZE));
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [infiniteScroll, cursor, total]);
 
   const displayTitle = previewTitle.trim() || (isHi ? "प्रीमियम उत्पाद" : "Exclusive Product");
   const displayPrice = previewDiscountPrice
@@ -53,7 +114,7 @@ export function TemplateSelector({
   const displayMrp = previewDiscountPrice && previewPrice ? `₹${previewPrice}` : "";
 
   return (
-    <div className="space-y-4">
+    <div ref={containerRef} className="space-y-4 scroll-mt-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Palette className="h-4 w-4 text-primary" />
@@ -72,7 +133,7 @@ export function TemplateSelector({
           <button
             key={cat.id}
             type="button"
-            onClick={() => setFilter(cat.id)}
+            onClick={() => changeFilter(cat.id)}
             className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
               filter === cat.id
                 ? "bg-primary text-white shadow-xs"
@@ -86,7 +147,7 @@ export function TemplateSelector({
 
       {/* Visual Template Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 pt-1">
-        {filteredTemplates.map((tpl) => {
+        {visibleTemplates.map((tpl) => {
           const isSelected = selectedTemplateId === tpl.id;
 
           return (
@@ -173,6 +234,27 @@ export function TemplateSelector({
           );
         })}
       </div>
+
+      {/* Infinite-scroll sentinel: loads the next page when it nears the viewport */}
+      {infiniteScroll && cursor < total && <div ref={sentinelRef} aria-hidden="true" className="h-px" />}
+
+      {total > PAGE_SIZE && (
+        <div className="flex justify-center">
+          {infiniteScroll ? (
+            <Button type="button" variant="outline" size="sm" onClick={showLess} aria-expanded={true}>
+              <ChevronUp className="h-4 w-4" />
+              {isHi ? "कम दिखाएँ" : "Show less"}
+            </Button>
+          ) : (
+            remaining > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={showMore} aria-expanded={false}>
+                <ChevronDown className="h-4 w-4" />
+                {isHi ? `और दिखाएँ (${remaining} और)` : `Show more (${remaining} more)`}
+              </Button>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
