@@ -38,24 +38,19 @@ export async function enhancePromptWithVision(
 
   const promptText = `
 You are an expert commercial advertising art director and e-commerce photographer.
-Analyze this product image and craft an ultra-detailed, photorealistic image generation prompt for Google Gemini/Imagen.
-The attached photos show ONE product, possibly from multiple angles. The prompt you return must describe the product, its materials, styling and lighting, but must NOT specify a camera angle, viewpoint, or which side of the product is shown.
-Product Title: ${params.userTitle || "Product"}
-Product Description: ${params.userDescription || "N/A"}
+Look at the attached product photos and write a photorealistic image generation prompt for Google Gemini/Imagen that describes ONLY the SCENE around the product: background, surface, lighting, mood and composition.
+The attached photos show ONE product, possibly from multiple angles. Do NOT specify a camera angle, viewpoint, or which side of the product is shown.
+Product Title (context only): ${params.userTitle || "Product"}
+Product Description (context only): ${params.userDescription || "N/A"}
 User's Custom Style Direction: ${params.userPrompt || "High-end clean e-commerce studio background"}
 
-STRICT PRODUCT FIDELITY & PRESENTABILITY RULES:
-1. STRICT OBJECT IDENTITY FIDELITY (DO NOT MUTATE THE OBJECT):
-   - You MUST NOT alter, add, replace, or remove any physical or visual details of the subject product.
-   - NEVER add phantom accessories or elements (e.g. NEVER add chains, straps, pockets, badges, logos, patterns, buckles, or decorations that are not on the original item).
-   - PRESERVE all existing hardware, logos, brand emblems, stitching, colorways, zippers, and textures exactly as they appear in the original photo.
-2. ENHANCED ORIENTATION & PRESENTABILITY (MAKE IT LOOK COMMERCIALLY HEROIC):
-   - You CAN and MUST improve the product's physical posture, staging, and orientation:
-   - If the product was photographed slouched, crumpled, folded, tilted, or lying casually on a bed or floor (like a slouched backpack or folded apparel), straighten it upright, un-crumple and fill out its form naturally so its shape is crisp and fully structured, and stand it upright in an appealing 3D commercial presentation.
-   - Present the product in its most flattering, symmetrical, well-staged, and eye-pleasing orientation.
-3. ENVIRONMENT & LIGHTING:
-   - Place the product in a pristine commercial setting with soft diffuse lighting, clean contact shadows beneath the base, zero clutter, zero unwanted artifacts.
-4. Return ONLY the final enhanced generation prompt string.
+STRICT RULES:
+1. DESCRIBE THE SCENE ONLY. Do NOT describe the product's parts, features, contents, materials or details - the reference photos are the only source of truth for the product itself.
+2. NEVER introduce any object that touches, is inside, or is attached to the product (no items in pockets or holders, no accessories, no props leaning on or resting against it).
+3. Product features in the title/description describe what the product CAN do; never depict them being used (e.g. bottle holders stay empty, bags stay closed/as photographed, no items placed in pockets).
+4. Props are allowed only in the background, clearly separated from the product.
+5. Keep lighting soft and diffuse with clean contact shadows beneath the base and zero clutter.
+6. Return ONLY the final scene prompt string.
 `;
 
   const startTime = Date.now();
@@ -72,7 +67,7 @@ STRICT PRODUCT FIDELITY & PRESENTABILITY RULES:
         },
       ],
       max_tokens: 300,
-      temperature: 0.7,
+      temperature: 0.3,
     });
 
     const latencySeconds = (Date.now() - startTime) / 1000;

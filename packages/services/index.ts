@@ -6,6 +6,7 @@ export * from "./payment.service";
 export * from "./ai/openai.service";
 export * from "./ai/prompt-enhancer.service";
 export * from "./ai/gemini.service";
+export * from "./ai/fidelity-check.service";
 export * from "./ai/ai-observability";
 export * from "./card/card-renderer.service";
 export * from "./queue/queue.service";

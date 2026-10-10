@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import { trackAIGeneration } from "./ai-observability";
+import { checkProductFidelity } from "./fidelity-check.service";
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -66,6 +67,85 @@ export function planStudioShots(
   return plan;
 }
 
+// Placed FIRST in every prompt: the product must stay identical to the photo(s).
+const PRODUCT_LOCK_RULE =
+  "PRODUCT LOCK: The product must be pixel-faithful to the reference photo(s). Do NOT add, remove or change ANY part, object, accessory, content, logo, text, colour, or material. Pockets, holders and compartments must look exactly as in the photo (empty if empty). No items inside, on, or attached to the product. You may ONLY change: background, surface, lighting, shadows, reflections, and minor straightening of the product's pose.";
+
+/**
+ * High quality fallback studio composite for development/offline/testing and for
+ * images that fail the fidelity check: studio background + soft contact shadow,
+ * with the ORIGINAL photo placed centered (so the product is guaranteed unchanged).
+ */
+async function buildSharpStudioComposite(params: {
+  baseImg: Buffer | undefined;
+  variation: StudioVariation;
+  prompt: string;
+  promptSuffix?: string;
+}): Promise<GeneratedImageOutput> {
+  const { variation, prompt, promptSuffix = "" } = params;
+  const baseImg =
+    params.baseImg ||
+    (await sharp({
+      create: {
+        width: 1000,
+        height: 1000,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    }).png().toBuffer());
+  const interactionId = `int_gemini_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+  const isPureWhite = variation === "studio_white";
+  const bg = isPureWhite
+    ? { r: 255, g: 255, b: 255 } // 100% Pure White for Amazon/Flipkart standard
+    : variation === "studio_premium"
+    ? { r: 247, g: 245, b: 240 } // Warm luxury limestone/champagne
+    : variation === "lifestyle"
+    ? { r: 250, g: 246, b: 242 } // Warm organic daylight
+    : { r: 240, g: 243, b: 246 }; // Modern slate studio
+
+  const resizedProduct = await sharp(baseImg)
+    .resize(800, 800, { fit: "inside" })
+    .webp({ quality: 90 })
+    .toBuffer();
+
+  // Generate soft subtle contact shadow SVG beneath the product
+  const shadowSvg = Buffer.from(`
+    <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="contactShadow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#000000" stop-opacity="${isPureWhite ? "0.22" : "0.18"}"/>
+          <stop offset="60%" stop-color="#000000" stop-opacity="${isPureWhite ? "0.08" : "0.05"}"/>
+          <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="512" cy="855" rx="330" ry="26" fill="url(#contactShadow)"/>
+    </svg>
+  `);
+
+  const compositeBuffer = await sharp({
+    create: {
+      width: 1024,
+      height: 1024,
+      channels: 4,
+      background: { r: bg.r, g: bg.g, b: bg.b, alpha: 1 },
+    },
+  })
+    .composite([
+      { input: shadowSvg, top: 0, left: 0 },
+      { input: resizedProduct, gravity: "center" },
+    ])
+    .webp({ quality: 90 })
+    .toBuffer();
+
+  return {
+    buffer: compositeBuffer,
+    interactionId,
+    variationType: variation,
+    promptUsed: `${prompt} (${variation})${promptSuffix}`,
+  };
+}
+
 export async function generateStudioImages(params: {
   originalImages: Buffer[];
   prompt: string;
@@ -84,33 +164,34 @@ export async function generateStudioImages(params: {
 
       for (let i = 0; i < count; i++) {
         const { sourceIndex, variation } = shotPlan[i]!;
-        const strictFidelityRule = "CRITICAL INSTRUCTION: Preserve 100% exact visual identity and details of the subject item (DO NOT add, alter, or remove chains, straps, pockets, logos, emblems, badges, zippers, or materials). DO NOT hallucinate phantom accessories. DO optimize orientation, posture, and staging: if the product is slouched, folded, tilted, or lying casually, straighten it upright, un-crumple its form naturally, and present it in a proud, symmetrical, upright commercial studio pose.";
-        let specializedPrompt = "";
+        let sceneText = "";
 
         if (variation === "studio_white") {
-          specializedPrompt = `${strictFidelityRule} Commercial product catalog photography of the exact product shown, set against a seamless, solid 100% pure white background (#FFFFFF). The subject product is standing upright, perfectly centered, crisp, with sharp edges and rich textures. Natural, soft subtle contact shadow anchored directly under the base of the product on the pure white floor, creating realistic depth without dirt or tint. Studio diffused softbox lighting with even balance and accurate true-to-life colors. Zero background clutter, zero gray cast, 100% Amazon, Flipkart, and Meesho marketplace standard e-commerce hero image. ${prompt}`;
+          sceneText = `Commercial product catalog photography of the exact product shown, set against a seamless, solid 100% pure white background (#FFFFFF). The subject product is standing upright, perfectly centered, crisp, with sharp edges and rich textures. Natural, soft subtle contact shadow anchored directly under the base of the product on the pure white floor, creating realistic depth without dirt or tint. Studio diffused softbox lighting with even balance and accurate true-to-life colors. Zero background clutter, zero gray cast, 100% Amazon, Flipkart, and Meesho marketplace standard e-commerce hero image. ${prompt}`;
         } else if (variation === "studio_premium") {
-          specializedPrompt = `${strictFidelityRule} Award-winning luxury commercial studio product photography of the exact product shown. The product is standing upright and elegantly displayed on a minimalist sculpted pedestal or podium (matte stone, travertine, or architectural ceramic). Soft dramatic studio rim lighting, cinematic fill light, gentle warm ambient glow, and refined directional shadows. Subtle shallow depth of field with a beautifully blurred, warm neutral architectural studio background. 8K UHD advertising campaign aesthetic, ultra-clean and pleasing to the eyes. ${prompt}`;
+          sceneText = `Award-winning luxury commercial studio product photography of the exact product shown. The product is standing upright and elegantly displayed on a minimalist sculpted pedestal or podium (matte stone, travertine, or architectural ceramic). Soft dramatic studio rim lighting, cinematic fill light, gentle warm ambient glow, and refined directional shadows. Subtle shallow depth of field with a beautifully blurred, warm neutral architectural studio background. 8K UHD advertising campaign aesthetic, ultra-clean and pleasing to the eyes. ${prompt}`;
         } else if (variation === "lifestyle") {
-          specializedPrompt = `${strictFidelityRule} Modern aesthetic lifestyle commercial product photography of the exact product shown. The product is standing upright and artfully staged in an aspirational, sunlit contemporary home setting (clean wooden surface, soft morning sunlight through window, subtle elegant decor accents). Natural ambient shadows, authentic atmosphere, premium lifestyle catalog visual. ${prompt}`;
+          sceneText = `Modern aesthetic lifestyle commercial product photography of the exact product shown. The product is standing upright and staged in an aspirational, sunlit contemporary home setting (clean wooden surface, soft morning sunlight through window). Any props or decor may appear only in the background and must never touch, overlap, or sit inside or on the product. Natural ambient shadows, authentic atmosphere, premium lifestyle catalog visual. ${prompt}`;
         } else {
-          specializedPrompt = `${strictFidelityRule} Creative commercial product photography of the exact product shown, styled according to: ${prompt}. Pristine lighting, commercial advertising grade.`;
+          sceneText = `Creative commercial product photography of the exact product shown, styled according to: ${prompt}. Pristine lighting, commercial advertising grade.`;
         }
 
         // Multi-angle: the assigned photo goes first (the viewpoint to reproduce),
         // followed by up to 2 other photos purely as detail references.
         let referenceImages = originalImages.slice(0, 3);
+        let viewpointLock = "";
         if (useMultiAngle) {
           referenceImages = [
             originalImages[sourceIndex]!,
             ...originalImages.filter((_, idx) => idx !== sourceIndex).slice(0, 2),
           ];
-          specializedPrompt = `VIEWPOINT LOCK: Reproduce the product from the SAME camera angle and viewpoint as the FIRST reference image (this is angle ${sourceIndex + 1} of ${originalImages.length}). The other reference images are ONLY for product detail, texture and colour accuracy - do NOT switch to their viewpoint. ${specializedPrompt}`;
+          viewpointLock = `VIEWPOINT LOCK: Reproduce the product from the SAME camera angle and viewpoint as the FIRST reference image (this is angle ${sourceIndex + 1} of ${originalImages.length}). The other reference images are ONLY for product detail, texture and colour accuracy - do NOT switch to their viewpoint. `;
         }
+        const specializedPrompt = `${PRODUCT_LOCK_RULE} ${viewpointLock}${sceneText}`;
 
-        // Build input payload with text prompt and reference images
-        const inputPayload: any[] = [{ type: "text", text: specializedPrompt }];
-        if (referenceImages.length > 0) {
+        // One Gemini call for this slot: text prompt + reference images
+        const generateOnce = async (promptText: string) => {
+          const inputPayload: any[] = [{ type: "text", text: promptText }];
           for (const img of referenceImages) {
             inputPayload.push({
               type: "image",
@@ -118,44 +199,92 @@ export async function generateStudioImages(params: {
               data: img.toString("base64"),
             });
           }
-        }
 
-        // Generate via Google GenAI Interactions API (gemini-3.1-flash-image)
-        const geminiStart = Date.now();
-        const interaction: any = await (ai as any).interactions.create({
-          model: "gemini-3.1-flash-image",
-          input: inputPayload,
-          response_format: {
-            type: "image",
-            mime_type: "image/jpeg",
-            aspect_ratio: "1:1",
-          },
-        });
-        const latencySeconds = (Date.now() - geminiStart) / 1000;
+          // Generate via Google GenAI Interactions API (gemini-3.1-flash-image)
+          const geminiStart = Date.now();
+          const interaction: any = await (ai as any).interactions.create({
+            model: "gemini-3.1-flash-image",
+            input: inputPayload,
+            response_format: {
+              type: "image",
+              mime_type: "image/jpeg",
+              aspect_ratio: "1:1",
+            },
+          });
+          const latencySeconds = (Date.now() - geminiStart) / 1000;
 
-        const imageBase64 = interaction?.output_image?.data;
-        const interactionId =
-          interaction?.id ||
-          `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          const imageBase64 = interaction?.output_image?.data;
+          const interactionId =
+            interaction?.id ||
+            `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-        trackAIGeneration({
-          provider: "gemini",
-          model: "gemini-3.1-flash-image",
-          input: specializedPrompt,
-          output: imageBase64 ? `[Image generated: ${variation}]` : "[No image returned]",
-          latencySeconds,
-          traceId: interactionId,
-        });
+          trackAIGeneration({
+            provider: "gemini",
+            model: "gemini-3.1-flash-image",
+            input: promptText,
+            output: imageBase64 ? `[Image generated: ${variation}]` : "[No image returned]",
+            latencySeconds,
+            traceId: interactionId,
+          });
 
-        if (imageBase64) {
-          const imgBuffer = Buffer.from(imageBase64, "base64");
-          results.push({
-            buffer: imgBuffer,
+          return {
+            buffer: imageBase64 ? Buffer.from(imageBase64, "base64") : null,
             interactionId,
+          };
+        };
+
+        const first = await generateOnce(specializedPrompt);
+        if (!first.buffer) continue;
+
+        const firstCheck = await checkProductFidelity({
+          originalImages: referenceImages,
+          generatedImage: first.buffer,
+        });
+        if (firstCheck.pass) {
+          results.push({
+            buffer: first.buffer,
+            interactionId: first.interactionId,
             variationType: variation,
             promptUsed: specializedPrompt,
           });
+          continue;
         }
+
+        // Rejected: regenerate the SAME slot once, telling the model what went wrong
+        console.warn(
+          `Fidelity check rejected ${variation} image (photo ${sourceIndex + 1}): ${firstCheck.issues.join("; ")}`
+        );
+        const retryPrompt = `${specializedPrompt} PREVIOUS ATTEMPT WAS REJECTED because: ${firstCheck.issues.join("; ")}. Do NOT include any of these.`;
+        const retry = await generateOnce(retryPrompt);
+
+        if (retry.buffer) {
+          const retryCheck = await checkProductFidelity({
+            originalImages: referenceImages,
+            generatedImage: retry.buffer,
+          });
+          if (retryCheck.pass) {
+            results.push({
+              buffer: retry.buffer,
+              interactionId: retry.interactionId,
+              variationType: variation,
+              promptUsed: retryPrompt,
+            });
+            continue;
+          }
+          console.warn(
+            `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}): ${retryCheck.issues.join("; ")}`
+          );
+        }
+
+        // Still not faithful: use the guaranteed-identical studio composite of the source photo
+        results.push(
+          await buildSharpStudioComposite({
+            baseImg: originalImages[sourceIndex],
+            variation,
+            prompt,
+            promptSuffix: " (fidelity-fallback)",
+          })
+        );
       }
 
       if (results.length > 0) {
@@ -175,72 +304,13 @@ export async function generateStudioImages(params: {
     }
   }
 
-  // High quality Fallback Studio Composite for development/offline/testing:
-  // Creates studio lighting, background gradient, and places the original product centered
+  // Fallback for development/offline/testing: studio composite of the original product
   const results: GeneratedImageOutput[] = [];
-  const blankImg = await sharp({
-    create: {
-      width: 1000,
-      height: 1000,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  }).png().toBuffer();
-
   for (let i = 0; i < count; i++) {
     const { sourceIndex, variation } = shotPlan[i]!;
-    const baseImg = originalImages[sourceIndex] || blankImg;
-    const interactionId = `int_gemini_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-
-    const isPureWhite = variation === "studio_white";
-    const bg = isPureWhite
-      ? { r: 255, g: 255, b: 255 } // 100% Pure White for Amazon/Flipkart standard
-      : variation === "studio_premium"
-      ? { r: 247, g: 245, b: 240 } // Warm luxury limestone/champagne
-      : variation === "lifestyle"
-      ? { r: 250, g: 246, b: 242 } // Warm organic daylight
-      : { r: 240, g: 243, b: 246 }; // Modern slate studio
-
-    const resizedProduct = await sharp(baseImg)
-      .resize(800, 800, { fit: "inside" })
-      .webp({ quality: 90 })
-      .toBuffer();
-
-    // Generate soft subtle contact shadow SVG beneath the product
-    const shadowSvg = Buffer.from(`
-      <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="contactShadow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#000000" stop-opacity="${isPureWhite ? "0.22" : "0.18"}"/>
-            <stop offset="60%" stop-color="#000000" stop-opacity="${isPureWhite ? "0.08" : "0.05"}"/>
-            <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <ellipse cx="512" cy="855" rx="330" ry="26" fill="url(#contactShadow)"/>
-      </svg>
-    `);
-
-    const compositeBuffer = await sharp({
-      create: {
-        width: 1024,
-        height: 1024,
-        channels: 4,
-        background: { r: bg.r, g: bg.g, b: bg.b, alpha: 1 },
-      },
-    })
-      .composite([
-        { input: shadowSvg, top: 0, left: 0 },
-        { input: resizedProduct, gravity: "center" },
-      ])
-      .webp({ quality: 90 })
-      .toBuffer();
-
-    results.push({
-      buffer: compositeBuffer,
-      interactionId,
-      variationType: variation,
-      promptUsed: `${prompt} (${variation})`,
-    });
+    results.push(
+      await buildSharpStudioComposite({ baseImg: originalImages[sourceIndex], variation, prompt })
+    );
   }
 
   return results;
@@ -260,7 +330,7 @@ export async function reEditStudioImage(params: {
       // Use multi-turn editing with previous_interaction_id for seamless conversational editing
       const interaction: any = await (ai as any).interactions.create({
         model: "gemini-3.1-flash-image",
-        input: `${newPrompt}. CRITICAL: Maintain 100% exact visual identity, colors, hardware, and details of original product (no phantom chains, no altered logos). Keep product standing upright, clean, and commercially presented.`,
+        input: `${PRODUCT_LOCK_RULE} Apply the user's requested change to the scene. Only change the product itself if the user explicitly asks to change the product. User request: ${newPrompt}`,
         previous_interaction_id: interactionId,
         response_format: {
           type: "image",
