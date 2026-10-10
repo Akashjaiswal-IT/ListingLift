@@ -285,7 +285,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
           {/* Left Column: Interactive Upload Controls */}
           <div className="lg:col-span-5 p-6 rounded-2xl border border-border bg-card shadow-xs space-y-5">
             <Link href="/app/generate">
@@ -348,7 +348,7 @@ export default function HomePage() {
           </div>
 
           {/* Right Column: AI Results Preview (Generated in 4.2 seconds) */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="lg:col-span-7 flex flex-col h-full gap-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold tracking-tight text-foreground">
                 {t.sections.aiResultsTitle}
@@ -360,7 +360,7 @@ export default function HomePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {/* Variation 1: Guaranteed Pure White Studio (Amazon / Flipkart standard) */}
-              <div className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
+              <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
                 <div className="aspect-square rounded-xl overflow-hidden bg-white border border-stone-200 flex items-center justify-center p-4 relative">
                   <img
                     src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=85"
@@ -373,7 +373,7 @@ export default function HomePage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between pt-1 mt-auto">
                   <span className="text-xs font-bold text-foreground">
                     {isHi ? "क्लासिक व्हाइट स्टूडियो" : "Classic White Studio"}
                   </span>
@@ -386,7 +386,7 @@ export default function HomePage() {
               </div>
 
               {/* Variation 2: Warm Studio / Lifestyle Scene */}
-              <div className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
+              <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
                 <div className="aspect-square rounded-xl overflow-hidden bg-[#F5C242] flex items-center justify-center p-4 relative">
                   <img
                     src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=85"
@@ -399,7 +399,7 @@ export default function HomePage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between pt-1 mt-auto">
                   <span className="text-xs font-bold text-foreground">
                     {isHi ? "लाइफ़स्टाइल सीन" : "Lifestyle Lighting"}
                   </span>
@@ -409,6 +409,31 @@ export default function HomePage() {
                     </Button>
                   </Link>
                 </div>
+              </div>
+            </div>
+
+            {/* Also included in every kit - fills the column so both sides end level on desktop */}
+            <div className="flex-1 rounded-2xl border border-border bg-card p-4 shadow-xs flex flex-col justify-center gap-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {isHi ? "हर किट में शामिल" : "Also included in every kit"}
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { icon: Sparkles, label: isHi ? "SEO कैटलॉग कॉपी" : "SEO catalog copy" },
+                  {
+                    icon: Instagram,
+                    label: isHi ? "3 सोशल कार्ड (WhatsApp, इंस्टा पोस्ट, स्टोरी)" : "3 social cards (WhatsApp, Insta post, story)",
+                  },
+                  { icon: Download, label: isHi ? "Excel कैटलॉग एक्सपोर्ट" : "Excel catalog export" },
+                  { icon: MessageCircle, label: isHi ? "WhatsApp ब्रॉडकास्ट टेक्स्ट" : "WhatsApp broadcast text" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-2.5 text-xs font-medium text-foreground">
+                    <span className="h-8 w-8 shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                      <item.icon className="h-4 w-4" />
+                    </span>
+                    <span>{item.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
