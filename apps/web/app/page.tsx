@@ -29,6 +29,13 @@ import { toast } from "sonner";
 import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
 import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
 
+// Demo photos in /public/images/demo-*.webp come from Unsplash (free to use under the Unsplash License):
+// - demo-watch-white:           https://unsplash.com/photos/black-smart-watch-with-white-background-O43D6CYzxqM
+// - demo-watch-white-band:      https://unsplash.com/photos/white-and-black-digital-watch-h1MnFsRI-_I
+// - demo-headphones-lifestyle:  https://unsplash.com/photos/white-beats-by-dr-dre-wireless-headphones-bE3_aFt85Y8
+// - demo-headphones:            https://unsplash.com/photos/black-wireless-headphones-on-white-table-lUMj2Zv5HUE
+// - demo-leather-bag:           https://unsplash.com/photos/a-brown-leather-handbag-on-a-white-background-zxPo13geJ5U
+
 export default function HomePage() {
   const { t, language } = useLanguage();
   const isHi = language === "hi";
@@ -69,21 +76,21 @@ export default function HomePage() {
       title: isHi ? "क्लासिक स्मार्टवॉच" : "Classic Smartwatch",
       time: isHi ? "कल जोड़ा गया" : "Added yesterday",
       type: "meesho",
-      img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80",
+      img: "/images/demo-watch-white.webp",
     },
     {
       id: "3",
       title: isHi ? "वायरलेस हेडफ़ोन" : "Wireless Headphones",
       time: isHi ? "3 दिन पहले" : "Added 3 days ago",
       type: "whatsapp",
-      img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80",
+      img: "/images/demo-headphones.webp",
     },
     {
       id: "4",
       title: isHi ? "प्रीमियम लेदर बैग" : "Leather Bag",
       time: isHi ? "1 सप्ताह पहले" : "Added 1 week ago",
       type: "meesho",
-      img: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80",
+      img: "/images/demo-leather-bag.webp",
     },
   ];
 
@@ -361,11 +368,11 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {/* Variation 1: Guaranteed Pure White Studio (Amazon / Flipkart standard) */}
               <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
-                <div className="aspect-square rounded-xl overflow-hidden bg-white border border-stone-200 flex items-center justify-center p-4 relative">
+                <div className="aspect-square rounded-xl overflow-hidden bg-white border border-stone-200 relative">
                   <img
-                    src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=85"
-                    alt="Clean White Studio Watch"
-                    className="w-full h-full object-contain filter drop-shadow-md"
+                    src="/images/demo-watch-white.webp"
+                    alt="Black smartwatch on a pure white studio background"
+                    className="w-full h-full object-cover"
                   />
                   <div className="absolute top-2 left-2">
                     <Badge className="bg-stone-900 text-white text-[9px] font-bold">
@@ -387,11 +394,11 @@ export default function HomePage() {
 
               {/* Variation 2: Warm Studio / Lifestyle Scene */}
               <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
-                <div className="aspect-square rounded-xl overflow-hidden bg-[#F5C242] flex items-center justify-center p-4 relative">
+                <div className="aspect-square rounded-xl overflow-hidden relative">
                   <img
-                    src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=85"
-                    alt="Warm Lighting Headphones"
-                    className="w-full h-full object-contain filter drop-shadow-xl"
+                    src="/images/demo-headphones-lifestyle.webp"
+                    alt="White wireless headphones resting on a warm wooden table"
+                    className="w-full h-full object-cover"
                   />
                   <div className="absolute top-2 left-2">
                     <Badge className="bg-stone-900 text-white text-[9px] font-bold">
@@ -482,9 +489,9 @@ export default function HomePage() {
             <div className="rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
               <div className="aspect-square rounded-lg bg-stone-50 flex items-center justify-center p-2">
                 <img
-                  src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80"
-                  alt="Watch"
-                  className="w-full h-full object-contain"
+                  src="/images/demo-watch-white-band.webp"
+                  alt="White smartwatch with a white strap on a light background"
+                  className="w-full h-full object-cover rounded-md"
                 />
               </div>
               <div>
