@@ -480,13 +480,13 @@ export default function HomePage() {
         </div>
 
         {/* 3-Card Grid Matching Ref Image 3 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {/* Left: WhatsApp Card Preview */}
-          <div className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+          <div className="h-full flex flex-col p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {isHi ? "व्हाट्सएप कार्ड" : "WhatsApp Card"}
             </span>
-            <div className="rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
+            <div className="flex-1 flex flex-col rounded-xl overflow-hidden bg-white border border-stone-200 p-4 space-y-3 text-stone-900">
               <div className="aspect-square rounded-lg bg-stone-50 flex items-center justify-center p-2">
                 <img
                   src="/images/demo-watch-white-band.webp"
@@ -509,7 +509,7 @@ export default function HomePage() {
                   {isHi ? "मुफ़्त शिपिंग | COD उपलब्ध" : "Free Shipping | COD Available"}
                 </span>
               </div>
-              <Button size="sm" className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8">
+              <Button size="sm" className="w-full mt-auto bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8">
                 <MessageCircle className="h-3.5 w-3.5 mr-1" />
                 {t.sections.messageToOrder}
               </Button>
@@ -517,7 +517,7 @@ export default function HomePage() {
           </div>
 
           {/* Middle: WhatsApp Caption with One-Click Copy */}
-          <div className="p-5 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+          <div className="h-full flex flex-col p-5 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {isHi ? "व्हाट्सएप कैप्शन" : "WhatsApp Caption"}
@@ -532,7 +532,7 @@ export default function HomePage() {
                 {copied ? t.sections.copied : t.sections.copyCaption}
               </Button>
             </div>
-            <div className="p-4 rounded-xl bg-muted/40 border border-border/60 text-xs font-mono whitespace-pre-wrap leading-relaxed">
+            <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs font-mono whitespace-pre-wrap leading-relaxed">
               {isHi
                 ? "✨ नया कलेक्शन: प्रीमियम स्मार्टवॉच 🔥\nआज ही अपना स्टाइल अपग्रेड करें!\n✅ वाटर रेसिस्टेंट\n✅ 7 दिन की बैटरी\n✅ हार्ट रेट मॉनिटर\n*ऑफ़र प्राइस:* ₹1,299 मात्र\n*मुफ़्त शिपिंग* पूरे भारत में 🇮🇳\nऑर्डर करने के लिए अपना पता भेजें।"
                 : "✨ New Arrival: Premium Smartwatch 🔥\nUpgrade your style today!\n✅ Water Resistant\n✅ 7 Day Battery\n✅ Heart Rate Monitor\n*Price:* ₹1,299 only\n*Free Shipping* across India 🇮🇳\nTo order, reply with your address."}
@@ -540,7 +540,7 @@ export default function HomePage() {
           </div>
 
           {/* Right: AI Product Details & Download Entire Kit */}
-          <div className="p-6 rounded-2xl bg-[#161311] text-[#FAF7F2] border border-stone-800 space-y-5 shadow-md">
+          <div className="h-full flex flex-col p-6 rounded-2xl bg-[#161311] text-[#FAF7F2] border border-stone-800 space-y-5 shadow-md">
             <span className="text-xs font-bold uppercase tracking-wider text-stone-400 block">
               {t.sections.aiProductDetails}
             </span>
@@ -576,7 +576,7 @@ export default function HomePage() {
               </ul>
             </div>
 
-            <Link href="/app/generate" className="block pt-2">
+            <Link href="/app/generate" className="block mt-auto pt-2">
               <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold text-xs rounded-xl shadow-md gap-2">
                 <Download className="h-4 w-4" />
                 {t.sections.downloadEntireKit}
