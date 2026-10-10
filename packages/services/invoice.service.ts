@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { getPackDisplayName } from "./payment.service";
 
 export interface ReceiptPaymentInput {
   receiptNumber: string;
@@ -93,7 +94,7 @@ export function generateReceiptPdf(
       const rowY = tableTop + 30;
       doc.font("Helvetica").fontSize(10);
       doc.text(
-        `${payment.packId.toUpperCase()} credit pack — ${payment.creditsPurchased} credits`,
+        getPackDisplayName(payment.packId, payment.creditsPurchased),
         60,
         rowY,
         { width: 260 }

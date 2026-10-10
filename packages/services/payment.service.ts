@@ -76,6 +76,35 @@ export const CREDIT_PACKS: CreditPack[] = [
   },
 ];
 
+// Custom top-up limits. The UI slider is narrower (10-1,000) but the server accepts up to 2,000.
+export const TOPUP_MIN_CREDITS = 10;
+export const TOPUP_MAX_CREDITS = 2000;
+
+/**
+ * Price per credit (in paise) for a custom top-up of `qty` credits.
+ * The web app mirrors this table in apps/web/lib/topup-pricing.ts - keep both
+ * (and their tests) identical so the quote always equals the charge.
+ */
+function getTopupPerCreditPaise(qty: number): number {
+  if (qty >= 500) return 1100; // ₹11
+  if (qty >= 200) return 1400; // ₹14
+  if (qty >= 80) return 1700; // ₹17
+  if (qty >= 30) return 2000; // ₹20
+  return 2500; // ₹25
+}
+
+/** Total price in paise for a custom top-up of `qty` credits. */
+export function getTopupPricePaise(qty: number): number {
+  return qty * getTopupPerCreditPaise(qty);
+}
+
+/** Human-readable pack name for receipts, ledger entries and payment lists. */
+export function getPackDisplayName(packId: string, credits: number): string {
+  return packId === "topup"
+    ? `Custom top-up (${credits} credits)`
+    : `${packId.toUpperCase()} pack (${credits} credits)`;
+}
+
 /**
  * Read a required Razorpay credential. In PRODUCTION a missing value throws
  * immediately — a silent placeholder would create real orders / verify
@@ -125,17 +154,19 @@ export async function createOrder(params: {
   let credits = 0;
 
   if (packId === "topup") {
-    // Clamp to a sane range. Without an upper bound a client could request an
-    // absurd quantity (huge Razorpay order) and the lower bound stops 0/negative
-    // amounts. 2000 mirrors the largest named pack.
-    const qty = Math.min(2000, Math.max(1, topupQuantity || 1));
-    credits = qty;
-    let perCreditPaise = 2500; // default ₹25 per credit
-    if (qty >= 500) perCreditPaise = 1100; // ₹11
-    else if (qty >= 200) perCreditPaise = 1400; // ₹14
-    else if (qty >= 80) perCreditPaise = 1700; // ₹17
-    else if (qty >= 30) perCreditPaise = 2000; // ₹20
-    amountPaise = qty * perCreditPaise;
+    // Never silently change what the customer asked to buy: reject anything outside the limits.
+    if (
+      typeof topupQuantity !== "number" ||
+      !Number.isInteger(topupQuantity) ||
+      topupQuantity < TOPUP_MIN_CREDITS ||
+      topupQuantity > TOPUP_MAX_CREDITS
+    ) {
+      throw new Error(
+        `Custom top-up must be a whole number of credits between ${TOPUP_MIN_CREDITS} and ${TOPUP_MAX_CREDITS}.`
+      );
+    }
+    credits = topupQuantity;
+    amountPaise = getTopupPricePaise(topupQuantity);
   } else {
     const pack = getPackById(packId);
     if (!pack) {

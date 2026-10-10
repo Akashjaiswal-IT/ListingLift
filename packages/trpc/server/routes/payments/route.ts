@@ -8,33 +8,47 @@ import {
   addCredits,
   grantReferralRewardOnFirstPurchase,
   generateReceiptPdf,
+  getPackDisplayName,
+  TOPUP_MIN_CREDITS,
+  TOPUP_MAX_CREDITS,
 } from "@repo/services";
 
 export const paymentsRouter = router({
   createOrder: protectedProcedure
     .input(
-      z.object({
-        packId: z.enum([
-          "trial",
-          "starter",
-          "standard",
-          "pro",
-          "topup",
-          "business_s",
-          "business_m",
-          "business_l",
-        ]),
-        topupQuantity: z.number().int().min(1).max(2000).optional(),
-      })
+      z
+        .object({
+          packId: z.enum([
+            "trial",
+            "starter",
+            "standard",
+            "pro",
+            "topup",
+            "business_s",
+            "business_m",
+            "business_l",
+          ]),
+          topupQuantity: z.number().int().min(TOPUP_MIN_CREDITS).max(TOPUP_MAX_CREDITS).optional(),
+        })
+        .refine((v) => v.packId !== "topup" || v.topupQuantity !== undefined, {
+          message: "Please choose how many credits to buy",
+          path: ["topupQuantity"],
+        })
     )
     .mutation(async ({ ctx, input }) => {
-      const order = await createOrder({
-        userId: ctx.user._id,
-        packId: input.packId,
-        topupQuantity: input.topupQuantity,
-      });
-
-      return order;
+      try {
+        return await createOrder({
+          userId: ctx.user._id,
+          packId: input.packId,
+          topupQuantity: input.topupQuantity,
+        });
+      } catch (err: any) {
+        // Validation problems (bad quantity / unknown pack) are the caller's to fix
+        if (/Custom top-up|Invalid pack/.test(err?.message || "")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
     }),
 
   verifyPayment: protectedProcedure
@@ -113,7 +127,7 @@ export const paymentsRouter = router({
         userId: ctx.user._id,
         amount: payment.creditsPurchased,
         type: "PURCHASE",
-        description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
+        description: `Purchased ${getPackDisplayName(payment.packId, payment.creditsPurchased)}`,
         referenceId: String(payment._id),
         referenceType: "payment",
       });

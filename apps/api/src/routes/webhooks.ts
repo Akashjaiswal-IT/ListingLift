@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { Webhook } from "svix";
 import crypto from "crypto";
 import { User, Payment, ListingObject, CreditLedger, connectToDatabase } from "@repo/database";
-import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase } from "@repo/services";
+import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase, getPackDisplayName } from "@repo/services";
 import { logger } from "@repo/logger";
 
 export const webhookRouter = Router();
@@ -223,7 +223,7 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
         userId: payment.userId,
         amount: payment.creditsPurchased,
         type: "PURCHASE",
-        description: `Purchased ${payment.packId.toUpperCase()} pack (${payment.creditsPurchased} credits)`,
+        description: `Purchased ${getPackDisplayName(payment.packId, payment.creditsPurchased)}`,
         referenceId: String(payment._id),
         referenceType: "payment",
       });
