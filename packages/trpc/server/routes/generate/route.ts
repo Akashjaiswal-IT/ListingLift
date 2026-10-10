@@ -11,6 +11,7 @@ import {
   enqueueReEdit,
   checkRateLimit,
   generateListingText,
+  IMAGE_GENERATION_MAX_ATTEMPTS,
 } from "@repo/services";
 
 export const generateRouter = router({
@@ -103,6 +104,13 @@ export const generateRouter = router({
       //
       // In development Redis is often offline and we still want the rest of the
       // flow to be exercisable, so we preserve the old graceful behaviour there.
+      // Clear any stage left over from a previous run BEFORE the worker can pick
+      // the job up (a plain listing.save() below could clobber the worker's stage).
+      await ListingObject.updateOne(
+        { _id: listing._id },
+        { $unset: { generationStage: 1 }, $set: { retryCount: 0 } }
+      );
+
       let jobId: string | undefined;
       try {
         jobId = await enqueueImageGeneration(String(listing._id));
@@ -177,6 +185,10 @@ export const generateRouter = router({
         aiGeneratedText: listing.aiGeneratedText,
         errorMessage: listing.errorMessage,
         retryCount: listing.retryCount,
+        generationStage: listing.generationStage,
+        creditsRefunded: listing.creditsRefunded,
+        creditsCharged: listing.creditsCharged,
+        maxAttempts: IMAGE_GENERATION_MAX_ATTEMPTS,
       };
     }),
 
@@ -441,6 +453,8 @@ export const generateRouter = router({
 
       listing.status = "queued";
       listing.errorMessage = undefined;
+      listing.generationStage = undefined;
+      listing.retryCount = 0;
       await listing.save();
 
       let jobId: string | undefined;

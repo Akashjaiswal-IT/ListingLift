@@ -95,6 +95,7 @@ export interface IListingObject extends Document {
   bullmqJobId?: string;
   errorMessage?: string;
   retryCount: number;
+  generationStage?: "preparing" | "enhancing_prompt" | "rendering_images" | "rendering_cards" | "done";
 
   // Re-edit status tracking
   reEditStatus?: {
@@ -222,6 +223,10 @@ const ListingObjectSchema = new Schema<IListingObject>(
     bullmqJobId: { type: String },
     errorMessage: { type: String },
     retryCount: { type: Number, default: 0 },
+    generationStage: {
+      type: String,
+      enum: ["preparing", "enhancing_prompt", "rendering_images", "rendering_cards", "done"],
+    },
 
     // Re-edit tracking
     reEditStatus: {

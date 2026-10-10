@@ -16,6 +16,8 @@ export function getRedisConnection(): Redis {
 
 export const IMAGE_GENERATION_QUEUE_NAME = "image-generation";
 export const RE_EDIT_QUEUE_NAME = "re-edit";
+// Total tries (first run + retries) for an image generation job; the UI shows "attempt X of N"
+export const IMAGE_GENERATION_MAX_ATTEMPTS = 2;
 
 let imageGenQueue: Queue | null = null;
 let reEditQueue: Queue | null = null;
@@ -25,7 +27,7 @@ export function getImageGenerationQueue(): Queue {
     imageGenQueue = new Queue(IMAGE_GENERATION_QUEUE_NAME, {
       connection: getRedisConnection(),
       defaultJobOptions: {
-        attempts: 2,
+        attempts: IMAGE_GENERATION_MAX_ATTEMPTS,
         backoff: {
           type: "exponential",
           delay: 5000,

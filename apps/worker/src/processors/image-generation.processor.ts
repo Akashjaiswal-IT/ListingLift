@@ -12,7 +12,19 @@ import {
   renderSocialCards,
   refundCredits,
   captureServerException,
+  IMAGE_GENERATION_MAX_ATTEMPTS,
 } from "@repo/services";
+
+type GenerationStage = "preparing" | "enhancing_prompt" | "rendering_images" | "rendering_cards";
+
+// Cheap progress marker so the UI can show which phase is running (or which one failed)
+async function setStage(listingObjectId: string, stage: GenerationStage) {
+  try {
+    await ListingObject.updateOne({ _id: listingObjectId }, { $set: { generationStage: stage } });
+  } catch (err) {
+    logger.warn(`Could not record generation stage "${stage}" for listing ${listingObjectId}`, { err });
+  }
+}
 
 export async function processImageGeneration(job: Job<{ listingObjectId: string }>) {
   const { listingObjectId } = job.data;
@@ -26,7 +38,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
   // Update status to processing
   await ListingObject.updateOne(
     { _id: listingObjectId },
-    { $set: { status: "processing", textStatus: "streaming" } }
+    { $set: { status: "processing", textStatus: "streaming", generationStage: "preparing" } }
   );
 
   try {
@@ -55,6 +67,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     );
 
     // 3. Prompt Enhancement with OpenAI Vision
+    await setStage(listingObjectId, "enhancing_prompt");
     logger.info(`Enhancing prompt for ${listing.userTitle}...`);
     const enhancedPrompt = await enhancePromptWithVision({
       imageBuffers: optimizedBuffers,
@@ -65,6 +78,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     logger.info(`Enhanced prompt generated: "${enhancedPrompt.slice(0, 100)}..."`);
 
     // 4. Generate Studio Images with Gemini AND SEO Deliverables with OpenAI concurrently
+    await setStage(listingObjectId, "rendering_images");
     const imageCount =
       listing.type === "listing_product"
         ? 2 // Quick Generate: 2 studio variations
@@ -124,6 +138,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     }
 
     // 6. Generate Social Cards
+    await setStage(listingObjectId, "rendering_cards");
     // The pure-white-background shot gives the cleanest product cutout on cards
     const primaryImgBuffer =
       generatedOutputs.find((o) => o.variationType === "studio_white")?.buffer ||
@@ -160,6 +175,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
       {
         $set: {
           status: "completed",
+          generationStage: "done",
           textStatus: "completed",
           aiGeneratedText: generatedText,
           enhancedPrompt,
@@ -204,27 +220,27 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
 
 async function handleJobFailure(listingObjectId: string, error: any, job: Job) {
   const retryCount = (job.attemptsMade || 0) + 1;
-  const maxRetries = job.opts.attempts || 2;
+  const maxRetries = job.opts.attempts || IMAGE_GENERATION_MAX_ATTEMPTS;
+  const errorMessage = error.message || "Image generation failed";
 
-  await ListingObject.updateOne(
-    { _id: listingObjectId },
-    {
-      $set: {
-        status: retryCount >= maxRetries ? "failed" : "queued",
-        errorMessage: error.message || "Image generation failed",
-        retryCount,
-      },
-    }
-  );
+  if (retryCount < maxRetries) {
+    // More attempts coming: keep the listing in the queue
+    await ListingObject.updateOne(
+      { _id: listingObjectId },
+      { $set: { status: "queued", errorMessage, retryCount } }
+    );
+    return;
+  }
 
-  // If retries exhausted, automatically refund credits to user.
+  // Final attempt. Refund FIRST, then mark the listing failed, so the UI never
+  // sees "failed" before the refund exists.
   //
   // We "claim" the refund atomically BEFORE issuing it: findOneAndUpdate only
   // matches when creditsRefunded is still false and flips it to true in the same
   // operation. MongoDB guarantees that update is atomic, so if two failed
   // attempts race here, exactly one gets a non-null `claimed` and performs the
   // refund; the other sees null and does nothing. This prevents double refunds.
-  if (retryCount >= maxRetries) {
+  try {
     const claimed = await ListingObject.findOneAndUpdate(
       { _id: listingObjectId, creditsRefunded: false, creditsCharged: { $gt: 0 } },
       { $set: { creditsRefunded: true } },
@@ -251,5 +267,13 @@ async function handleJobFailure(listingObjectId: string, error: any, job: Job) {
         logger.error("Failed to refund credits after job failure:", { refundErr });
       }
     }
+  } catch (claimErr) {
+    logger.error("Could not claim refund after job failure:", { claimErr });
   }
+
+  // Always mark failed; creditsRefunded stays false if the refund didn't happen
+  await ListingObject.updateOne(
+    { _id: listingObjectId },
+    { $set: { status: "failed", errorMessage, retryCount } }
+  );
 }
