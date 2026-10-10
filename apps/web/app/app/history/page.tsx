@@ -211,16 +211,17 @@ export default function HistoryPage() {
                 }`}
               >
                 <div className="relative aspect-square bg-muted">
-                  {/* Selection checkbox for bulk actions: 40px tap area with a dark backdrop so it stays visible on white photos */}
+                  {/* Selection checkbox for bulk actions: solid white box with a grey border and
+                      shadow reads on both white studio shots and dark photos; 40px tap area */}
                   <label
-                    className="absolute top-2 left-2 z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-black/45 backdrop-blur-sm"
+                    className="absolute top-1 left-1 z-10 flex size-10 cursor-pointer items-center justify-center"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Checkbox
                       checked={selectedIds.has(item._id)}
                       onCheckedChange={() => toggleSelected(item._id)}
                       aria-label={isHi ? "चुनें" : "Select"}
-                      className="size-[22px] rounded-md border-2 border-white bg-black/20 shadow-sm dark:bg-black/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary dark:data-[state=checked]:bg-primary [&_svg]:size-4"
+                      className="size-[22px] rounded-md border-2 border-stone-400 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.35)] transition-colors hover:border-primary dark:bg-white data-[state=checked]:border-primary data-[state=checked]:bg-primary dark:data-[state=checked]:bg-primary [&_svg]:size-4 [&_svg]:stroke-[3]"
                     />
                   </label>
                   {previewImg ? (
