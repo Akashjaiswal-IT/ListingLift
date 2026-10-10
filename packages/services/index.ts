@@ -14,4 +14,4 @@ export * from "./rate-limit.service";
 export * from "./referral.service";
 export * from "./observability";
 export * from "./invoice.service";
-
+export * from "./pricing/price";

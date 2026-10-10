@@ -30,6 +30,14 @@ export const generateRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // price = MRP, discountPrice = selling price. Reject before anything is charged.
+      if (input.price !== undefined && input.discountPrice !== undefined && input.discountPrice > input.price) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Selling price can't be higher than MRP",
+        });
+      }
+
       const rateLimit = await checkRateLimit(String(ctx.user._id), "generate");
       if (!rateLimit.allowed) {
         throw new TRPCError({

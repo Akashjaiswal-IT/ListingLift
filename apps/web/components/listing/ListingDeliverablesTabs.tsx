@@ -23,6 +23,7 @@ import { CARD_TEMPLATES_INFO, CARD_TEMPLATES_MAP, CardTemplateInfo, TemplateId }
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
 import { trackEvent } from "~/lib/analytics";
+import { normalizePricing, formatINR } from "~/lib/price-display";
 import { trpc } from "~/trpc/client";
 import { Loader2 } from "lucide-react";
 
@@ -652,22 +653,22 @@ export function ListingDeliverablesTabs({
                       {/* Bottom Pricing & Metallic Gold Ribbon Preview */}
                       <div className="relative z-10 space-y-1 pt-1">
                         {/* Strikethrough MRP and Price */}
-                        <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold">
-                          {listing.price && listing.discountPrice ? (
-                            <>
-                              <span className="line-through text-muted-foreground/80 opacity-70 text-[8px]">
-                                ₹{listing.price}
-                              </span>
+                        {(() => {
+                          const { mrp, selling } = normalizePricing(listing.price, listing.discountPrice);
+                          if (selling === undefined) return null;
+                          return (
+                            <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold">
+                              {mrp !== undefined && (
+                                <span className="line-through text-muted-foreground/80 opacity-70 text-[8px]">
+                                  {formatINR(mrp)}
+                                </span>
+                              )}
                               <span className={`font-black text-[11px] ${tpl.priceColorClass}`}>
-                                ₹{listing.discountPrice}
+                                {formatINR(selling)}
                               </span>
-                            </>
-                          ) : (
-                            <span className={`font-black text-[11px] ${tpl.priceColorClass}`}>
-                              {listing.price ? `₹${listing.price}` : "₹699"}
-                            </span>
-                          )}
-                        </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Gold Ribbon Bar */}
                         <div className="w-full h-4 rounded bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-400 flex items-center justify-between px-1.5 text-[7px] font-black text-amber-950 shadow-xs">

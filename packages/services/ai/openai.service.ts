@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { IAiGeneratedText } from "@repo/database";
 import { trackAIGeneration } from "./ai-observability";
+import { normalizePricing, buildPriceLine, formatINR, findDisallowedAmounts } from "../pricing/price";
+
+const PRICE_LINE_TOKEN = "{{PRICE_LINE}}";
 
 function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY || "sk-mock-key";
@@ -26,8 +29,9 @@ export function generateFallbackListingText(params: GenerateTextParams): IAiGene
   const title = params.userTitle?.trim() || "Trending Product";
   const desc = params.userDescription?.trim() || "High quality premium material, durable design, perfect for daily and festive wear.";
   const cleanPhone = params.whatsappNumber?.replace(/[^0-9]/g, "") || "";
-  const offerPrice = params.discountPrice ? `₹${params.discountPrice}` : params.price ? `₹${params.price}` : "Best Wholesale Price";
-  const mrp = params.discountPrice && params.price ? `~₹${params.price}~` : "";
+  const pricing = normalizePricing(params.price, params.discountPrice);
+  const offerPrice = pricing.selling !== undefined ? formatINR(pricing.selling) : "Best Wholesale Price";
+  const priceLine = buildPriceLine(pricing);
   const sizesStr = params.sizes?.length ? params.sizes.join(", ") : "Free Size / Standard";
 
   return {
@@ -55,7 +59,7 @@ export function generateFallbackListingText(params: GenerateTextParams): IAiGene
       category: "Fashion & Lifestyle",
       subcategory: "Apparel & Accessories",
     },
-    whatsappCaption: `✨ *EXCLUSIVE NEW ARRIVAL* ✨\n\n🛍️ *${title}*\n${mrp ? `💥 *Offer Price:* ${offerPrice} ${mrp}` : `💵 *Price:* ${offerPrice}`}\n📏 *Sizes Available:* ${sizesStr}\n\n✅ Premium Verified Quality\n🚚 Free Delivery & COD Available\n📦 Easy 7-Day Exchange Guarantee\n\n👇 *Click to order directly on WhatsApp:* \nhttps://wa.me/${cleanPhone}?text=Hi,%20I%20want%20to%20order%20${encodeURIComponent(title)}`,
+    whatsappCaption: `✨ *EXCLUSIVE NEW ARRIVAL* ✨\n\n🛍️ *${title}*\n${priceLine ? `${priceLine}\n` : ""}📏 *Sizes Available:* ${sizesStr}\n\n✅ Premium Verified Quality\n🚚 Free Delivery & COD Available\n📦 Easy 7-Day Exchange Guarantee\n\n👇 *Click to order directly on WhatsApp:* \nhttps://wa.me/${cleanPhone}?text=Hi,%20I%20want%20to%20order%20${encodeURIComponent(title)}`,
     instagramCaption: `Upgrade your collection with our bestselling ${title}! ✨ Crafted for elegance, made for comfort. Tap the link in bio to grab yours before stock runs out! 🛍️ Available in ${sizesStr}. Direct message or WhatsApp us for instant booking.`,
     instagramHashtags: [
       "#shopnow",
@@ -76,15 +80,18 @@ function buildPrompts(params: GenerateTextParams) {
   const systemPrompt = `You are Peshkar AI's elite e-commerce SEO copywriter and growth marketer specializing in multi-channel e-commerce (Amazon, Flipkart, Meesho, Shopify, D2C, Instagram & WhatsApp catalogs).
 Your task is to write exceptionally high-converting, SEO-optimized product titles, descriptions, marketplace catalog specifications, WhatsApp broadcast copy, and Instagram posts.
 Ensure titles have maximum search volume potential, descriptions include high commercial intent keywords, bullet points are persuasive, and social captions include clear call-to-actions and emojis.
+NEVER write any price, amount, discount percentage or currency figure anywhere. In whatsappCaption, put the exact token ${PRICE_LINE_TOKEN} on its own line where the price should go. Do not mention prices in any other field.
 CRITICAL: Respond ONLY with valid, raw JSON matching the requested structure. Do not wrap in markdown quotes or extra text.`;
+
+  const pricing = normalizePricing(params.price, params.discountPrice);
 
   const userContent = `
 Product Details:
 - Title: ${params.userTitle || "Product"}
 - Description / Material: ${params.userDescription || "High quality material"}
 - Custom Instructions / Prompt: ${params.userPrompt || "N/A"}
-- Original MRP: ${params.price ? `₹${params.price}` : "N/A"}
-- Discount / Selling Price: ${params.discountPrice ? `₹${params.discountPrice}` : "N/A"}
+- MRP (strike-through price): ${pricing.mrp !== undefined ? formatINR(pricing.mrp) : "N/A"}
+- Selling price (customer pays): ${pricing.selling !== undefined ? formatINR(pricing.selling) : "N/A"}
 - Sizes Available: ${params.sizes?.length ? params.sizes.join(", ") : "Free Size / Standard"}
 - Colors/Variants: ${params.variants?.length ? params.variants.join(", ") : "Standard"}
 - CTA: ${params.ctaText || "Order Now via WhatsApp"}
@@ -109,13 +116,79 @@ Generate the JSON with the following exact keys:
     "category": "String - Primary Category (e.g. Women Ethnic Wear, Fashion Accessories, etc.)",
     "subcategory": "String - Specific Subcategory"
   },
-  "whatsappCaption": "String - Highly formatted WhatsApp message with emojis, bold highlights (*text*), prices, sizes, and direct order link",
+  "whatsappCaption": "String - Highly formatted WhatsApp message with emojis, bold highlights (*text*), sizes, and direct order link. Put the exact token ${PRICE_LINE_TOKEN} on its own line where the price should go",
   "instagramCaption": "String - Engaging Instagram caption with hook, benefits, and CTA",
   "instagramHashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6", "#tag7", "#tag8", "#tag9", "#tag10"]
 }
 `;
 
   return { systemPrompt, userContent };
+}
+
+/**
+ * Turns the parsed LLM JSON into complete, valid IAiGeneratedText and enforces
+ * that the only prices in the copy are the ones the seller entered.
+ */
+export function sanitizeListingText(parsed: any, params: GenerateTextParams): IAiGeneratedText {
+  const fallback = generateFallbackListingText(params);
+  const pricing = normalizePricing(params.price, params.discountPrice);
+  const priceLine = buildPriceLine(pricing);
+  const allowed = [pricing.mrp, pricing.selling].filter((n): n is number => n !== undefined);
+
+  const hasBadAmount = (text: string) => findDisallowedAmounts(text, allowed).length > 0;
+  const stripToken = (text: string) => text.split(PRICE_LINE_TOKEN).join("");
+  const singleLine = <F extends string | undefined>(value: unknown, fb: F): string | F => {
+    const text = typeof value === "string" ? stripToken(value).trim() : "";
+    return text && !hasBadAmount(text) ? text : fb;
+  };
+  const multiLine = (value: unknown, fb: string) => {
+    const text = typeof value === "string" ? stripToken(value) : "";
+    const kept = text.split("\n").filter((line) => !hasBadAmount(line)).join("\n").trim();
+    return kept || fb;
+  };
+  const tagList = (value: unknown, fb: string[]) => {
+    const kept = Array.isArray(value) ? value.map(String).filter((t) => t.trim() && !hasBadAmount(t)) : [];
+    return kept.length > 0 ? kept : fb;
+  };
+
+  // WhatsApp: the server, not the model, writes the price line.
+  const modelCaption: string | undefined = parsed.whatsappCaption?.trim();
+  let whatsappCaption = fallback.whatsappCaption;
+  if (modelCaption) {
+    let lines = modelCaption.split("\n");
+    if (modelCaption.includes(PRICE_LINE_TOKEN)) {
+      lines = lines.flatMap((line) =>
+        line.includes(PRICE_LINE_TOKEN) ? (priceLine ? [line.split(PRICE_LINE_TOKEN).join(priceLine)] : []) : [line]
+      );
+    } else if (priceLine) {
+      lines.splice(1, 0, priceLine);
+    }
+    whatsappCaption = lines
+      .filter((line) => line === priceLine || !hasBadAmount(line))
+      .join("\n")
+      .trim() || fallback.whatsappCaption;
+  }
+
+  const keyFeatures: unknown[] =
+    Array.isArray(parsed.keyFeatures) && parsed.keyFeatures.length > 0 ? parsed.keyFeatures : fallback.keyFeatures;
+
+  return {
+    seoTitle: singleLine(parsed.seoTitle, fallback.seoTitle),
+    seoDescription: singleLine(parsed.seoDescription, fallback.seoDescription),
+    keyFeatures: keyFeatures.map((feature, i) =>
+      singleLine(feature, fallback.keyFeatures[i % fallback.keyFeatures.length]!)
+    ),
+    keywords: tagList(parsed.keywords, fallback.keywords),
+    meeshoListing: {
+      title: singleLine(parsed.meeshoListing?.title, fallback.meeshoListing.title),
+      description: multiLine(parsed.meeshoListing?.description, fallback.meeshoListing.description),
+      category: singleLine(parsed.meeshoListing?.category, fallback.meeshoListing.category),
+      subcategory: singleLine(parsed.meeshoListing?.subcategory, fallback.meeshoListing.subcategory),
+    },
+    whatsappCaption,
+    instagramCaption: multiLine(parsed.instagramCaption, fallback.instagramCaption),
+    instagramHashtags: tagList(parsed.instagramHashtags, fallback.instagramHashtags),
+  };
 }
 
 /**
@@ -165,23 +238,8 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
 
     const parsed = JSON.parse(raw);
 
-    // Sanitize and ensure no empty values
-    const fallback = generateFallbackListingText(params);
-    return {
-      seoTitle: parsed.seoTitle?.trim() || fallback.seoTitle,
-      seoDescription: parsed.seoDescription?.trim() || fallback.seoDescription,
-      keyFeatures: Array.isArray(parsed.keyFeatures) && parsed.keyFeatures.length > 0 ? parsed.keyFeatures : fallback.keyFeatures,
-      keywords: Array.isArray(parsed.keywords) && parsed.keywords.length > 0 ? parsed.keywords : fallback.keywords,
-      meeshoListing: {
-        title: parsed.meeshoListing?.title?.trim() || fallback.meeshoListing.title,
-        description: parsed.meeshoListing?.description?.trim() || fallback.meeshoListing.description,
-        category: parsed.meeshoListing?.category?.trim() || fallback.meeshoListing.category,
-        subcategory: parsed.meeshoListing?.subcategory?.trim() || fallback.meeshoListing.subcategory,
-      },
-      whatsappCaption: parsed.whatsappCaption?.trim() || fallback.whatsappCaption,
-      instagramCaption: parsed.instagramCaption?.trim() || fallback.instagramCaption,
-      instagramHashtags: Array.isArray(parsed.instagramHashtags) && parsed.instagramHashtags.length > 0 ? parsed.instagramHashtags : fallback.instagramHashtags,
-    };
+    // Sanitize, ensure no empty values, and enforce exact seller-entered prices
+    return sanitizeListingText(parsed, params);
   } catch (error) {
     trackAIGeneration({
       provider: "openai",
@@ -244,22 +302,7 @@ export async function generateListingTextStream(
     }
 
     const parsed = JSON.parse(fullText);
-    const fallback = generateFallbackListingText(params);
-    return {
-      seoTitle: parsed.seoTitle?.trim() || fallback.seoTitle,
-      seoDescription: parsed.seoDescription?.trim() || fallback.seoDescription,
-      keyFeatures: Array.isArray(parsed.keyFeatures) && parsed.keyFeatures.length > 0 ? parsed.keyFeatures : fallback.keyFeatures,
-      keywords: Array.isArray(parsed.keywords) && parsed.keywords.length > 0 ? parsed.keywords : fallback.keywords,
-      meeshoListing: {
-        title: parsed.meeshoListing?.title?.trim() || fallback.meeshoListing.title,
-        description: parsed.meeshoListing?.description?.trim() || fallback.meeshoListing.description,
-        category: parsed.meeshoListing?.category?.trim() || fallback.meeshoListing.category,
-        subcategory: parsed.meeshoListing?.subcategory?.trim() || fallback.meeshoListing.subcategory,
-      },
-      whatsappCaption: parsed.whatsappCaption?.trim() || fallback.whatsappCaption,
-      instagramCaption: parsed.instagramCaption?.trim() || fallback.instagramCaption,
-      instagramHashtags: Array.isArray(parsed.instagramHashtags) && parsed.instagramHashtags.length > 0 ? parsed.instagramHashtags : fallback.instagramHashtags,
-    };
+    return sanitizeListingText(parsed, params);
   } catch (error) {
     console.warn("[OpenAI Service] Streaming failed, using fallback:", error);
     const fallback = generateFallbackListingText(params);

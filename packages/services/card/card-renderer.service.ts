@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { normalizePricing, formatINR } from "../pricing/price";
 
 export interface SellerInfo {
   storeName?: string;
@@ -1134,19 +1135,9 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   const templateKey = (params.templateId as TemplateId) || "diwali-sacred-diya";
   const cfg = CARD_TEMPLATES[templateKey] || CARD_TEMPLATES["diwali-sacred-diya"];
 
-  const price = params.price || 999;
-  const discountPrice = params.discountPrice || 699;
-  const discountPct =
-    price && discountPrice && price > discountPrice
-      ? Math.round(((price - discountPrice) / price) * 100)
-      : 0;
-
-  const currentPriceFormatted = discountPrice
-    ? `₹${discountPrice.toLocaleString("en-IN")}`
-    : `₹${price.toLocaleString("en-IN")}`;
-
-  const originalPriceFormatted =
-    discountPrice && price ? `₹${price.toLocaleString("en-IN")}` : "";
+  // Prices come ONLY from what the seller entered - never invent defaults.
+  const { mrp, selling } = normalizePricing(params.price, params.discountPrice);
+  const currentPriceFormatted = selling !== undefined ? formatINR(selling) : "";
 
   // =========================================================================
   // 1. WHATSAPP CARD (1080x1080) - REFERENCE MASTER LAYOUT
@@ -1460,23 +1451,25 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       <!-- 4. Price Row (MRP with authentic Red Strike-Through & Bold Gold Selling Price) -->
       <g>
         ${
-          discountPrice && price && price > discountPrice
+          mrp !== undefined && selling !== undefined
             ? `
           <text x="540" y="802" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#E2E8F0">MRP: </tspan>
-            <tspan font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#CBD5E1">₹${price.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#CBD5E1">${formatINR(mrp)}</tspan>
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF">   Selling Price: </tspan>
-            <tspan font-family="Georgia, serif" font-size="40" font-weight="900" fill="#FDE047">₹${discountPrice.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="Georgia, serif" font-size="40" font-weight="900" fill="#FDE047">${formatINR(selling)}</tspan>
           </text>
           <!-- Red Strike Line across MRP -->
           <line x1="315" y1="800" x2="415" y2="788" stroke="#EF4444" stroke-width="3.5" stroke-linecap="round"/>
         `
-            : `
+            : selling !== undefined
+            ? `
           <text x="540" y="802" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF">Special Price: </tspan>
             <tspan font-family="Georgia, serif" font-size="42" font-weight="900" fill="#FDE047">${currentPriceFormatted}</tspan>
           </text>
         `
+            : ""
         }
       </g>
 
@@ -1618,22 +1611,24 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       <!-- Price Row -->
       <g>
         ${
-          discountPrice && price && price > discountPrice
+          mrp !== undefined && selling !== undefined
             ? `
           <text x="540" y="802" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#E2E8F0">MRP: </tspan>
-            <tspan font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#CBD5E1">₹${price.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#CBD5E1">${formatINR(mrp)}</tspan>
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF">   Selling Price: </tspan>
-            <tspan font-family="Georgia, serif" font-size="40" font-weight="900" fill="#FDE047">₹${discountPrice.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="Georgia, serif" font-size="40" font-weight="900" fill="#FDE047">${formatINR(selling)}</tspan>
           </text>
           <line x1="315" y1="800" x2="415" y2="788" stroke="#EF4444" stroke-width="3.5" stroke-linecap="round"/>
         `
-            : `
+            : selling !== undefined
+            ? `
           <text x="540" y="802" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#FFFFFF">Special Price: </tspan>
             <tspan font-family="Georgia, serif" font-size="42" font-weight="900" fill="#FDE047">${currentPriceFormatted}</tspan>
           </text>
         `
+            : ""
         }
       </g>
 
@@ -1860,22 +1855,24 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
       <!-- Price Row -->
       <g>
         ${
-          discountPrice && price && price > discountPrice
+          mrp !== undefined && selling !== undefined
             ? `
           <text x="540" y="1295" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="34" font-weight="700" fill="#E2E8F0">MRP: </tspan>
-            <tspan font-family="system-ui, sans-serif" font-size="38" font-weight="700" fill="#CBD5E1">₹${price.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="system-ui, sans-serif" font-size="38" font-weight="700" fill="#CBD5E1">${formatINR(mrp)}</tspan>
             <tspan font-family="system-ui, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">   Selling Price: </tspan>
-            <tspan font-family="Georgia, serif" font-size="52" font-weight="900" fill="#FDE047">₹${discountPrice.toLocaleString("en-IN")}</tspan>
+            <tspan font-family="Georgia, serif" font-size="52" font-weight="900" fill="#FDE047">${formatINR(selling)}</tspan>
           </text>
           <line x1="285" y1="1292" x2="415" y2="1278" stroke="#EF4444" stroke-width="4.5" stroke-linecap="round"/>
         `
-            : `
+            : selling !== undefined
+            ? `
           <text x="540" y="1295" text-anchor="middle">
             <tspan font-family="system-ui, sans-serif" font-size="36" font-weight="700" fill="#FFFFFF">Special Price: </tspan>
             <tspan font-family="Georgia, serif" font-size="54" font-weight="900" fill="#FDE047">${currentPriceFormatted}</tspan>
           </text>
         `
+            : ""
         }
       </g>
 

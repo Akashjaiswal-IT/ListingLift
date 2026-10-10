@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { IListingObject } from "@repo/database";
+import { normalizePricing } from "../pricing/price";
 
 export interface GenericMarketplaceRow {
   sku: string;
@@ -92,9 +93,8 @@ export async function generateGenericMarketplaceExcel(
     listing.generatedImages?.[1]?.url || "";
   const cardUrl = listing.whatsappCard?.url || listing.instagramPost?.url || "";
 
-  const price = listing.price || 0;
-  const mrp = price ? Math.round(price * 1.35) : "";
-  const discountPct = mrp && price ? Math.round(((mrp - price) / mrp) * 100) : 0;
+  // Prices are exactly what the seller entered - no invented MRP or discount.
+  const { mrp, selling, discountPct } = normalizePricing(listing.price, listing.discountPrice);
 
   // Formula injection defense: prevent Excel/CSV command execution if title or description starts with =, +, -, @
   const sanitize = (val: string | undefined): string => {
@@ -109,8 +109,8 @@ export async function generateGenericMarketplaceExcel(
     category: sanitize(text?.meeshoListing?.category || "General Merchandise"),
     subcategory: sanitize(text?.meeshoListing?.subcategory || "Standard"),
     brand: "Official Store",
-    mrp: mrp ? mrp : "NA",
-    sellingPrice: price ? price : "NA",
+    mrp: mrp ?? selling ?? "NA",
+    sellingPrice: selling ?? "NA",
     discountPct: discountPct ? `${discountPct}%` : "NA",
     feature1: sanitize(features[0] || "Premium commercial grade quality"),
     feature2: sanitize(features[1] || "Durable and verified craftsmanship"),

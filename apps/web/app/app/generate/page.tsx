@@ -67,11 +67,13 @@ export default function GeneratePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
-  const [price, setPrice] = useState<string>("");
-  const [discountPrice, setDiscountPrice] = useState<string>("");
+  const [mrp, setMrp] = useState<string>("");
+  const [sellingPrice, setSellingPrice] = useState<string>("");
   const [sizes, setSizes] = useState<string>("S, M, L, XL");
   const [ctaText, setCtaText] = useState("Order Now via WhatsApp");
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>("minimal-luxury");
+  const sellingExceedsMrp = !!mrp && !!sellingPrice && parseFloat(sellingPrice) > parseFloat(mrp);
+  const priceErrorMessage = isHi ? "बिक्री मूल्य MRP से ज़्यादा नहीं हो सकता" : "Selling price can't be higher than MRP";
 
   // Re-edit modal state
   const [reEditTarget, setReEditTarget] = useState<any>(null);
@@ -244,6 +246,10 @@ export default function GeneratePage() {
       toast.error("Please enter a product title");
       return;
     }
+    if (sellingExceedsMrp) {
+      toast.error(priceErrorMessage);
+      return;
+    }
 
     // Use the shared pricing helper so the quote here always matches what the
     // server actually charges (see lib/pricing.ts).
@@ -279,8 +285,9 @@ export default function GeneratePage() {
         userDescription: description,
         userPrompt: customPrompt,
         templateId: selectedTemplateId,
-        price: price ? parseFloat(price) : undefined,
-        discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
+        // DB/API semantics: price = MRP (struck-through), discountPrice = selling price
+        price: mrp ? parseFloat(mrp) : undefined,
+        discountPrice: sellingPrice ? parseFloat(sellingPrice) : undefined,
         sizes: sizes ? sizes.split(",").map((s) => s.trim()) : undefined,
         ctaText,
       });
@@ -706,8 +713,8 @@ export default function GeneratePage() {
                 <Input
                   type="number"
                   placeholder="e.g. 599"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value)}
                 />
               </div>
 
@@ -718,11 +725,14 @@ export default function GeneratePage() {
                 <Input
                   type="number"
                   placeholder="e.g. 999"
-                  value={discountPrice}
-                  onChange={(e) => setDiscountPrice(e.target.value)}
+                  value={mrp}
+                  onChange={(e) => setMrp(e.target.value)}
                 />
               </div>
             </div>
+            {sellingExceedsMrp && (
+              <p className="text-xs font-medium text-destructive">{priceErrorMessage}</p>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -777,8 +787,8 @@ export default function GeneratePage() {
                 selectedTemplateId={selectedTemplateId}
                 onSelectTemplate={setSelectedTemplateId}
                 previewTitle={title}
-                previewPrice={price}
-                previewDiscountPrice={discountPrice}
+                previewPrice={mrp}
+                previewDiscountPrice={sellingPrice}
                 previewCta={ctaText}
               />
             </div>

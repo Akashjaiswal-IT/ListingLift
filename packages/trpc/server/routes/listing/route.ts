@@ -209,6 +209,14 @@ export const listingRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
 
+      // price = MRP, discountPrice = selling price
+      if (updates.price !== undefined && updates.discountPrice !== undefined && updates.discountPrice > updates.price) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Selling price can't be higher than MRP",
+        });
+      }
+
       const listing = await ListingObject.findOne({
         _id: id,
         userId: ctx.user._id,
