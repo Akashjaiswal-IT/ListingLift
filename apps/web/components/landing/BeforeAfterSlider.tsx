@@ -68,6 +68,10 @@ export function BeforeAfterSlider({
     }
   };
 
+  // Linear fade: AFTER badge 1 at <=70 -> 0 at >=85; BEFORE badge 1 at >=30 -> 0 at <=15
+  const afterOpacity = Math.max(0, Math.min(1, (85 - sliderPos) / 15));
+  const beforeOpacity = Math.max(0, Math.min(1, (sliderPos - 15) / 15));
+
   return (
     <div className={`space-y-3 ${className}`}>
       <div
@@ -90,13 +94,6 @@ export function BeforeAfterSlider({
             className="w-full h-full object-cover filter drop-shadow-2xl"
             draggable={false}
           />
-          {/* After Tag Top-Right */}
-          <div className="absolute top-3 right-3 z-10">
-            <Badge className="bg-primary/95 text-white text-[10px] font-black tracking-wide border-none shadow-md backdrop-blur-xs flex items-center gap-1 px-2.5 py-1">
-              <Sparkles className="h-3 w-3" />
-              {afterLabel}
-            </Badge>
-          </div>
         </div>
 
         {/* BEFORE IMAGE (Clipped Layer: Raw Phone Photo) */}
@@ -110,14 +107,31 @@ export function BeforeAfterSlider({
             className="w-full h-full object-cover filter brightness-90 contrast-95"
             draggable={false}
           />
-          {/* Before Tag Top-Left */}
-          <div className="absolute top-3 left-3 z-10">
+        </div>
+
+        {/* BADGES: above both images, below the divider. Each fades out when its side is mostly hidden */}
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          <div
+            className="absolute top-3 left-3 transition-opacity duration-150"
+            style={{ opacity: beforeOpacity }}
+            aria-hidden={beforeOpacity === 0}
+          >
             <Badge
               variant="secondary"
               className="bg-stone-900/90 text-stone-200 text-[10px] font-bold border border-stone-700 shadow-md backdrop-blur-xs flex items-center gap-1 px-2.5 py-1"
             >
               <Camera className="h-3 w-3 text-stone-400" />
               {beforeLabel}
+            </Badge>
+          </div>
+          <div
+            className="absolute top-3 right-3 transition-opacity duration-150"
+            style={{ opacity: afterOpacity }}
+            aria-hidden={afterOpacity === 0}
+          >
+            <Badge className="bg-primary/95 text-white text-[10px] font-black tracking-wide border-none shadow-md backdrop-blur-xs flex items-center gap-1 px-2.5 py-1">
+              <Sparkles className="h-3 w-3" />
+              {afterLabel}
             </Badge>
           </div>
         </div>
