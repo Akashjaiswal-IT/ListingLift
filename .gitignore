@@ -6,6 +6,7 @@ node_modules
 .pnp.js
 .agent
 .impeccable
+.playwright-mcp
 
 # Local env files
 .env
