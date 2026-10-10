@@ -22,10 +22,10 @@ const BIG_W = "min(17vw, 300px)";
 const BIG_H = "min(21.25vw, 375px)";
 
 const DESKTOP_SLOTS: Record<"white" | "podium" | "whatsapp" | "instagram", { style: CSSProperties; rotate: number }> = {
-  // top-right, cropped by the viewport edge
-  white: { style: { right: "-2.5vw", top: 28, width: BIG_W, height: BIG_H }, rotate: 2 },
-  // top-left, cropped by the viewport edge
-  podium: { style: { left: "-2.5vw", top: 96, width: TILE_W, height: TILE_H }, rotate: -3 },
+  // top-right, fully on screen
+  white: { style: { right: "2vw", top: 28, width: BIG_W, height: BIG_H }, rotate: 2 },
+  // top-left, fully on screen
+  podium: { style: { left: "2vw", top: 96, width: TILE_W, height: TILE_H }, rotate: -3 },
   // lower-left, inner
   whatsapp: { style: { left: "9.5vw", top: `calc(96px + ${TILE_H} + 36px)`, width: TILE_W, height: TILE_H }, rotate: 2 },
   // lower-right, inner
