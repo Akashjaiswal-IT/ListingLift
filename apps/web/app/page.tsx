@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Sparkles,
-  Zap,
   ArrowRight,
   CheckCircle2,
   Copy,
@@ -16,7 +15,6 @@ import {
   ChevronRight,
   RotateCw,
   Check,
-  Play,
   Share2,
   Heart,
   Send,
@@ -29,6 +27,8 @@ import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
 import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
 import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
+import { AnimatedHero } from "~/components/landing/hero/AnimatedHero";
+import { HERO_COPY, pick } from "~/components/landing/hero/hero-content";
 import { CustomTopup } from "~/components/pricing/CustomTopup";
 
 // Demo photos in /public/images/demo-*.webp come from Unsplash (free to use under the Unsplash License):
@@ -157,77 +157,28 @@ export default function HomePage() {
       {/* Interactive Onboarding Tour (Auto-triggers on first signup or manual trigger) */}
       <OnboardingTour />
 
-      {/* DESKTOP & GLOBAL HERO CONTAINER (Matches Reference Image 2) */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 pt-6 sm:pt-10 pb-16">
-        <div className="relative rounded-3xl bg-[#161311] text-[#FAF7F2] p-8 sm:p-14 lg:p-16 border border-stone-800 shadow-2xl overflow-hidden">
-          {/* Subtle warm ambient backlights */}
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary/20 blur-[130px] rounded-full pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-600/15 blur-[130px] rounded-full pointer-events-none" />
+      {/* Animated hero: drop a photo → copies fly out → processing → listing kit */}
+      <AnimatedHero isHi={isHi} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-            {/* Left Content Column */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary uppercase tracking-wider">
-                {t.hero.badge}
-              </div>
-
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black font-serif tracking-tight leading-[1.15]">
-                {t.hero.headline}{" "}
-                <span className="text-primary italic">
-                  {t.hero.headlineAccent}
-                </span>
-              </h1>
-
-              <p className="text-sm sm:text-base text-stone-300 max-w-xl leading-relaxed">
-                {t.hero.subheadline}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-4 pt-2">
-                <Link href="/app/generate">
-                  <Button
-                    size="lg"
-                    className="h-12 px-7 font-bold bg-primary hover:bg-primary/90 text-white rounded-full shadow-lg shadow-primary/25 gap-2 text-sm transition-all hover:scale-105"
-                  >
-                    {t.hero.tryFree}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => {
-                    const el = document.getElementById("step-1-demo");
-                    el?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className="h-12 px-6 font-semibold border-stone-700 bg-stone-900/60 hover:bg-stone-800 text-stone-200 rounded-full text-sm gap-2"
-                >
-                  <Play className="h-4 w-4 fill-stone-200" />
-                  {t.hero.watchDemo}
-                </Button>
-              </div>
-
-              {/* Pure White Guarantee Callout */}
-              <div className="flex items-center gap-2.5 pt-4 text-xs text-stone-400 border-t border-stone-800/80">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-medium text-stone-300">
-                  {t.hero.guaranteedWhite}
-                </span>
-              </div>
-            </div>
-
-            {/* Right Visual Column: Interactive Before/After Comparison Slider */}
-            <div className="lg:col-span-5">
-              <BeforeAfterSlider
-                beforeImage="/images/hero-before.jpg"
-                afterImage="/images/hero-after.jpg"
-                beforeLabel={t.hero.originalPhoto}
-                afterLabel={t.hero.aiStudioRevamp}
-                beforeSubtitle={isHi ? "बिस्तर पर सामान्य फ़ोन फ़ोटो" : "Casual photo on bed"}
-                afterSubtitle={isHi ? "सीधा 8K स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright 8K Studio Lighting"}
-              />
-            </div>
+      {/* See the difference: before / after slider */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16">
+        <div className="mx-auto max-w-xl space-y-6 text-center">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight">
+              {pick(HERO_COPY.differenceTitle, isHi)}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              {pick(HERO_COPY.differenceSubtitle, isHi)}
+            </p>
           </div>
+          <BeforeAfterSlider
+            beforeImage="/images/hero-before.jpg"
+            afterImage="/images/hero-after.jpg"
+            beforeLabel={t.hero.originalPhoto}
+            afterLabel={t.hero.aiStudioRevamp}
+            beforeSubtitle={isHi ? "बिस्तर पर सामान्य फ़ोन फ़ोटो" : "Casual photo on bed"}
+            afterSubtitle={isHi ? "सीधा 8K स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright 8K Studio Lighting"}
+          />
         </div>
       </section>
 
