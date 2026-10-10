@@ -13,7 +13,6 @@ import {
   MessageCircle,
   Instagram,
   ShoppingBag,
-  Coins,
   ChevronRight,
   RotateCw,
   Sliders,
@@ -166,109 +165,6 @@ export default function HomePage() {
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors selection:bg-primary/20">
       {/* Interactive Onboarding Tour (Auto-triggers on first signup or manual trigger) */}
       <OnboardingTour />
-
-      {/* MOBILE-ONLY SELLER QUICK VIEW (Matches Reference Image 1) */}
-      <section className="md:hidden p-4 space-y-4">
-        {/* Top User Pill Header */}
-        <div className="flex items-center justify-between p-3 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-amber-500 flex items-center justify-center text-white font-bold text-sm shadow-xs">
-              PV
-            </div>
-            <div>
-              <div className="font-bold text-sm leading-tight text-foreground">
-                Priya Verma
-              </div>
-              <span className="text-[10px] font-semibold text-primary">
-                ★ {t.mobile.starReseller}
-              </span>
-            </div>
-          </div>
-          <Link href="/app/credits">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs shadow-2xs">
-              <Coins className="h-3.5 w-3.5 text-amber-500" />
-              <span>42 {t.sections.creditsUnit}</span>
-            </div>
-          </Link>
-        </div>
-
-        {/* Vibrant Orange Mobile Banner (Ref Image 1) */}
-        <div className="p-6 rounded-3xl bg-gradient-to-br from-primary via-[#E8632E] to-amber-600 text-white space-y-4 shadow-lg shadow-primary/20">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight leading-snug">
-              {t.mobile.boostSales}
-            </h2>
-            <p className="text-xs text-white/90 mt-1">
-              {t.mobile.boostDesc}
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white/95 dark:bg-card text-foreground space-y-3 shadow-md">
-            <div>
-              <h3 className="font-bold text-base text-primary">
-                {t.mobile.studioRevamp}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {t.mobile.studioRevampDesc}
-              </p>
-            </div>
-            <Link href="/app/generate" className="block">
-              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-black text-sm rounded-xl shadow-sm">
-                {t.mobile.revampBtn}
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Success Stories Card (Ref Image 1) */}
-        <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {t.mobile.successStories}
-          </span>
-          <div className="flex items-center gap-3.5 p-2 rounded-xl bg-muted/30">
-            <img
-              src="/images/hero-after.jpg"
-              alt="Backpack Transformation"
-              className="w-14 h-14 rounded-lg object-cover bg-stone-800"
-            />
-            <div>
-              <h4 className="font-bold text-xs text-foreground">
-                {isHi ? "ब्लैक बैकपैक (बैग)" : "Black Backpack Pro"}
-              </h4>
-              <p className="text-[11px] text-muted-foreground">
-                {isHi ? "स्टूडियो व्हाइट में बदला गया" : "Transformed to Studio White"}
-              </p>
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[9px] font-bold mt-1">
-                {t.mobile.moreInquiries}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* Popular Contexts Pills (Ref Image 1) */}
-        <div className="space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-            {t.mobile.popularContexts}
-          </span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {[
-              { name: t.mobile.ctxPremium, icon: "🏠", color: "bg-rose-500/10 text-rose-600" },
-              { name: t.mobile.ctxLifestyle, icon: "🌳", color: "bg-blue-500/10 text-blue-600" },
-              { name: t.mobile.ctxStudio, icon: "⚪", color: "bg-emerald-500/10 text-emerald-600" },
-              { name: t.mobile.ctxFestive, icon: "✨", color: "bg-amber-500/10 text-amber-600" },
-            ].map((ctx, idx) => (
-              <Link key={idx} href="/app/generate" className="shrink-0">
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-card border border-border/80 w-20 text-center hover:border-primary/50 transition-colors">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg ${ctx.color}`}>
-                    {ctx.icon}
-                  </div>
-                  <span className="text-[11px] font-bold text-foreground">{ctx.name}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* DESKTOP & GLOBAL HERO CONTAINER (Matches Reference Image 2) */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 pt-6 sm:pt-10 pb-16">

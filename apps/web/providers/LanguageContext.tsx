@@ -33,25 +33,6 @@ export interface Translations {
     guaranteedWhite: string;
     socialProof: string;
   };
-  // Mobile Reseller View
-  mobile: {
-    starReseller: string;
-    boostSales: string;
-    boostDesc: string;
-    studioRevamp: string;
-    studioRevampDesc: string;
-    revampBtn: string;
-    successStories: string;
-    moreInquiries: string;
-    popularContexts: string;
-    ctxPremium: string;
-    ctxLifestyle: string;
-    ctxStudio: string;
-    ctxFestive: string;
-    bottomHome: string;
-    bottomCredits: string;
-    bottomStore: string;
-  };
   // Landing Page Sections
   sections: {
     step1Title: string;
@@ -203,24 +184,6 @@ export const translations: Record<Language, Translations> = {
       guaranteedWhite: "अमेज़ॅन/फ्लिपकार्ट के लिए 100% प्योर व्हाइट बैकग्राउंड गारंटी",
       socialProof: "10,000+ भारतीय सेलर्स और रीसेलर्स द्वारा भरोसेमंद",
     },
-    mobile: {
-      starReseller: "स्टार रीसेलर",
-      boostSales: "बढ़ाएं अपनी बिक्री",
-      boostDesc: "फ़ोन फ़ोटो को बनाएं प्रोफेशनल स्टूडियो लिस्टिंग",
-      studioRevamp: "स्टूडियो रीवैम्प",
-      studioRevampDesc: "AI बनाएगा आपके प्रोडक्ट्स को सेकंडों में प्रीमियम",
-      revampBtn: "प्रोडक्ट फ़ोटो रीवैम्प करें",
-      successStories: "सफलता की कहानियां",
-      moreInquiries: "+40% अधिक ग्राहक पूछताछ",
-      popularContexts: "लोकप्रिय बैकग्राउंड्स",
-      ctxPremium: "प्रीमियम",
-      ctxLifestyle: "लाइफ़स्टाइल",
-      ctxStudio: "स्टूडियो",
-      ctxFestive: "फेस्टिव",
-      bottomHome: "होम",
-      bottomCredits: "क्रेडिट्स",
-      bottomStore: "स्टोर",
-    },
     sections: {
       step1Title: "1. फ़ोटो अपलोड करें और AI से बनाएं",
       step1Subtitle: "कोई भी फ़ोटो चुनें, हमारा AI कुछ ही सेकंड में जादू करेगा।",
@@ -364,24 +327,6 @@ export const translations: Record<Language, Translations> = {
       aiStudioRevamp: "AI Studio Revamp",
       guaranteedWhite: "Guaranteed Pure White Background for Amazon & Flipkart",
       socialProof: "Trusted by 10,000+ Indian Resellers & D2C Brands",
-    },
-    mobile: {
-      starReseller: "Star Reseller",
-      boostSales: "Boost Your Sales",
-      boostDesc: "Turn phone photos into studio listings",
-      studioRevamp: "Studio Revamp",
-      studioRevampDesc: "AI makes your products look premium in seconds",
-      revampBtn: "Revamp Product Photo",
-      successStories: "Success Stories",
-      moreInquiries: "+40% more buyer inquiries",
-      popularContexts: "Popular Contexts",
-      ctxPremium: "Premium",
-      ctxLifestyle: "Lifestyle",
-      ctxStudio: "Studio",
-      ctxFestive: "Festive",
-      bottomHome: "Home",
-      bottomCredits: "Credits",
-      bottomStore: "Store",
     },
     sections: {
       step1Title: "1. Upload & AI Revamp",
