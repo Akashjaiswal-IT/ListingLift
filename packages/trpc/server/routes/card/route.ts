@@ -26,8 +26,12 @@ export const cardRouter = router({
         listing.templateId = input.templateId;
       }
 
-      // Pick best active generated image or original image
+      // Prefer the pure-white-background studio shot (cleanest cutout), then any
+      // active generated image, then the original photo
       const primaryImage =
+        listing.generatedImages.find(
+          (img) => img.isLatest !== false && img.variationType === "studio_white"
+        ) ||
         listing.generatedImages.find((img) => img.isLatest !== false) ||
         listing.originalImages[0];
 

@@ -1,5 +1,6 @@
 export * from "./storage/r2.service";
 export * from "./image/sharp.service";
+export * from "./image/cutout.service";
 export * from "./credit.service";
 export * from "./payment.service";
 export * from "./ai/openai.service";

@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { normalizePricing, formatINR } from "../pricing/price";
+import { cutoutWhiteBackground } from "../image/cutout.service";
 
 export interface SellerInfo {
   storeName?: string;
@@ -1115,6 +1116,61 @@ function getFestivalVectorEmbellishment(
   }
 }
 
+const PRODUCT_CORNER_RADIUS = 24;
+const PRODUCT_SHADOW_PAD = 20;
+
+/**
+ * Fits the product into a w x h box for compositing. Always outputs PNG so
+ * transparent padding stays transparent (no black bars). A real cutout sits on
+ * the bottom of the box so it rests on the pedestal; a non-cutout photo gets
+ * rounded corners and a soft drop shadow instead of a hard rectangle edge.
+ */
+async function fitProduct(
+  product: { buffer: Buffer; cutout: boolean },
+  w: number,
+  h: number
+): Promise<Buffer> {
+  if (product.cutout) {
+    return sharp(product.buffer)
+      .resize(w, h, {
+        fit: "contain",
+        position: "bottom",
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+  }
+
+  const { data: inner, info } = await sharp(product.buffer)
+    .resize(w - PRODUCT_SHADOW_PAD * 2, h - PRODUCT_SHADOW_PAD * 2, { fit: "inside" })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const left = Math.round((w - info.width) / 2);
+  const top = Math.round((h - info.height) / 2);
+
+  const mask = Buffer.from(
+    `<svg width="${info.width}" height="${info.height}"><rect width="${info.width}" height="${info.height}" rx="${PRODUCT_CORNER_RADIUS}" ry="${PRODUCT_CORNER_RADIUS}" fill="#fff"/></svg>`
+  );
+  const rounded = await sharp(inner)
+    .composite([{ input: mask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+
+  const shadow = await sharp(
+    Buffer.from(
+      `<svg width="${w}" height="${h}"><rect x="${left}" y="${top + 10}" width="${info.width}" height="${info.height}" rx="${PRODUCT_CORNER_RADIUS}" ry="${PRODUCT_CORNER_RADIUS}" fill="#000" fill-opacity="0.5"/></svg>`
+    )
+  )
+    .blur(10)
+    .png()
+    .toBuffer();
+
+  return sharp(shadow)
+    .composite([{ input: rounded, left, top }])
+    .png()
+    .toBuffer();
+}
+
 /**
  * Main rendering service producing WhatsApp Card (1:1), Instagram Post (1:1), and Instagram Story (9:16)
  * Built to the reference standard: Top royal Indian arch, cascading marigolds, 3D golden stepped pedestal,
@@ -1125,6 +1181,9 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   if (!imgBuffer) {
     throw new Error("Product image buffer is required for card rendering");
   }
+
+  // Remove the white studio backdrop ONCE and reuse it for all three cards
+  const product = await cutoutWhiteBackground(imgBuffer);
 
   const rawTitle = params.productTitle || params.title || "Multi-Compartment Premium Bag";
   const titleText = escapeXml(rawTitle.slice(0, 38));
@@ -1144,13 +1203,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   // =========================================================================
 
   // Sizing product cleanly to sit proud on top of the 3D circular golden pedestal
-  const waProduct = await sharp(imgBuffer)
-    .rotate()
-    .resize(520, 420, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .toBuffer();
+  const waProduct = await fitProduct(product, 520, 420);
 
   const waEmbellishment = getFestivalVectorEmbellishment(templateKey, 1080, 1080, "wa");
 
@@ -1536,13 +1589,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   // =========================================================================
   // 2. INSTAGRAM POST (1080x1080)
   // =========================================================================
-  const igProduct = await sharp(imgBuffer)
-    .rotate()
-    .resize(520, 420, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .toBuffer();
+  const igProduct = await fitProduct(product, 520, 420);
 
   const igEmbellishment = getFestivalVectorEmbellishment(templateKey, 1080, 1080, "ig");
 
@@ -1677,13 +1724,7 @@ export async function renderSocialCards(params: CardRenderParams): Promise<Rende
   // =========================================================================
   // 3. INSTAGRAM STORY (1080x1920) - 9:16 VERTICAL FESTIVAL SHOWCASE
   // =========================================================================
-  const storyProduct = await sharp(imgBuffer)
-    .rotate()
-    .resize(680, 560, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .toBuffer();
+  const storyProduct = await fitProduct(product, 680, 560);
 
   const storyEmbellishment = getFestivalVectorEmbellishment(templateKey, 1080, 1920, "story");
 

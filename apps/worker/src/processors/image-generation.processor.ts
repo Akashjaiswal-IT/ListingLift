@@ -124,7 +124,11 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     }
 
     // 6. Generate Social Cards
-    const primaryImgBuffer = generatedOutputs[0]?.buffer || optimizedBuffers[0]!;
+    // The pure-white-background shot gives the cleanest product cutout on cards
+    const primaryImgBuffer =
+      generatedOutputs.find((o) => o.variationType === "studio_white")?.buffer ||
+      generatedOutputs[0]?.buffer ||
+      optimizedBuffers[0]!;
     const templateId = (listing as any).templateId || "minimal-luxury";
     const renderedCards = await renderSocialCards({
       productImage: primaryImgBuffer,
