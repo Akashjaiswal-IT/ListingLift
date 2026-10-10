@@ -26,7 +26,7 @@ export async function enhancePromptWithVision(
 
   const openai = getOpenAIClient();
 
-  const base64Images = params.imageBuffers.slice(0, 2).map((buf) => {
+  const base64Images = params.imageBuffers.slice(0, 5).map((buf) => {
     return {
       type: "image_url" as const,
       image_url: {
@@ -39,6 +39,7 @@ export async function enhancePromptWithVision(
   const promptText = `
 You are an expert commercial advertising art director and e-commerce photographer.
 Analyze this product image and craft an ultra-detailed, photorealistic image generation prompt for Google Gemini/Imagen.
+The attached photos show ONE product, possibly from multiple angles. The prompt you return must describe the product, its materials, styling and lighting, but must NOT specify a camera angle, viewpoint, or which side of the product is shown.
 Product Title: ${params.userTitle || "Product"}
 Product Description: ${params.userDescription || "N/A"}
 User's Custom Style Direction: ${params.userPrompt || "High-end clean e-commerce studio background"}

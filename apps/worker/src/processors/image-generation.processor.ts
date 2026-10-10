@@ -78,6 +78,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
         originalImages: optimizedBuffers,
         prompt: enhancedPrompt,
         count: imageCount,
+        multiAngle: listing.type === "listing_kit",
       }),
       generateListingText({
         userTitle: listing.userTitle || "Product",

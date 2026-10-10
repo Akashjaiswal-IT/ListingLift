@@ -17,27 +17,73 @@ export interface GeneratedImageOutput {
   promptUsed: string;
 }
 
+type StudioVariation = GeneratedImageOutput["variationType"];
+
+const variationTypes: StudioVariation[] = [
+  "studio_white", // Variation 1: Guaranteed pure clean white background (#FFFFFF) for Amazon/Flipkart
+  "studio_premium", // Variation 2: Premium pleasing editorial studio
+  "lifestyle", // Variation 3: Aspirational lifestyle
+  "custom", // Variation 4: Custom style
+];
+
+export interface StudioShotPlan {
+  sourceIndex: number;
+  variation: StudioVariation;
+}
+
+/**
+ * Plans which uploaded photo and which variation each generated image uses.
+ *
+ * Multi-angle (Listing Kit, 2+ photos): round 1 makes one pure-white image per
+ * photo in upload order, then later rounds cycle through the photos again with
+ * alternating premium / lifestyle styling, so every angle is represented.
+ * Otherwise (Quick Product): cycle variations by index, always from photo 0.
+ */
+export function planStudioShots(
+  photoCount: number,
+  count: number,
+  multiAngle: boolean
+): StudioShotPlan[] {
+  const plan: StudioShotPlan[] = [];
+  const styledVariations: StudioVariation[] = ["studio_premium", "lifestyle"];
+
+  for (let i = 0; i < count; i++) {
+    if (multiAngle && photoCount >= 2) {
+      if (i < photoCount) {
+        plan.push({ sourceIndex: i, variation: "studio_white" });
+      } else {
+        const round = i - photoCount;
+        plan.push({
+          sourceIndex: round % photoCount,
+          variation: styledVariations[round % styledVariations.length]!,
+        });
+      }
+    } else {
+      plan.push({ sourceIndex: 0, variation: variationTypes[i % variationTypes.length]! });
+    }
+  }
+
+  return plan;
+}
+
 export async function generateStudioImages(params: {
   originalImages: Buffer[];
   prompt: string;
   count: number;
+  multiAngle?: boolean;
 }): Promise<GeneratedImageOutput[]> {
-  const { originalImages, prompt, count } = params;
+  const { originalImages, prompt, count, multiAngle = false } = params;
   const ai = getGeminiClient();
 
-  const variationTypes: ("studio_white" | "studio_premium" | "lifestyle" | "custom")[] = [
-    "studio_white", // Variation 1: Guaranteed pure clean white background (#FFFFFF) for Amazon/Flipkart
-    "studio_premium", // Variation 2: Premium pleasing editorial studio
-    "lifestyle", // Variation 3: Aspirational lifestyle
-    "custom", // Variation 4: Custom style
-  ];
+  const useMultiAngle = multiAngle && originalImages.length >= 2;
+  const shotPlan = planStudioShots(originalImages.length, count, useMultiAngle);
 
   if (ai) {
     try {
       const results: GeneratedImageOutput[] = [];
 
       for (let i = 0; i < count; i++) {
-        const variation = variationTypes[i % variationTypes.length]!;
+        const { sourceIndex, variation } = shotPlan[i]!;
         const strictFidelityRule = "CRITICAL INSTRUCTION: Preserve 100% exact visual identity and details of the subject item (DO NOT add, alter, or remove chains, straps, pockets, logos, emblems, badges, zippers, or materials). DO NOT hallucinate phantom accessories. DO optimize orientation, posture, and staging: if the product is slouched, folded, tilted, or lying casually, straighten it upright, un-crumple its form naturally, and present it in a proud, symmetrical, upright commercial studio pose.";
         let specializedPrompt = "";
 
@@ -51,10 +97,21 @@ export async function generateStudioImages(params: {
           specializedPrompt = `${strictFidelityRule} Creative commercial product photography of the exact product shown, styled according to: ${prompt}. Pristine lighting, commercial advertising grade.`;
         }
 
+        // Multi-angle: the assigned photo goes first (the viewpoint to reproduce),
+        // followed by up to 2 other photos purely as detail references.
+        let referenceImages = originalImages.slice(0, 3);
+        if (useMultiAngle) {
+          referenceImages = [
+            originalImages[sourceIndex]!,
+            ...originalImages.filter((_, idx) => idx !== sourceIndex).slice(0, 2),
+          ];
+          specializedPrompt = `VIEWPOINT LOCK: Reproduce the product from the SAME camera angle and viewpoint as the FIRST reference image (this is angle ${sourceIndex + 1} of ${originalImages.length}). The other reference images are ONLY for product detail, texture and colour accuracy - do NOT switch to their viewpoint. ${specializedPrompt}`;
+        }
+
         // Build input payload with text prompt and reference images
         const inputPayload: any[] = [{ type: "text", text: specializedPrompt }];
-        if (originalImages && originalImages.length > 0) {
-          for (const img of originalImages.slice(0, 3)) {
+        if (referenceImages.length > 0) {
+          for (const img of referenceImages) {
             inputPayload.push({
               type: "image",
               mime_type: "image/jpeg",
@@ -121,17 +178,18 @@ export async function generateStudioImages(params: {
   // High quality Fallback Studio Composite for development/offline/testing:
   // Creates studio lighting, background gradient, and places the original product centered
   const results: GeneratedImageOutput[] = [];
-  const baseImg = originalImages[0] || (await sharp({
+  const blankImg = await sharp({
     create: {
       width: 1000,
       height: 1000,
       channels: 4,
       background: { r: 255, g: 255, b: 255, alpha: 1 },
     },
-  }).png().toBuffer());
+  }).png().toBuffer();
 
   for (let i = 0; i < count; i++) {
-    const variation = variationTypes[i % variationTypes.length]!;
+    const { sourceIndex, variation } = shotPlan[i]!;
+    const baseImg = originalImages[sourceIndex] || blankImg;
     const interactionId = `int_gemini_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     const isPureWhite = variation === "studio_white";
