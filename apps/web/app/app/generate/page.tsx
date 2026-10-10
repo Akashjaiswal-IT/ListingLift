@@ -44,6 +44,7 @@ import { downloadFile } from "~/lib/download";
 import { trackEvent, captureError } from "~/lib/analytics";
 import { calculateGenerationCredits } from "~/lib/pricing";
 import { adaptiveStatusInterval } from "~/lib/polling";
+import { GenerationProgressCard } from "~/components/generate/GenerationProgressCard";
 import { compressImage, putWithProgress } from "~/lib/upload-image";
 
 export default function GeneratePage() {
@@ -107,6 +108,7 @@ export default function GeneratePage() {
       enabled: step === 4 && !!activeListingId,
     }
   );
+  const retryMutation = trpc.generate.retry.useMutation();
   const reEditMutation = trpc.generate.reEditImage.useMutation();
   const downloadBundleMutation = trpc.download.downloadBundle.useMutation();
 
@@ -342,10 +344,42 @@ export default function GeneratePage() {
           utils.user.getCreditBalance.invalidate(),
           utils.user.getCreditHistory.invalidate(),
         ]);
-        toast.error(`Generation failed: ${errorMessage || "Unknown error"}. Credits have been refunded.`);
+        toast.error(
+          getStatusQuery.data.creditsRefunded
+            ? `Generation failed: ${errorMessage || "Unknown error"}. Your credits were refunded.`
+            : `Generation failed: ${errorMessage || "Unknown error"}. We're processing your refund.`
+        );
       }
     }
   }, [step, getStatusQuery.data, activeListingId, router, utils]);
+
+  // Failed generation: re-queue it (the server re-charges only if the credits were refunded)
+  const handleRetryGeneration = async () => {
+    if (!activeListingId) return;
+    try {
+      await retryMutation.mutateAsync({ listingObjectId: activeListingId });
+      setImageGenStatus("queued");
+      // Reset the status query so polling restarts (fast) from the fresh "queued" state
+      await utils.generate.getStatus.reset({ listingObjectId: activeListingId });
+      Promise.allSettled([
+        utils.credits.getBalance.invalidate(),
+        utils.user.getCreditBalance.invalidate(),
+        utils.user.getCreditHistory.invalidate(),
+      ]);
+      toast.success(isHi ? "जनरेशन फिर से शुरू हो गया" : "Generation restarted");
+    } catch (err: any) {
+      toast.error(err.message || (isHi ? "फिर से शुरू नहीं हो सका" : "Couldn't restart generation"));
+    }
+  };
+
+  // Failed generation: go back to the form (entered details are kept)
+  const handleEditDetails = async () => {
+    if (activeListingId) {
+      await utils.generate.getStatus.reset({ listingObjectId: activeListingId });
+    }
+    setImageGenStatus("pending");
+    setStep(2);
+  };
 
   // Keep result updated in Step 4
   useEffect(() => {
@@ -410,6 +444,8 @@ export default function GeneratePage() {
     navigator.clipboard.writeText(txt);
     toast.success(`Copied ${label} to clipboard!`);
   };
+
+  const genInfo = getStatusQuery.data;
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
@@ -836,9 +872,11 @@ export default function GeneratePage() {
                     {isHi ? "लिस्टिंग कॉपी (लाइव)" : "Listing Copy (Streaming)"}
                   </span>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse">
-                  {isHi ? "लाइव" : "Live"}
-                </Badge>
+                {imageGenStatus !== "failed" && (
+                  <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse">
+                    {isHi ? "लाइव" : "Live"}
+                  </Badge>
+                )}
               </div>
 
               <div className="space-y-3 text-xs">
@@ -847,7 +885,10 @@ export default function GeneratePage() {
                     {isHi ? "टाइटल" : "Title"}
                   </span>
                   <p className="font-semibold text-foreground mt-0.5">
-                    {streamedText?.seoTitle || title || (isHi ? "एसईओ टाइटल जनरेट हो रहा है..." : "Generating SEO Title...")}
+                    {streamedText?.seoTitle ||
+                      (imageGenStatus === "failed"
+                        ? isHi ? "जनरेट नहीं हुआ" : "Not generated"
+                        : title || (isHi ? "एसईओ टाइटल जनरेट हो रहा है..." : "Generating SEO Title..."))}
                   </p>
                 </div>
                 <div>
@@ -860,58 +901,27 @@ export default function GeneratePage() {
                         <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
                         <span>{f}</span>
                       </li>
-                    )) || <li>{isHi ? "उत्पाद विवरण का विश्लेषण हो रहा है..." : "Analyzing product geometry and fabric..."}</li>}
+                    )) || (
+                      <li>
+                        {imageGenStatus === "failed"
+                          ? isHi ? "जनरेट नहीं हुआ" : "Not generated"
+                          : isHi ? "उत्पाद विवरण का विश्लेषण हो रहा है..." : "Analyzing product geometry and fabric..."}
+                      </li>
+                    )}
                   </ul>
                 </div>
               </div>
             </Card>
 
             {/* Right: Studio Photo Generation Steps */}
-            <Card className="border-border/60 bg-card p-5 space-y-5">
-              <div className="flex items-center justify-between border-b border-border/40 pb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-sm text-foreground">
-                    {isHi ? "स्टूडियो फ़ोटो और कार्ड्स" : "Studio Photos & Cards"}
-                  </span>
-                </div>
-                <Badge variant="secondary" className="capitalize text-[10px]">
-                  {isHi
-                    ? imageGenStatus === "completed" ? "पूर्ण" : imageGenStatus === "failed" ? "असफल" : "प्रगति पर"
-                    : imageGenStatus}
-                </Badge>
-              </div>
-
-              <div className="space-y-4 text-xs">
-                {[
-                  {
-                    label: isHi ? "सामान्य बैकग्राउंड क्लीनअप और संरेखण" : "Crop & Cleanse Raw Backdrop",
-                    done: true,
-                  },
-                  {
-                    label: isHi ? "विज़न प्रॉम्प्ट विश्लेषण" : "OpenAI Vision Prompt Enhancement",
-                    done: true,
-                  },
-                  {
-                    label: isHi ? "Gemini 2.0 8K स्टूडियो रेंडरिंग" : "Gemini 2.0 8K Studio Rendering",
-                    done: imageGenStatus === "completed",
-                  },
-                  {
-                    label: isHi ? "व्हाट्सएप व इंस्टाग्राम स्टोरी कार्ड कम्पोज़िंग" : "WhatsApp & Instagram Story Card Compositing",
-                    done: imageGenStatus === "completed",
-                  },
-                ].map((s, idx) => (
-                  <div key={idx} className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{s.label}</span>
-                    {s.done ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
+            <GenerationProgressCard
+              isHi={isHi}
+              status={imageGenStatus}
+              info={genInfo}
+              isRetrying={retryMutation.isPending}
+              onRetry={handleRetryGeneration}
+              onEditDetails={handleEditDetails}
+            />
           </div>
         </div>
       )}
