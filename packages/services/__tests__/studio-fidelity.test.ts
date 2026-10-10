@@ -72,7 +72,7 @@ describe("generateStudioImages fidelity loop", () => {
     expect(out[0]!.promptUsed).toContain("PREVIOUS ATTEMPT WAS REJECTED");
   });
 
-  it("falls back to the Sharp composite when both attempts fail (max 1 retry)", async () => {
+  it("keeps the Gemini retry (not a pasted photo) when both attempts fail, recording the issues", async () => {
     checkMock.mockResolvedValue({ pass: false, issues: ["extra strap"] });
 
     const out = await run();
@@ -80,7 +80,42 @@ describe("generateStudioImages fidelity loop", () => {
     expect(interactionsCreate).toHaveBeenCalledTimes(2);
     expect(checkMock).toHaveBeenCalledTimes(2);
     expect(out).toHaveLength(1);
-    expect(out[0]!.promptUsed.endsWith("(fidelity-fallback)")).toBe(true);
+    expect(out[0]!.interactionId).toBe("int_2");
+    expect(out[0]!.buffer.toString("base64")).toBe(generatedB64);
+    expect(out[0]!.fidelityIssues).toEqual(["extra strap"]);
+    expect(out[0]!.promptUsed).not.toContain("fidelity-fallback");
+  });
+
+  it("keeps the first Gemini image when the retry returns no image", async () => {
+    checkMock.mockResolvedValue({ pass: false, issues: ["logo changed"] });
+    interactionsCreate
+      .mockResolvedValueOnce({ id: "int_first", output_image: { data: generatedB64 } })
+      .mockResolvedValueOnce({ id: "int_empty", output_image: undefined });
+
+    const out = await run();
+
+    expect(interactionsCreate).toHaveBeenCalledTimes(2);
+    expect(checkMock).toHaveBeenCalledTimes(1);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.interactionId).toBe("int_first");
+    expect(out[0]!.fidelityIssues).toEqual(["logo changed"]);
+  });
+
+  it("has no fidelityIssues when the first check passes", async () => {
+    checkMock.mockResolvedValue({ pass: true, issues: [] });
+
+    const out = await run();
+
+    expect(out[0]!.fidelityIssues).toBeUndefined();
+  });
+
+  it("uses the Sharp composite only when Gemini returns no image at all", async () => {
+    interactionsCreate.mockResolvedValue({ id: "int_empty", output_image: undefined });
+
+    const out = await run();
+
+    expect(checkMock).not.toHaveBeenCalled();
+    expect(out).toHaveLength(1);
     expect(out[0]!.variationType).toBe("studio_white");
     expect((await sharp(out[0]!.buffer).metadata()).width).toBe(1024);
   });

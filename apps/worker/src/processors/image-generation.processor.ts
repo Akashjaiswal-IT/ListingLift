@@ -132,6 +132,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
         variationType: output.variationType,
         promptUsed: output.promptUsed,
         interactionId: output.interactionId,
+        ...(output.fidelityIssues?.length ? { fidelityIssues: output.fidelityIssues } : {}),
         isLatest: true,
         createdAt: new Date(),
       });

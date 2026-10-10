@@ -58,7 +58,7 @@ describe("checkProductFidelity", () => {
     expect(await checkProductFidelity(images)).toEqual({ pass: true, issues: [] });
   });
 
-  it("sends originals at low detail (max 3) and the generated image at high detail", async () => {
+  it("sends up to 2 originals and the generated image, all at high detail", async () => {
     createMock.mockResolvedValue(reply(JSON.stringify({ pass: true, issues: [] })));
     await checkProductFidelity({
       originalImages: [Buffer.from("a"), Buffer.from("b"), Buffer.from("c"), Buffer.from("d")],
@@ -69,6 +69,16 @@ describe("checkProductFidelity", () => {
     expect(body.temperature).toBe(0);
     expect(body.response_format).toEqual({ type: "json_object" });
     const imageParts = body.messages[0].content.filter((p: any) => p.type === "image_url");
-    expect(imageParts.map((p: any) => p.image_url.detail)).toEqual(["low", "low", "low", "high"]);
+    expect(imageParts.map((p: any) => p.image_url.detail)).toEqual(["high", "high", "high"]);
+  });
+
+  it("tells the model to ignore intended improvements like straightening and wrinkle removal", async () => {
+    createMock.mockResolvedValue(reply(JSON.stringify({ pass: true, issues: [] })));
+    await checkProductFidelity(images);
+
+    const prompt = createMock.mock.calls[0]![0].messages[0].content[0].text as string;
+    expect(prompt).toContain("straightening or re-posing");
+    expect(prompt).toContain("wrinkles or creases removed");
+    expect(prompt).toContain("When unsure, PASS.");
   });
 });

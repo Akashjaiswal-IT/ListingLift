@@ -22,18 +22,26 @@ export async function checkProductFidelity(params: {
     return { pass: true, issues: [] };
   }
 
-  const promptText = `You are a strict e-commerce quality inspector.
+  // Generation intentionally straightens, smooths and re-lights the product, so
+  // only concrete alterations count as failures - otherwise every good studio
+  // shot gets rejected.
+  const promptText = `You are an e-commerce quality inspector.
 Compare the PRODUCT in the GENERATED image against the ORIGINAL product photo(s).
-Ignore the background, lighting, shadows, props that do not touch the product, and the camera angle.
-Look only for differences in the product itself: parts or objects ADDED (e.g. items placed in pockets or holders, extra straps, chains, accessories), parts REMOVED, or CHANGED (logo, text, colour, material, shape, pocket/compartment contents).
+FAIL only for these concrete alterations:
+1. A discrete object or part ADDED to the product (e.g. bottles in side pockets, an extra strap, chain, badge, accessory, items inside or attached to it).
+2. A visible part REMOVED (e.g. a pocket, strap, zipper, handle, logo).
+3. A logo, brand name or printed text CHANGED or INVENTED.
+4. A clearly different base colour or material.
+PASS (ignore) all of these - they are intended improvements: straightening or re-posing the product, a filled-out or smoother shape, wrinkles or creases removed, a cleaner or newer-looking surface, colour / white-balance / lighting correction, a different camera angle or crop, sharper detail, background and props that do not touch the product.
+When unsure, PASS.
 Respond ONLY with JSON: {"pass": boolean, "issues": string[]}.
-"pass" is true only if the product is identical. "issues" lists concrete differences such as "water bottles added in side pockets", "extra strap", "logo changed". Use an empty list when pass is true.`;
+Each issue must name the concrete thing added, removed or changed (e.g. "water bottles added in side pockets"). Use an empty list when pass is true.`;
 
-  const originals = params.originalImages.slice(0, 3).flatMap((buf) => [
+  const originals = params.originalImages.slice(0, 2).flatMap((buf) => [
     { type: "text" as const, text: "ORIGINAL photo:" },
     {
       type: "image_url" as const,
-      image_url: { url: `data:image/jpeg;base64,${buf.toString("base64")}`, detail: "low" as const },
+      image_url: { url: `data:image/jpeg;base64,${buf.toString("base64")}`, detail: "high" as const },
     },
   ]);
 

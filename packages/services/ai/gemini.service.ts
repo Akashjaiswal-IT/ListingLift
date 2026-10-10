@@ -16,6 +16,8 @@ export interface GeneratedImageOutput {
   interactionId: string;
   variationType: "studio_white" | "studio_premium" | "lifestyle" | "custom";
   promptUsed: string;
+  // Set when the fidelity check still flagged this (kept) image after the retry
+  fidelityIssues?: string[];
 }
 
 type StudioVariation = GeneratedImageOutput["variationType"];
@@ -72,17 +74,17 @@ const PRODUCT_LOCK_RULE =
   "PRODUCT LOCK: The product must be pixel-faithful to the reference photo(s). Do NOT add, remove or change ANY part, object, accessory, content, logo, text, colour, or material. Pockets, holders and compartments must look exactly as in the photo (empty if empty). No items inside, on, or attached to the product. You may ONLY change: background, surface, lighting, shadows, reflections, and minor straightening of the product's pose.";
 
 /**
- * High quality fallback studio composite for development/offline/testing and for
- * images that fail the fidelity check: studio background + soft contact shadow,
- * with the ORIGINAL photo placed centered (so the product is guaranteed unchanged).
+ * Fallback studio composite for development/offline/testing, or when Gemini
+ * returns no image: studio background + soft contact shadow, with the ORIGINAL
+ * photo placed centered. Never used to replace a Gemini image that the fidelity
+ * check disliked - a pasted raw phone photo is worse than a minor deviation.
  */
 async function buildSharpStudioComposite(params: {
   baseImg: Buffer | undefined;
   variation: StudioVariation;
   prompt: string;
-  promptSuffix?: string;
 }): Promise<GeneratedImageOutput> {
-  const { variation, prompt, promptSuffix = "" } = params;
+  const { variation, prompt } = params;
   const baseImg =
     params.baseImg ||
     (await sharp({
@@ -142,7 +144,7 @@ async function buildSharpStudioComposite(params: {
     buffer: compositeBuffer,
     interactionId,
     variationType: variation,
-    promptUsed: `${prompt} (${variation})${promptSuffix}`,
+    promptUsed: `${prompt} (${variation})`,
   };
 }
 
@@ -257,34 +259,35 @@ export async function generateStudioImages(params: {
         const retryPrompt = `${specializedPrompt} PREVIOUS ATTEMPT WAS REJECTED because: ${firstCheck.issues.join("; ")}. Do NOT include any of these.`;
         const retry = await generateOnce(retryPrompt);
 
-        if (retry.buffer) {
-          const retryCheck = await checkProductFidelity({
-            originalImages: referenceImages,
-            generatedImage: retry.buffer,
+        if (!retry.buffer) {
+          results.push({
+            buffer: first.buffer,
+            interactionId: first.interactionId,
+            variationType: variation,
+            promptUsed: specializedPrompt,
+            fidelityIssues: firstCheck.issues,
           });
-          if (retryCheck.pass) {
-            results.push({
-              buffer: retry.buffer,
-              interactionId: retry.interactionId,
-              variationType: variation,
-              promptUsed: retryPrompt,
-            });
-            continue;
-          }
-          console.warn(
-            `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}): ${retryCheck.issues.join("; ")}`
-          );
+          continue;
         }
 
-        // Still not faithful: use the guaranteed-identical studio composite of the source photo
-        results.push(
-          await buildSharpStudioComposite({
-            baseImg: originalImages[sourceIndex],
-            variation,
-            prompt,
-            promptSuffix: " (fidelity-fallback)",
-          })
-        );
+        const retryCheck = await checkProductFidelity({
+          originalImages: referenceImages,
+          generatedImage: retry.buffer,
+        });
+        if (!retryCheck.pass) {
+          // Keep the Gemini retry anyway (it got the explicit warning) and record
+          // the complaint, instead of degrading to a pasted raw photo.
+          console.warn(
+            `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}), keeping it: ${retryCheck.issues.join("; ")}`
+          );
+        }
+        results.push({
+          buffer: retry.buffer,
+          interactionId: retry.interactionId,
+          variationType: variation,
+          promptUsed: retryPrompt,
+          ...(retryCheck.pass ? {} : { fidelityIssues: retryCheck.issues }),
+        });
       }
 
       if (results.length > 0) {

@@ -23,6 +23,7 @@ export interface IGeneratedImage {
   interactionId: string;     // Gemini/Nano Banana conversation session ID for multi-turn editing
   isLatest: boolean;         // true = currently shown; false = hidden history
   replacedBy?: Types.ObjectId; // points to the newer version if re-edited
+  fidelityIssues?: string[];   // product changes the fidelity check still flagged on this image
   createdAt: Date;
 }
 
@@ -134,6 +135,7 @@ const GeneratedImageSchema = new Schema<IGeneratedImage>({
   interactionId: { type: String, required: true }, // Gemini session ID for re-edit continuity
   isLatest: { type: Boolean, default: true },
   replacedBy: { type: Schema.Types.ObjectId, ref: "ListingObject" },
+  fidelityIssues: { type: [String], default: undefined },
   createdAt: { type: Date, default: Date.now },
 });
 
