@@ -67,15 +67,15 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-md transition-colors">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Brand Logo - Orange Square with white 'P' */}
-        <Link href="/" className="flex items-center gap-3 transition-transform hover:scale-[1.01]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xl shadow-sm shadow-primary/20 shrink-0">
+        <Link href="/" className="flex min-w-0 shrink items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.01]">
+          <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-lg sm:text-xl shadow-sm shadow-primary/20 shrink-0">
             P
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-foreground font-serif leading-none">
+            <span className="whitespace-nowrap text-base min-[340px]:text-lg sm:text-xl font-black tracking-tight text-foreground font-serif leading-none">
               Peshkar AI
             </span>
-            <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase mt-0.5">
+            <span className="hidden sm:block whitespace-nowrap text-[10px] font-semibold tracking-wider text-muted-foreground uppercase mt-0.5">
               {language === "hi" ? "AI ई-कॉमर्स स्टूडियो" : "AI E-Commerce Studio"}
             </span>
           </div>
@@ -104,13 +104,13 @@ export function Navbar() {
         </nav>
 
         {/* Right Action: Language + Theme + Tour + Credits + Auth + CTA */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1 min-[380px]:gap-1.5 sm:gap-3">
           {/* Language Switcher (Hindi Default / English) */}
           <div className="flex items-center bg-muted/60 p-0.5 rounded-full border border-border/60 text-xs">
             <button
               type="button"
               onClick={() => setLanguage("hi")}
-              className={`px-2.5 py-1 rounded-full font-bold transition-all text-xs ${
+              className={`px-1 min-[380px]:px-1.5 sm:px-2.5 py-1 rounded-full font-bold transition-all text-xs ${
                 language === "hi"
                   ? "bg-primary text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -122,7 +122,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setLanguage("en")}
-              className={`px-2.5 py-1 rounded-full font-bold transition-all text-xs ${
+              className={`px-1 min-[380px]:px-1.5 sm:px-2.5 py-1 rounded-full font-bold transition-all text-xs ${
                 language === "en"
                   ? "bg-primary text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -139,7 +139,7 @@ export function Navbar() {
               variant="ghost"
               size="icon"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+              className="hidden min-[340px]:inline-flex h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
               title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
@@ -187,7 +187,7 @@ export function Navbar() {
           {isSignedIn ? (
             <div className="flex items-center gap-2">
               <Link href="/app/profile">
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground" title={t.nav.profile}>
+                <Button variant="ghost" size="icon" className="hidden min-[340px]:inline-flex rounded-full h-8 w-8 text-muted-foreground" title={t.nav.profile}>
                   <UserCheck className="h-4 w-4" />
                 </Button>
               </Link>
@@ -195,7 +195,7 @@ export function Navbar() {
             </div>
           ) : (
             <SignInButton mode="modal">
-              <Button size="sm" variant="outline" className="font-semibold text-xs h-9 px-3.5 border-border">
+              <Button size="sm" variant="outline" className="font-semibold text-xs h-8 sm:h-9 px-2 min-[380px]:px-2.5 sm:px-3.5 border-border">
                 {t.nav.login}
               </Button>
             </SignInButton>
@@ -217,7 +217,7 @@ export function Navbar() {
             variant="ghost"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden h-9 w-9 text-muted-foreground"
+            className="lg:hidden h-8 w-8 sm:h-9 sm:w-9 text-muted-foreground"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
