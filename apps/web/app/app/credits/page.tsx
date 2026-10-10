@@ -219,7 +219,11 @@ export default function CreditsPage() {
               >
                 <div>
                   <span className="font-semibold text-sm capitalize">
-                    {p.packId} {isHi ? "पैक" : "pack"} · {p.creditsPurchased} {isHi ? "क्रेडिट्स" : "credits"}
+                    {p.packId === "topup"
+                      ? isHi
+                        ? `कस्टम टॉप-अप (${p.creditsPurchased} क्रेडिट्स)`
+                        : `Custom top-up (${p.creditsPurchased} credits)`
+                      : `${p.packId} ${isHi ? "पैक" : "pack"} · ${p.creditsPurchased} ${isHi ? "क्रेडिट्स" : "credits"}`}
                   </span>
                   <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                     <Clock className="h-3 w-3" />

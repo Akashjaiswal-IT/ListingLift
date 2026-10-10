@@ -15,7 +15,6 @@ import {
   ShoppingBag,
   ChevronRight,
   RotateCw,
-  Sliders,
   Check,
   Play,
   Share2,
@@ -30,6 +29,7 @@ import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
 import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
 import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
+import { CustomTopup } from "~/components/pricing/CustomTopup";
 
 // Demo photos in /public/images/demo-*.webp come from Unsplash (free to use under the Unsplash License):
 // - demo-watch-white:           https://unsplash.com/photos/black-smart-watch-with-white-background-O43D6CYzxqM
@@ -105,17 +105,8 @@ export default function HomePage() {
   const isHi = language === "hi";
   const [activeTab, setActiveTab] = useState<KitTab>("whatsapp");
   const [activeHistoryFilter, setActiveHistoryFilter] = useState<"all" | "whatsapp" | "meesho">("all");
-  const [customCredits, setCustomCredits] = useState(220);
   const [selectedStyle, setSelectedStyle] = useState("studio_white");
   const [copied, setCopied] = useState(false);
-
-  const calculateCustomPrice = (credits: number) => {
-    if (credits >= 500) return Math.round(credits * 11);
-    if (credits >= 200) return Math.round(credits * 14);
-    if (credits >= 80) return Math.round(credits * 17);
-    if (credits >= 30) return Math.round(credits * 20);
-    return Math.round(credits * 25);
-  };
 
   const handleCopyCaption = () => {
     const textToCopy = getKitCopyText(activeTab, isHi ? "hi" : "en");
@@ -915,65 +906,8 @@ export default function HomePage() {
           </Card>
         </div>
 
-        {/* Custom Credit Pack Slider Card (Matches Pricing Page) */}
-        <div className="p-6 sm:p-10 rounded-3xl border-2 border-primary/20 bg-card shadow-lg max-w-4xl mx-auto space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-5">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Sliders className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-lg text-foreground">
-                  {t.pricingPage.customTitle}
-                </h3>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {t.pricingPage.customSubtitle}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl sm:text-4xl font-black font-serif text-primary">
-                ₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")}
-              </div>
-              <span className="text-xs text-muted-foreground font-semibold">
-                ≈ ₹{(calculateCustomPrice(customCredits) / customCredits).toFixed(1)} {t.pricingPage.perCredit}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <input
-              type="range"
-              min={10}
-              max={1000}
-              step={10}
-              value={customCredits}
-              onChange={(e) => setCustomCredits(Number(e.target.value))}
-              className="w-full accent-primary h-2.5 bg-muted rounded-lg cursor-pointer"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground font-semibold">
-              <span>10 {t.sections.creditsUnit}</span>
-              <span className="text-primary font-black text-sm">
-                {customCredits} {t.sections.creditsUnit} ({t.pricingPage.selected})
-              </span>
-              <span>1,000 {t.sections.creditsUnit}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-              <span>{isHi ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा" : "Instant Activation • Automatic Refund Protection"}</span>
-            </div>
-            <Link href="/pricing" className="w-full sm:w-auto">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-md gap-2 text-xs"
-              >
-                <Sparkles className="h-4 w-4" />
-                {t.pricingPage.buyCustomBtn} (₹{calculateCustomPrice(customCredits).toLocaleString("en-IN")})
-              </Button>
-            </Link>
-          </div>
-        </div>
+        {/* Custom credit pack: same component as the pricing page */}
+        <CustomTopup />
 
         {/* Pricing FAQs (Matches Pricing Page) */}
         <div className="max-w-3xl mx-auto space-y-6 pt-4">
