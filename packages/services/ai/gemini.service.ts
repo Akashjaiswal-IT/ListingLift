@@ -69,9 +69,12 @@ export function planStudioShots(
   return plan;
 }
 
-// Placed FIRST in every prompt: the product must stay identical to the photo(s).
+// Placed FIRST in every prompt. Two halves: the product's DESIGN must stay
+// identical (nothing added/removed/redrawn), but it must be PRESENTED like new
+// stock - a "pixel-faithful" wording made Gemini paste the slouched, creased
+// phone-photo product onto the new background.
 const PRODUCT_LOCK_RULE =
-  "PRODUCT LOCK: The product must be pixel-faithful to the reference photo(s). Do NOT add, remove or change ANY part, object, accessory, content, logo, text, colour, or material. Pockets, holders and compartments must look exactly as in the photo (empty if empty). No items inside, on, or attached to the product. You may ONLY change: background, surface, lighting, shadows, reflections, and minor straightening of the product's pose.";
+  "PRODUCT LOCK: Reproduce the exact same product design as the reference photo(s): same model and silhouette, same panels, pockets, zippers, straps, handles and hardware, same colours and materials, and every logo, label and printed graphic exactly as printed (including faded or distressed print effects). Do NOT add, remove or replace any part, object, accessory or text. Pockets, holders and compartments stay empty if they are empty. Nothing inside, on, or attached to the product. PRESENT IT AS BRAND-NEW RETAIL STOCK: standing upright and symmetrical, filled out to its natural structured shape, with no slouching, creases, wrinkles, dust, lint, stains or loose threads, and its true colour under neutral studio light. Only the product's condition and pose improve - never its design.";
 
 /**
  * Fallback studio composite for development/offline/testing, or when Gemini
@@ -169,7 +172,7 @@ export async function generateStudioImages(params: {
         let sceneText = "";
 
         if (variation === "studio_white") {
-          sceneText = `Commercial product catalog photography of the exact product shown, set against a seamless, solid 100% pure white background (#FFFFFF). The subject product is standing upright, perfectly centered, crisp, with sharp edges and rich textures. Natural, soft subtle contact shadow anchored directly under the base of the product on the pure white floor, creating realistic depth without dirt or tint. Studio diffused softbox lighting with even balance and accurate true-to-life colors. Zero background clutter, zero gray cast, 100% Amazon, Flipkart, and Meesho marketplace standard e-commerce hero image. ${prompt}`;
+          sceneText = `Commercial product catalog photography of the exact product shown, set against a seamless, solid 100% pure white background (#FFFFFF). The subject product is standing upright, perfectly centered, crisp, with sharp edges and rich textures. Natural, soft subtle contact shadow anchored directly under the base of the product on the pure white floor, creating realistic depth without dirt or tint. Studio diffused softbox lighting with even balance and accurate true-to-life colors. Zero background clutter, zero gray cast, no gradient or tint, 100% Amazon, Flipkart, and Meesho marketplace standard e-commerce hero image.`; // no scene text: the background must stay pure white
         } else if (variation === "studio_premium") {
           sceneText = `Award-winning luxury commercial studio product photography of the exact product shown. The product is standing upright and elegantly displayed on a minimalist sculpted pedestal or podium (matte stone, travertine, or architectural ceramic). Soft dramatic studio rim lighting, cinematic fill light, gentle warm ambient glow, and refined directional shadows. Subtle shallow depth of field with a beautifully blurred, warm neutral architectural studio background. 8K UHD advertising campaign aesthetic, ultra-clean and pleasing to the eyes. ${prompt}`;
         } else if (variation === "lifestyle") {
@@ -274,20 +277,40 @@ export async function generateStudioImages(params: {
           originalImages: referenceImages,
           generatedImage: retry.buffer,
         });
-        if (!retryCheck.pass) {
-          // Keep the Gemini retry anyway (it got the explicit warning) and record
-          // the complaint, instead of degrading to a pasted raw photo.
-          console.warn(
-            `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}), keeping it: ${retryCheck.issues.join("; ")}`
-          );
+        if (retryCheck.pass) {
+          results.push({
+            buffer: retry.buffer,
+            interactionId: retry.interactionId,
+            variationType: variation,
+            promptUsed: retryPrompt,
+          });
+          continue;
         }
-        results.push({
-          buffer: retry.buffer,
-          interactionId: retry.interactionId,
-          variationType: variation,
-          promptUsed: retryPrompt,
-          ...(retryCheck.pass ? {} : { fidelityIssues: retryCheck.issues }),
-        });
+
+        // Both rejected: keep whichever attempt has fewer flagged problems (ties
+        // go to the retry, which got the explicit warning) and record them -
+        // never degrade to a pasted raw photo.
+        const keepRetry = retryCheck.issues.length <= firstCheck.issues.length;
+        console.warn(
+          `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}), keeping the ${keepRetry ? "retry" : "first"} attempt: ${retryCheck.issues.join("; ")}`
+        );
+        results.push(
+          keepRetry
+            ? {
+                buffer: retry.buffer,
+                interactionId: retry.interactionId,
+                variationType: variation,
+                promptUsed: retryPrompt,
+                fidelityIssues: retryCheck.issues,
+              }
+            : {
+                buffer: first.buffer,
+                interactionId: first.interactionId,
+                variationType: variation,
+                promptUsed: specializedPrompt,
+                fidelityIssues: firstCheck.issues,
+              }
+        );
       }
 
       if (results.length > 0) {

@@ -86,6 +86,18 @@ describe("generateStudioImages fidelity loop", () => {
     expect(out[0]!.promptUsed).not.toContain("fidelity-fallback");
   });
 
+  it("keeps the first attempt when the retry has more problems", async () => {
+    checkMock
+      .mockResolvedValueOnce({ pass: false, issues: ["8 added to print"] })
+      .mockResolvedValueOnce({ pass: false, issues: ["logo changed", "text invented"] });
+
+    const out = await run();
+
+    expect(out[0]!.interactionId).toBe("int_1");
+    expect(out[0]!.fidelityIssues).toEqual(["8 added to print"]);
+    expect(out[0]!.promptUsed).not.toContain("PREVIOUS ATTEMPT WAS REJECTED");
+  });
+
   it("keeps the first Gemini image when the retry returns no image", async () => {
     checkMock.mockResolvedValue({ pass: false, issues: ["logo changed"] });
     interactionsCreate
