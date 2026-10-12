@@ -1,3 +1,12 @@
+// Public host for generated images (the assets Worker or a custom domain).
+const publicAssetHost = (() => {
+  try {
+    return process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).hostname : null;
+  } catch {
+    return null;
+  }
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -22,6 +31,7 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
+      ...(publicAssetHost ? [{ protocol: /** @type {const} */ ('https'), hostname: publicAssetHost }] : []),
     ],
   },
   async redirects() {

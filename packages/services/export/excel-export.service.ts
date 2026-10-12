@@ -1,6 +1,11 @@
 import ExcelJS from "exceljs";
 import { IListingObject } from "@repo/database";
 import { normalizePricing } from "../pricing/price";
+import { getDeliverableUrl } from "../storage/r2.service";
+
+// Fixed number of image columns so every export has the same layout
+// (a Listing Kit makes at most 6 studio images).
+const MAX_IMAGE_COLUMNS = 6;
 
 export interface GenericMarketplaceRow {
   sku: string;
@@ -18,9 +23,10 @@ export interface GenericMarketplaceRow {
   feature5: string;
   description: string;
   keywords: string;
-  mainImageUrl: string;
-  lifestyleImageUrl: string;
-  socialCardUrl: string;
+  [imageKey: `image${number}`]: string;
+  whatsappCardUrl: string;
+  instagramPostUrl: string;
+  instagramStoryUrl: string;
   dispatchTime: string;
   returnPolicy: string;
   countryOfOrigin: string;
@@ -58,9 +64,14 @@ export async function generateGenericMarketplaceExcel(
     { header: "Key Feature 5", key: "feature5", width: 35 },
     { header: "Full Description & Specs", key: "description", width: 55 },
     { header: "Backend Search Keywords", key: "keywords", width: 35 },
-    { header: "Main Hero Image URL (White #FFFFFF)", key: "mainImageUrl", width: 40 },
-    { header: "Lifestyle Studio Image URL", key: "lifestyleImageUrl", width: 40 },
-    { header: "Social Card URL (WhatsApp)", key: "socialCardUrl", width: 40 },
+    ...Array.from({ length: MAX_IMAGE_COLUMNS }, (_, i) => ({
+      header: i === 0 ? "Image 1 URL (Main - White BG)" : `Image ${i + 1} URL`,
+      key: `image${i + 1}`,
+      width: 40,
+    })),
+    { header: "WhatsApp Card URL", key: "whatsappCardUrl", width: 40 },
+    { header: "Instagram Post URL", key: "instagramPostUrl", width: 40 },
+    { header: "Instagram Story URL", key: "instagramStoryUrl", width: 40 },
     { header: "Dispatch Timeline", key: "dispatchTime", width: 18 },
     { header: "Return Policy", key: "returnPolicy", width: 20 },
     { header: "Country of Origin", key: "countryOfOrigin", width: 18 },
@@ -87,11 +98,21 @@ export async function generateGenericMarketplaceExcel(
 
   const text = listing.aiGeneratedText;
   const features = text?.keyFeatures || [];
-  const whiteImg = listing.generatedImages?.find((i) => i.variationType === "studio_white")?.url ||
-    listing.generatedImages?.[0]?.url || "";
-  const lifestyleImg = listing.generatedImages?.find((i) => i.variationType === "studio_premium" || i.variationType === "lifestyle")?.url ||
-    listing.generatedImages?.[1]?.url || "";
-  const cardUrl = listing.whatsappCard?.url || listing.instagramPost?.url || "";
+  // Current versions only (re-edited originals are hidden history), white
+  // background main image first. URLs are rebuilt from the storage key so the
+  // sheet gets permanent links instead of whatever (possibly expired) URL was stored.
+  const currentImages = (listing.generatedImages || []).filter((img) => img.isLatest !== false);
+  const orderedImages = [
+    ...currentImages.filter((img) => img.variationType === "studio_white"),
+    ...currentImages.filter((img) => img.variationType !== "studio_white"),
+  ].slice(0, MAX_IMAGE_COLUMNS);
+  const linkFor = async (s3Key?: string) => (s3Key ? getDeliverableUrl(s3Key) : "");
+  const imageUrls = await Promise.all(orderedImages.map((img) => linkFor(img.s3Key)));
+  const [whatsappCardUrl, instagramPostUrl, instagramStoryUrl] = await Promise.all([
+    linkFor(listing.whatsappCard?.s3Key),
+    linkFor(listing.instagramPost?.s3Key),
+    linkFor(listing.instagramStory?.s3Key),
+  ]);
 
   // Prices are exactly what the seller entered - no invented MRP or discount.
   const { mrp, selling, discountPct } = normalizePricing(listing.price, listing.discountPrice);
@@ -119,9 +140,12 @@ export async function generateGenericMarketplaceExcel(
     feature5: sanitize(features[4] || "Cash on Delivery & easy returns available"),
     description: sanitize(text?.meeshoListing?.description || text?.seoDescription || listing.userDescription || ""),
     keywords: sanitize(text?.keywords?.join(", ") || ""),
-    mainImageUrl: whiteImg,
-    lifestyleImageUrl: lifestyleImg,
-    socialCardUrl: cardUrl,
+    ...Object.fromEntries(
+      Array.from({ length: MAX_IMAGE_COLUMNS }, (_, i) => [`image${i + 1}`, imageUrls[i] || ""])
+    ),
+    whatsappCardUrl,
+    instagramPostUrl,
+    instagramStoryUrl,
     dispatchTime: "1-2 Business Days",
     returnPolicy: "7 Days Hassle-Free",
     countryOfOrigin: "India",
@@ -138,6 +162,14 @@ export async function generateGenericMarketplaceExcel(
       left: { style: "thin", color: { argb: "FFE5E7EB" } },
       right: { style: "thin", color: { argb: "FFE5E7EB" } },
     };
+  });
+
+  // Make every link cell clickable.
+  dataRow.eachCell((cell) => {
+    if (typeof cell.value === "string" && cell.value.startsWith("https://")) {
+      cell.value = { text: cell.value, hyperlink: cell.value };
+      cell.font = { size: 10, name: "Calibri", color: { argb: "FF1D4ED8" }, underline: true };
+    }
   });
 
   const buffer = (await workbook.xlsx.writeBuffer()) as unknown as Buffer;

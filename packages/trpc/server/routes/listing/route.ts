@@ -6,6 +6,9 @@ import {
   deleteObjectFromR2,
   generateListingText,
   getPresignedDownloadUrl,
+  getPublicUrlForS3Key,
+  hasPublicAssetBase,
+  isPublicPrefix,
   generateGenericMarketplaceExcel,
   uploadBufferToR2,
 } from "@repo/services";
@@ -39,37 +42,32 @@ async function ensureFreshSignedUrls(listing: any): Promise<boolean> {
     }
   }
 
-  if (listing.generatedImages && listing.generatedImages.length > 0) {
-    for (const img of listing.generatedImages) {
-      if (img.s3Key && isUrlExpired(img.url)) {
-        try {
-          img.url = await getPresignedDownloadUrl(img.s3Key, 7 * 24 * 3600);
-          modified = true;
-        } catch {}
+  // Generated images and cards: switch to the permanent public link when a
+  // public host is configured (this also migrates old listings on read);
+  // otherwise keep re-signing links that are about to expire.
+  const usePublic = hasPublicAssetBase();
+  const refresh = async (asset: { s3Key?: string; url?: string } | undefined) => {
+    if (!asset?.s3Key) return;
+    if (usePublic && isPublicPrefix(asset.s3Key)) {
+      const permanent = getPublicUrlForS3Key(asset.s3Key);
+      if (asset.url !== permanent) {
+        asset.url = permanent;
+        modified = true;
       }
+      return;
     }
-  }
+    if (isUrlExpired(asset.url)) {
+      try {
+        asset.url = await getPresignedDownloadUrl(asset.s3Key, 7 * 24 * 3600);
+        modified = true;
+      } catch {}
+    }
+  };
 
-  if (listing.whatsappCard?.s3Key && isUrlExpired(listing.whatsappCard.url)) {
-    try {
-      listing.whatsappCard.url = await getPresignedDownloadUrl(listing.whatsappCard.s3Key, 7 * 24 * 3600);
-      modified = true;
-    } catch {}
-  }
-
-  if (listing.instagramPost?.s3Key && isUrlExpired(listing.instagramPost.url)) {
-    try {
-      listing.instagramPost.url = await getPresignedDownloadUrl(listing.instagramPost.s3Key, 7 * 24 * 3600);
-      modified = true;
-    } catch {}
-  }
-
-  if (listing.instagramStory?.s3Key && isUrlExpired(listing.instagramStory.url)) {
-    try {
-      listing.instagramStory.url = await getPresignedDownloadUrl(listing.instagramStory.s3Key, 7 * 24 * 3600);
-      modified = true;
-    } catch {}
-  }
+  for (const img of listing.generatedImages || []) await refresh(img);
+  await refresh(listing.whatsappCard);
+  await refresh(listing.instagramPost);
+  await refresh(listing.instagramStory);
 
   return modified;
 }
@@ -164,6 +162,9 @@ export const listingRouter = router({
           .lean(),
         ListingObject.countDocuments(query),
       ]);
+
+      // Card thumbnails must not show expired links (response only, not saved).
+      await Promise.all(items.map((item) => ensureFreshSignedUrls(item)));
 
       return {
         items,

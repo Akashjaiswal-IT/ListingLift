@@ -26,6 +26,40 @@ export function getR2BucketName(): string {
   return process.env.R2_BUCKET_NAME || "peshkar";
 }
 
+/**
+ * True when R2_PUBLIC_URL points at a real public host (the assets Worker or a
+ * custom domain). The private S3 endpoint (*.r2.cloudflarestorage.com) needs
+ * signatures, so it does not count.
+ */
+export function hasPublicAssetBase(): boolean {
+  const base = process.env.R2_PUBLIC_URL;
+  if (!base || base.includes("YOUR_R2_PUBLIC_URL")) return false;
+  try {
+    const url = new URL(base);
+    return url.protocol === "https:" && !url.hostname.endsWith(".r2.cloudflarestorage.com");
+  } catch {
+    return false;
+  }
+}
+
+// Only generated images and social cards are served publicly (see
+// apps/assets-worker). User uploads and exports stay private.
+export function isPublicPrefix(s3Key: string): boolean {
+  return s3Key.startsWith("generated/") || s3Key.startsWith("cards/");
+}
+
+/**
+ * URL to store/show for a file: a permanent public link for generated images
+ * and cards when a public host is configured, otherwise a 7-day signed link
+ * (dev without the Worker, and every private file).
+ */
+export async function getDeliverableUrl(s3Key: string): Promise<string> {
+  if (hasPublicAssetBase() && isPublicPrefix(s3Key)) {
+    return getPublicUrlForS3Key(s3Key);
+  }
+  return getPresignedDownloadUrl(s3Key, 7 * 24 * 3600);
+}
+
 export function getPublicUrlForS3Key(s3Key: string): string {
   const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
   if (publicBase && !publicBase.includes("YOUR_R2_PUBLIC_URL")) {
@@ -102,8 +136,8 @@ export async function uploadBufferToR2(
 
   await client.send(command);
 
-  // Use a presigned download URL (7-day TTL) so the file is accessible without public bucket access
-  const publicUrl = await getPresignedDownloadUrl(s3Key, 7 * 24 * 3600);
+  // Permanent public link for generated images/cards; signed link otherwise
+  const publicUrl = await getDeliverableUrl(s3Key);
 
   return {
     s3Key,

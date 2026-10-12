@@ -1,0 +1,11 @@
+# Public, permanent links for generated images and social cards.
+# Serves ONLY the generated/ and cards/ folders of the R2 bucket; user uploads
+# (uploads/) and Excel exports (exports/) are never reachable through it.
+name = "peshkar-assets"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "listinglift"
