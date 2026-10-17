@@ -140,6 +140,18 @@ export const uploadRouter = router({
         });
       }
 
+      // SECURITY (IDOR defense): only delete a key that is actually one of THIS
+      // listing's uploaded photos. Without this check a caller could pass any
+      // storage key (another user's photo, a generated image, an export) and the
+      // delete below would remove it.
+      const ownsKey = listing.originalImages.some((img) => img.s3Key === input.s3Key);
+      if (!ownsKey) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Image not found on this listing",
+        });
+      }
+
       // Remove from document
       listing.originalImages = listing.originalImages.filter(
         (img) => img.s3Key !== input.s3Key
