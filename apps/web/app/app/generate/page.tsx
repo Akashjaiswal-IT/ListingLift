@@ -51,12 +51,11 @@ export default function GeneratePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const { balance, deductLocal } = useCreditStore();
   const { language } = useLanguage();
   const isHi = language === "hi";
   const utils = trpc.useUtils();
-  const profileQuery = trpc.user.getProfile.useQuery();
-  const userProfile = profileQuery.data as any;
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<"listing_product" | "listing_kit">("listing_product");
@@ -73,10 +72,26 @@ export default function GeneratePage() {
   const [mrp, setMrp] = useState<string>("");
   const [sellingPrice, setSellingPrice] = useState<string>("");
   const [sizes, setSizes] = useState<string>("S, M, L, XL");
-  const [ctaText, setCtaText] = useState("Order Now via WhatsApp");
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>("minimal-luxury");
   const sellingExceedsMrp = !!mrp && !!sellingPrice && parseFloat(sellingPrice) > parseFloat(mrp);
   const priceErrorMessage = isHi ? "बिक्री मूल्य MRP से ज़्यादा नहीं हो सकता" : "Selling price can't be higher than MRP";
+
+  // User profile query for default branding & CTA
+  const profileQuery = trpc.user.getProfile.useQuery();
+  const userProfile = profileQuery.data as any;
+  const [hasUserEditedCta, setHasUserEditedCta] = useState(false);
+  const [ctaText, setCtaText] = useState("");
+
+  // Sync profile's default CTA once loaded, unless the user has already typed a custom one
+  useEffect(() => {
+    if (userProfile && !hasUserEditedCta) {
+      if (userProfile.defaultCta?.text) {
+        setCtaText(userProfile.defaultCta.text);
+      } else {
+        setCtaText(isHi ? "व्हाट्सएप पर ऑर्डर करें" : "Order Now via WhatsApp");
+      }
+    }
+  }, [userProfile, hasUserEditedCta, isHi]);
 
   // Re-edit modal state
   const [reEditTarget, setReEditTarget] = useState<any>(null);
@@ -99,7 +114,7 @@ export default function GeneratePage() {
       enabled: step === 3 && !!activeListingId,
       refetchInterval: (query) => {
         const s = query.state.data?.status;
-        if (s === "completed" || s === "failed") return false;
+        if (s === "completed" || s === "failed" || s === "uploaded") return false;
         return adaptiveStatusInterval(query.state.dataUpdateCount);
       },
     }
@@ -128,11 +143,15 @@ export default function GeneratePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle image files selection
-  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files);
-    const newItems = files.map((f) => ({
+  // Shared helper to add valid image files
+  const addFiles = (files: File[]) => {
+    const validFiles = files.filter(
+      (f) =>
+        ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"].includes(f.type) ||
+        /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)
+    );
+    if (!validFiles.length) return;
+    const newItems = validFiles.map((f) => ({
       file: f,
       preview: URL.createObjectURL(f),
     }));
@@ -144,6 +163,22 @@ export default function GeneratePage() {
     }
   };
 
+  const openFilePicker = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  // Handle image files selection
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      addFiles(Array.from(e.target.files));
+    }
+    // Always reset the input's value so selecting the exact same file again triggers onChange
+    e.target.value = "";
+  };
+
   const removeFile = (index: number) => {
     setSelectedFiles((prev) => {
       // Free the blob URL we created for the preview, or it leaks memory until
@@ -152,6 +187,11 @@ export default function GeneratePage() {
       if (removed) URL.revokeObjectURL(removed.preview);
       return prev.filter((_, i) => i !== index);
     });
+
+    // Reset file input value so re-selecting the removed file immediately triggers onChange
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   useEffect(() => {
@@ -172,6 +212,7 @@ export default function GeneratePage() {
         type: blob.type || "image/jpeg",
       });
       selectedFiles.forEach((it) => URL.revokeObjectURL(it.preview));
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setSelectedType("listing_product");
       setSelectedFiles([{ file, preview: URL.createObjectURL(file) }]);
       toast.success(
@@ -267,16 +308,6 @@ export default function GeneratePage() {
 
     try {
       setStep(3);
-      // Reflect the in-progress generation in the URL. If the user refreshes or
-      // comes back, we can resume the progress view (see the resume effect below)
-      // instead of dumping them back to an empty step 1. Steps 1–2 hold local,
-      // not-yet-uploaded File objects that can't survive a refresh anyway, so we
-      // only make the generating state (step 3) URL-addressable.
-      router.replace(`/app/generate?listing=${activeListingId}`);
-      deductLocal(creditsNeeded);
-      utils.credits.getBalance.invalidate();
-      utils.user.getCreditBalance.invalidate();
-
       trackEvent("listing_generation_started", {
         listingId: activeListingId,
         type: selectedType,
@@ -294,8 +325,14 @@ export default function GeneratePage() {
         price: mrp ? parseFloat(mrp) : undefined,
         discountPrice: sellingPrice ? parseFloat(sellingPrice) : undefined,
         sizes: sizes ? sizes.split(",").map((s) => s.trim()) : undefined,
-        ctaText,
+        ctaText: ctaText.trim() || undefined,
       });
+
+      // Generation successfully queued on server! Reflect in URL so user can safely refresh to resume
+      router.replace(`/app/generate?listing=${activeListingId}`);
+      deductLocal(creditsNeeded);
+      utils.credits.getBalance.invalidate();
+      utils.user.getCreditBalance.invalidate();
 
       toast.info(`Generation started! Charged ${genRes.creditsCharged} credits.`);
     } catch (err: any) {
@@ -303,8 +340,11 @@ export default function GeneratePage() {
         listingId: activeListingId,
         error: err.message,
       });
+      // Clean up URL so refresh cannot get stuck in progress for a job that never started
+      router.replace("/app/generate");
       toast.error(err.message || "Failed to start generation");
       setStep(2);
+      utils.user.getCreditBalance.invalidate();
     }
   };
 
@@ -352,9 +392,25 @@ export default function GeneratePage() {
             ? `Generation failed: ${errorMessage || "Unknown error"}. Your credits were refunded.`
             : `Generation failed: ${errorMessage || "Unknown error"}. We're processing your refund.`
         );
+      } else if (status === "uploaded") {
+        // Generation was never started on the server; escape the endless progress loop
+        router.replace("/app/generate");
+        setActiveListingId(null);
+        setStep(1);
+        toast.info(isHi ? "यह जेनरेशन शुरू नहीं हुई थी।" : "This generation was not started.");
       }
     }
-  }, [step, getStatusQuery.data, activeListingId, router, utils]);
+  }, [step, getStatusQuery.data, activeListingId, router, utils, isHi]);
+
+  // If status query errors (e.g. invalid or deleted listing ID in URL), escape to Step 1
+  useEffect(() => {
+    if (step === 3 && getStatusQuery.isError) {
+      router.replace("/app/generate");
+      setActiveListingId(null);
+      setStep(1);
+      toast.error(isHi ? "कैटलॉग नहीं मिला" : "Listing not found");
+    }
+  }, [step, getStatusQuery.isError, router, isHi]);
 
   // Failed generation: re-queue it (the server re-charges only if the credits were refunded)
   const handleRetryGeneration = async () => {
@@ -513,6 +569,7 @@ export default function GeneratePage() {
               onClick={() => {
                 setSelectedType("listing_product");
                 if (selectedFiles.length > 1) setSelectedFiles([selectedFiles[0]!]);
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
               onKeyDown={(e) => {
                 // Enter/Space select the option, matching native radio behaviour.
@@ -520,6 +577,7 @@ export default function GeneratePage() {
                   e.preventDefault();
                   setSelectedType("listing_product");
                   if (selectedFiles.length > 1) setSelectedFiles([selectedFiles[0]!]);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
                 }
               }}
               className={`cursor-pointer transition-all border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
@@ -592,14 +650,34 @@ export default function GeneratePage() {
             role="button"
             tabIndex={0}
             aria-label={isHi ? "फ़ोटो अपलोड करें" : "Upload photos"}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openFilePicker}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                fileInputRef.current?.click();
+                openFilePicker();
               }
             }}
-            className="group relative cursor-pointer rounded-2xl border-2 border-dashed border-border/80 hover:border-primary/80 bg-muted/20 hover:bg-primary/5 p-10 text-center transition-all space-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              if (e.dataTransfer.files?.length) {
+                addFiles(Array.from(e.dataTransfer.files));
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }
+            }}
+            className={`group relative cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all space-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+              isDragging
+                ? "border-primary bg-primary/10 shadow-inner"
+                : "border-border/80 hover:border-primary/80 bg-muted/20 hover:bg-primary/5"
+            }`}
           >
             <input
               ref={fileInputRef}
@@ -786,13 +864,24 @@ export default function GeneratePage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {isHi ? "कॉल टू एक्शन (CTA) बटन" : "Call To Action (CTA) Button"}
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>{isHi ? "कॉल टू एक्शन (CTA) बटन" : "Call To Action (CTA) Button"}</span>
+                  {userProfile?.defaultCta?.text && (
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      {isHi ? "(प्रोफ़ाइल डिफ़ॉल्ट)" : "(from profile)"}
+                    </span>
+                  )}
                 </label>
                 <Input
-                  placeholder={isHi ? "उदा. व्हाट्सएप पर ऑर्डर करें" : "e.g. Order Now via WhatsApp"}
+                  placeholder={
+                    userProfile?.defaultCta?.text ||
+                    (isHi ? "उदा. व्हाट्सएप पर ऑर्डर करें" : "e.g. Order Now via WhatsApp")
+                  }
                   value={ctaText}
-                  onChange={(e) => setCtaText(e.target.value)}
+                  onChange={(e) => {
+                    setHasUserEditedCta(true);
+                    setCtaText(e.target.value);
+                  }}
                 />
               </div>
             </div>
@@ -828,7 +917,11 @@ export default function GeneratePage() {
                 previewTitle={title}
                 previewPrice={mrp}
                 previewDiscountPrice={sellingPrice}
-                previewCta={ctaText}
+                previewCta={
+                  ctaText ||
+                  userProfile?.defaultCta?.text ||
+                  (isHi ? "व्हाट्सएप पर ऑर्डर करें" : "Order Now via WhatsApp")
+                }
               />
             </div>
           </div>
