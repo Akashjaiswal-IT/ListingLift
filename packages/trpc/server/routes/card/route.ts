@@ -7,6 +7,7 @@ import {
   uploadBufferToR2,
   renderSocialCards,
   getPresignedDownloadUrl,
+  deleteObjectFromR2,
 } from "@repo/services";
 
 export const cardRouter = router({
@@ -58,6 +59,13 @@ export const cardRouter = router({
         },
       });
 
+      // Collect old card keys so they can be cleaned up from R2 storage once new ones are saved
+      const oldCardKeys: string[] = [
+        listing.whatsappCard?.s3Key,
+        listing.instagramPost?.s3Key,
+        listing.instagramStory?.s3Key,
+      ].filter(Boolean) as string[];
+
       const waKey = `cards/${listing._id}/whatsapp-${Date.now()}.webp`;
       const igPostKey = `cards/${listing._id}/ig-post-${Date.now()}.webp`;
       const igStoryKey = `cards/${listing._id}/ig-story-${Date.now()}.webp`;
@@ -85,6 +93,13 @@ export const cardRouter = router({
       };
 
       await listing.save();
+
+      // Clean up previous cards in storage now that new ones are saved
+      for (const oldKey of oldCardKeys) {
+        try {
+          await deleteObjectFromR2(oldKey);
+        } catch {}
+      }
 
       return {
         whatsappCard: listing.whatsappCard,

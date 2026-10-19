@@ -72,6 +72,30 @@ async function ensureFreshSignedUrls(listing: any): Promise<boolean> {
   return modified;
 }
 
+function collectListingStorageKeys(listing: any): string[] {
+  const keys: string[] = [];
+  listing.originalImages?.forEach((img: any) => {
+    if (img.s3Key) keys.push(img.s3Key);
+  });
+  listing.generatedImages?.forEach((img: any) => {
+    if (img.s3Key) {
+      keys.push(img.s3Key);
+      if (img.s3Key.includes("/studio_")) {
+        keys.push(img.s3Key.replace("/studio_", "/thumb_studio_"));
+      } else if (img.s3Key.includes("/reedit_")) {
+        keys.push(img.s3Key.replace("/reedit_", "/thumb_reedit_"));
+      }
+    }
+  });
+  if (listing.whatsappCard?.s3Key) keys.push(listing.whatsappCard.s3Key);
+  if (listing.instagramPost?.s3Key) keys.push(listing.instagramPost.s3Key);
+  if (listing.instagramStory?.s3Key) keys.push(listing.instagramStory.s3Key);
+  // Clean up Excel exports and ZIP bundles associated with this listing
+  keys.push(`exports/${listing._id}/marketplace-catalog-${listing._id}.xlsx`);
+  keys.push(`bundles/${listing._id}/listing-kit-${listing._id}.zip`);
+  return keys;
+}
+
 export const listingRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -255,13 +279,8 @@ export const listingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
 
-      // Cleanup images in R2
-      const keysToDelete: string[] = [];
-      listing.originalImages.forEach((img) => keysToDelete.push(img.s3Key));
-      listing.generatedImages.forEach((img) => keysToDelete.push(img.s3Key));
-      if (listing.whatsappCard?.s3Key) keysToDelete.push(listing.whatsappCard.s3Key);
-      if (listing.instagramPost?.s3Key) keysToDelete.push(listing.instagramPost.s3Key);
-      if (listing.instagramStory?.s3Key) keysToDelete.push(listing.instagramStory.s3Key);
+      // Cleanup all images, cards, Excel exports, and ZIP bundles in R2
+      const keysToDelete = collectListingStorageKeys(listing);
 
       for (const key of keysToDelete) {
         try {
@@ -285,11 +304,7 @@ export const listingRouter = router({
 
       const keysToDelete: string[] = [];
       for (const listing of listings) {
-        listing.originalImages.forEach((img) => keysToDelete.push(img.s3Key));
-        listing.generatedImages.forEach((img) => keysToDelete.push(img.s3Key));
-        if (listing.whatsappCard?.s3Key) keysToDelete.push(listing.whatsappCard.s3Key);
-        if (listing.instagramPost?.s3Key) keysToDelete.push(listing.instagramPost.s3Key);
-        if (listing.instagramStory?.s3Key) keysToDelete.push(listing.instagramStory.s3Key);
+        keysToDelete.push(...collectListingStorageKeys(listing));
       }
 
       // Best-effort R2 cleanup; never let a storage hiccup block the DB delete.

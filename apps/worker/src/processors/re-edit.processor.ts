@@ -9,6 +9,7 @@ import {
   renderSocialCards,
   refundCredits,
   RE_EDIT_CREDIT_COST,
+  deleteObjectFromR2,
 } from "@repo/services";
 
 export async function processReEdit(
@@ -108,6 +109,13 @@ export async function processReEdit(
       },
     });
 
+    // Collect old card keys so they can be cleaned up from R2 storage once new ones are saved
+    const oldCardKeys: string[] = [
+      listing.whatsappCard?.s3Key,
+      listing.instagramPost?.s3Key,
+      listing.instagramStory?.s3Key,
+    ].filter(Boolean) as string[];
+
     const waKey = `cards/${listing._id}/wa_${Date.now()}.webp`;
     const igPostKey = `cards/${listing._id}/ig_post_${Date.now()}.webp`;
     const igStoryKey = `cards/${listing._id}/ig_story_${Date.now()}.webp`;
@@ -143,6 +151,16 @@ export async function processReEdit(
     };
 
     await listing.save();
+
+    // Clean up previous cards in storage now that new ones are saved
+    for (const oldKey of oldCardKeys) {
+      try {
+        await deleteObjectFromR2(oldKey);
+      } catch (err) {
+        logger.warn(`Failed to clean up old card on re-edit: ${oldKey}`, err);
+      }
+    }
+
     logger.info(`Re-edit for listing ${listingObjectId} completed successfully!`);
   } catch (error: any) {
     logger.error("Error during re-edit job execution:", {
