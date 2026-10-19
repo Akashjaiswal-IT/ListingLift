@@ -55,6 +55,8 @@ export default function GeneratePage() {
   const { language } = useLanguage();
   const isHi = language === "hi";
   const utils = trpc.useUtils();
+  const profileQuery = trpc.user.getProfile.useQuery();
+  const userProfile = profileQuery.data as any;
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<"listing_product" | "listing_kit">("listing_product");
