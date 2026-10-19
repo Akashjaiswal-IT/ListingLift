@@ -180,7 +180,7 @@ export async function processReEdit(
             status: "failed",
             jobId: job.id,
             targetImageId: generatedImageId,
-            errorMessage: error?.message || "Re-edit failed",
+            errorMessage: "Re-edit generation failed. Your 1 credit has been refunded.",
             updatedAt: new Date(),
           },
         },

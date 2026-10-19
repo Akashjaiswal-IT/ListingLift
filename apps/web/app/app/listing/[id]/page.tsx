@@ -16,6 +16,7 @@ import {
   Search,
   Tag,
   FileSpreadsheet,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -249,6 +250,23 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
               {isHi
                 ? "आपका संशोधित स्टूडियो इमेज प्रोसेस हो रहा है। पूरा होते ही यह पेज अपने आप अपडेट हो जाएगा।"
                 : "A refined studio image is currently generating on the worker. This page will update automatically once it is finished."}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Re-edit Failed Banner */}
+      {(listing as any).reEditStatus?.status === "failed" && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <span className="font-semibold block text-foreground">
+              {isHi ? "फ़ोटो री-एडिट विफल रहा" : "Photo Re-edit Failed"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {isHi
+                ? "री-एडिट पूरा नहीं हो सका। आपका 1 क्रेडिट वापस कर दिया गया है।"
+                : "Re-edit generation could not be completed. Your 1 credit has been refunded."}
             </span>
           </div>
         </div>

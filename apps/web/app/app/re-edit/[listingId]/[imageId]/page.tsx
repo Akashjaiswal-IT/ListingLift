@@ -37,6 +37,7 @@ export default function ReEditPage({
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const [failureError, setFailureError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const listingQuery = trpc.listing.getById.useQuery({ id: listingId });
@@ -76,6 +77,7 @@ export default function ReEditPage({
     }
 
     try {
+      setFailureError(null);
       setIsSubmitting(true);
       await reEditMutation.mutateAsync({
         listingObjectId: listingId,
@@ -138,9 +140,11 @@ export default function ReEditPage({
           utils.user.getCreditHistory.invalidate(),
           utils.listing.getById.invalidate({ id: listingId }),
         ]);
-        toast.error(
-          reEdit.errorMessage || (isHi ? "री-एडिट विफल रहा। आपका 1 क्रेडिट वापस कर दिया गया है।" : "Re-edit generation failed. Your 1 credit has been refunded.")
-        );
+        const refundNote = isHi
+          ? "री-एडिट विफल रहा। आपका 1 क्रेडिट वापस कर दिया गया है।"
+          : "Re-edit generation failed. Your 1 credit has been refunded.";
+        toast.error(refundNote);
+        setFailureError(refundNote);
         return;
       }
     }, 2500);
@@ -184,7 +188,11 @@ export default function ReEditPage({
             <Badge variant="secondary" className="capitalize text-[10px]">
               {isHi ? "AI फ़ोटो री-एडिट" : "AI Photo Re-Edit"}
             </Badge>
-            <span className="text-xs text-muted-foreground">{isHi ? "सत्र:" : "Session:"} {currentImage.interactionId}</span>
+            {currentImage.variationType && (
+              <Badge variant="outline" className="capitalize text-[10px] text-muted-foreground">
+                {currentImage.variationType.replace(/_/g, " ")}
+              </Badge>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight mt-1 text-foreground">
             {isHi ? "स्टूडियो शॉट को संशोधित और री-जनरेट करें" : "Refine & Re-generate Studio Shot"}
@@ -300,6 +308,18 @@ export default function ReEditPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {failureError && (
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-semibold block">
+                      {isHi ? "री-एडिट पूरा नहीं हो सका" : "Re-edit Failed"}
+                    </span>
+                    <span>{failureError}</span>
+                  </div>
+                </div>
+              )}
+
               <Textarea
                 placeholder={isHi ? "उदा. बैकग्राउंड को सॉफ्ट पेस्टल पिंक मार्बल में बदलें, लाइटिंग को अधिक वॉर्म बनाएं..." : "e.g. Change the background to a soft pastel pink marble surface, make lighting warmer and add subtle floral shadows on the right..."}
                 className="h-28 text-sm resize-none"
