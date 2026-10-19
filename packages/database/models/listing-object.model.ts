@@ -108,6 +108,9 @@ export interface IListingObject extends Document {
     updatedAt?: Date;
   };
 
+  // SEO regeneration rate limit counter
+  seoRegenerateCount?: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -243,6 +246,9 @@ const ListingObjectSchema = new Schema<IListingObject>(
       errorMessage: { type: String },
       updatedAt: { type: Date },
     },
+
+    // SEO regeneration rate limit counter (defaults to 0)
+    seoRegenerateCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 );

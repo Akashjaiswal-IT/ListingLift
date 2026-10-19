@@ -319,27 +319,78 @@ export const listingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
 
-      const generatedText = await generateListingText({
-        userTitle: listing.userTitle || "Product",
-        userDescription: listing.userDescription,
-        userPrompt: listing.userPrompt,
-        price: listing.price,
-        discountPrice: listing.discountPrice,
-        sizes: listing.sizes,
-        variants: listing.variants,
-        ctaText: listing.ctaText,
-        storeName: ctx.user.storeName,
-        whatsappNumber: ctx.user.whatsappNumber,
-        instagramHandle: ctx.user.instagramHandle,
-        originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
-      });
+      // Enforce per-listing SEO regeneration rate limits based on type:
+      // Quick Product (listing_product): 2 max
+      // Full Listing Kit (listing_kit): 5 max
+      const maxLimit = listing.type === "listing_product" ? 2 : 5;
+      const currentCount = listing.seoRegenerateCount ?? 0;
+
+      if (currentCount >= maxLimit) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `SEO copy regeneration limit reached (${maxLimit} max for ${
+            listing.type === "listing_product" ? "Quick Product" : "Listing Kit"
+          }).`,
+        });
+      }
+
+      // Claim a regeneration slot atomically to prevent concurrent requests from bypassing the cap
+      const claimed = await ListingObject.findOneAndUpdate(
+        {
+          _id: listing._id,
+          userId: ctx.user._id,
+          $or: [
+            { seoRegenerateCount: { $lt: maxLimit } },
+            { seoRegenerateCount: { $exists: false } },
+          ],
+        },
+        {
+          $inc: { seoRegenerateCount: 1 },
+        },
+        { new: true }
+      );
+
+      if (!claimed) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `SEO copy regeneration limit reached (${maxLimit} max).`,
+        });
+      }
+
+      let generatedText;
+      try {
+        generatedText = await generateListingText({
+          userTitle: listing.userTitle || "Product",
+          userDescription: listing.userDescription,
+          userPrompt: listing.userPrompt,
+          price: listing.price,
+          discountPrice: listing.discountPrice,
+          sizes: listing.sizes,
+          variants: listing.variants,
+          ctaText: listing.ctaText,
+          storeName: ctx.user.storeName,
+          whatsappNumber: ctx.user.whatsappNumber,
+          instagramHandle: ctx.user.instagramHandle,
+          originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
+        });
+      } catch (genError) {
+        // Roll back the claimed count if OpenAI generation failed so the user isn't penalized
+        await ListingObject.updateOne(
+          { _id: listing._id },
+          { $inc: { seoRegenerateCount: -1 } }
+        ).catch(() => {});
+        throw genError;
+      }
 
       await ListingObject.updateOne(
         { _id: listing._id },
         { $set: { aiGeneratedText: generatedText, textStatus: "completed" } }
       );
 
-      return generatedText;
+      return {
+        ...generatedText,
+        seoRegenerateCount: claimed.seoRegenerateCount ?? currentCount + 1,
+      };
     }),
 
   exportExcel: protectedProcedure

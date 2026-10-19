@@ -394,6 +394,18 @@ export const generateRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
 
+      const maxLimit = listing.type === "listing_product" ? 2 : 5;
+      const currentCount = listing.seoRegenerateCount ?? 0;
+
+      if (currentCount >= maxLimit) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `SEO copy regeneration limit reached (${maxLimit} max for ${
+            listing.type === "listing_product" ? "Quick Product" : "Listing Kit"
+          }).`,
+        });
+      }
+
       listing.textStatus = "pending";
       await listing.save();
 

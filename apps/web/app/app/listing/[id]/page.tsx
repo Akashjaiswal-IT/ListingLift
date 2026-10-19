@@ -136,6 +136,10 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const text = listing.aiGeneratedText;
+  const maxRegenerations = listing.type === "listing_product" ? 2 : 5;
+  const regenerationsUsed = (listing as any).seoRegenerateCount ?? 0;
+  const regenerationsRemaining = Math.max(0, maxRegenerations - regenerationsUsed);
+  const isRegenLimitReached = regenerationsRemaining <= 0;
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
@@ -167,13 +171,30 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             variant="outline"
             size="sm"
             onClick={handleRegenerateText}
-            disabled={isRegenerating}
-            className="gap-2 font-semibold text-xs h-9 rounded-xl border-border"
+            disabled={isRegenerating || isRegenLimitReached}
+            title={
+              isRegenLimitReached
+                ? isHi
+                  ? `एसईओ सीमा समाप्त (${maxRegenerations}/${maxRegenerations} इस्तेमाल किए गए)`
+                  : `Limit reached (${maxRegenerations}/${maxRegenerations} regenerations used for this listing)`
+                : undefined
+            }
+            className={`gap-2 font-semibold text-xs h-9 rounded-xl border-border ${
+              isRegenLimitReached ? "opacity-60 cursor-not-allowed text-muted-foreground" : ""
+            }`}
           >
             <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin text-primary" : ""}`} />
             {isRegenerating
-              ? isHi ? "AI द्वारा फिर से लिखा जा रहा है..." : "Rewriting with AI..."
-              : isHi ? "एसईओ कॉपी दोबारा लिखें" : "Regenerate SEO Copy"}
+              ? isHi
+                ? "AI द्वारा फिर से लिखा जा रहा है..."
+                : "Rewriting with AI..."
+              : isRegenLimitReached
+                ? isHi
+                  ? `एसईओ सीमा समाप्त (${regenerationsUsed}/${maxRegenerations})`
+                  : `SEO Limit Reached (${regenerationsUsed}/${maxRegenerations})`
+                : isHi
+                  ? `एसईओ कॉपी दोबारा लिखें (${regenerationsRemaining}/${maxRegenerations})`
+                  : `Regenerate SEO Copy (${regenerationsRemaining}/${maxRegenerations})`}
           </Button>
 
           {text?.whatsappCaption && (
