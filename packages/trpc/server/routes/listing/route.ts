@@ -170,7 +170,12 @@ export const listingRouter = router({
 
       const query: any = { userId: ctx.user._id };
       if (type) query.type = type;
-      if (status) query.status = status;
+      if (status) {
+        query.status = status;
+      } else {
+        // Exclude unstarted draft uploads ("uploaded") from standard history and dashboard listings
+        query.status = { $ne: "uploaded" };
+      }
       if (search) {
         // Case-insensitive title search. Escape regex metacharacters so a user
         // typing e.g. "(" can't create an invalid or catastrophic pattern.

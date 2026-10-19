@@ -51,6 +51,7 @@ export const uploadRouter = router({
     .input(
       z.object({
         type: z.enum(["listing_product", "listing_kit"]),
+        listingObjectId: z.string().optional(),
         originalImages: z
           .array(
             z.object({
@@ -99,6 +100,53 @@ export const uploadRouter = router({
           };
         })
       );
+
+      // If an existing unstarted uploaded listing was specified, update it and
+      // clean up any obsolete images from R2 storage instead of leaving an orphan.
+      if (input.listingObjectId) {
+        const existingListing = await ListingObject.findOne({
+          _id: input.listingObjectId,
+          userId: ctx.user._id,
+          status: "uploaded",
+        });
+
+        if (existingListing) {
+          const newKeys = new Set(safeOriginals.map((img) => img.s3Key));
+          for (const oldImg of existingListing.originalImages || []) {
+            if (oldImg.s3Key && !newKeys.has(oldImg.s3Key)) {
+              try {
+                await deleteObjectFromR2(oldImg.s3Key);
+              } catch {}
+            }
+          }
+
+          existingListing.type = input.type;
+          existingListing.originalImages = safeOriginals;
+          await existingListing.save();
+
+          return {
+            listingObjectId: String(existingListing._id),
+            type: existingListing.type,
+            originalImages: existingListing.originalImages,
+          };
+        }
+      }
+
+      // Clean up any stale unstarted orphan drafts for this user so they don't linger
+      const staleDrafts = await ListingObject.find({
+        userId: ctx.user._id,
+        status: "uploaded",
+      });
+      for (const draft of staleDrafts) {
+        for (const img of draft.originalImages || []) {
+          if (img.s3Key) {
+            try {
+              await deleteObjectFromR2(img.s3Key);
+            } catch {}
+          }
+        }
+        await ListingObject.deleteOne({ _id: draft._id });
+      }
 
       const listingObject = await ListingObject.create({
         userId: ctx.user._id,

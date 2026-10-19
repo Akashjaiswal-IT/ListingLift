@@ -222,10 +222,11 @@ export default function GeneratePage() {
       }
       setUploadProgress(100);
 
-      // Confirm upload and initialize listingObject in MongoDB
+      // Confirm upload and initialize/update listingObject in MongoDB
       const res = await confirmUploadMutation.mutateAsync({
         type: selectedType,
         originalImages: uploadedOriginals,
+        listingObjectId: activeListingId || undefined,
       });
 
       setActiveListingId(res.listingObjectId);
