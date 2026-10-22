@@ -1,8 +1,9 @@
 "use client";
 
 import { SignIn } from "@clerk/nextjs";
-import { Sparkles, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Zap } from "lucide-react";
 import { useLanguage } from "~/providers/LanguageContext";
+import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export default function LoginPage() {
   const { language, t } = useLanguage();
@@ -17,9 +18,7 @@ export default function LoginPage() {
         <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-amber-600/15 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="relative z-20 flex items-center text-lg font-bold gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white font-black shadow-md">
-            P
-          </div>
+          <IrisMark size={36} className="h-9 w-9" />
           <span className="text-xl font-serif font-black tracking-tight text-white">Peshkar AI</span>
         </div>
 
