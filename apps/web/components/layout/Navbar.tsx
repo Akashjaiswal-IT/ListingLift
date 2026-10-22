@@ -24,6 +24,7 @@ import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
 import { trpc } from "~/trpc/client";
 import { useLanguage } from "~/providers/LanguageContext";
 import { useTheme } from "next-themes";
+import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -66,11 +67,9 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-md transition-colors">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        {/* Brand Logo - Orange Square with white 'P' */}
+        {/* Brand Logo - Camera iris mark + wordmark */}
         <Link href="/" className="flex min-w-0 shrink items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.01]">
-          <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-lg sm:text-xl shadow-sm shadow-primary/20 shrink-0">
-            P
-          </div>
+          <IrisMark size={36} className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
           <div className="flex flex-col">
             <span className="whitespace-nowrap text-base min-[340px]:text-lg sm:text-xl font-black tracking-tight text-foreground font-serif leading-none">
               Peshkar AI

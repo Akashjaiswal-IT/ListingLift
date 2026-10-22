@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLanguage } from "~/providers/LanguageContext";
+import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export function Footer() {
   const { language, t } = useLanguage();
@@ -13,9 +14,7 @@ export function Footer() {
           {/* Brand info */}
           <div className="md:col-span-2 space-y-3">
             <Link href="/" className="inline-flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-primary text-white font-black text-lg flex items-center justify-center">
-                P
-              </div>
+              <IrisMark size={36} className="h-9 w-9" />
               <span className="text-2xl font-black font-serif tracking-tight text-white">
                 Peshkar AI
               </span>
