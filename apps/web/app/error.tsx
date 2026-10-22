@@ -9,6 +9,7 @@
 import { useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { captureError } from "~/lib/analytics";
+import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export default function Error({
   error,
@@ -25,6 +26,7 @@ export default function Error({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
+      <IrisMark size={48} className="mb-2 h-12 w-12" />
       <h2 className="font-serif text-2xl font-bold text-foreground">
         Something went wrong
       </h2>

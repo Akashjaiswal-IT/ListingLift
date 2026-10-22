@@ -2,10 +2,12 @@
 // 404 beats the default bare Next.js page.
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
+import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export default function NotFound() {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
+      <IrisMark size={56} className="mb-2 h-14 w-14" />
       <p className="font-serif text-5xl font-black text-primary">404</p>
       <h2 className="text-xl font-bold text-foreground">Page not found</h2>
       <p className="max-w-md text-sm text-muted-foreground">
