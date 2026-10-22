@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -21,9 +21,13 @@ const serif = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Peshkar AI — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
+  title: {
+    default: "Peshkar AI — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
+    template: "%s · Peshkar AI",
+  },
   description:
     "Transform ordinary phone photos into studio-grade e-commerce catalogs, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and viral social cards in seconds.",
+  applicationName: "Peshkar AI",
   keywords: [
     "ecommerce listing generator",
     "ai product photography",
@@ -34,6 +38,21 @@ export const metadata: Metadata = {
     "e-commerce copywriting ai",
     "meesho amazon flipkart catalog maker",
   ],
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: "/icon.svg",
+  },
+  openGraph: {
+    title: "Peshkar AI — AI Studio Photos & Listings for Sellers",
+    description:
+      "Turn phone photos into studio-grade product images, marketplace listings, and social cards in seconds.",
+    siteName: "Peshkar AI",
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#E05822",
 };
 
 export default function RootLayout({
