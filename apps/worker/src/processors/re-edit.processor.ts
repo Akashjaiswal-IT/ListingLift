@@ -10,6 +10,7 @@ import {
   refundCredits,
   RE_EDIT_CREDIT_COST,
   deleteObjectFromR2,
+  DEFAULT_TEMPLATE_ID,
 } from "@repo/services";
 
 export async function processReEdit(
@@ -96,53 +97,70 @@ export async function processReEdit(
 
     // 6. Refresh social cards with new image
     const user = await User.findById(listing.userId);
-    const templateId = (listing as any).templateId || "minimal-luxury";
-    const renderedCards = await renderSocialCards({
-      productImage: editOutput.buffer,
-      productTitle: listing.userTitle || "Product",
-      price: listing.price,
-      discountPrice: listing.discountPrice,
-      ctaText: listing.ctaText || user?.defaultCta?.text,
-      templateId,
-      sellerInfo: {
-        storeName: user?.storeName,
-        whatsappNumber: user?.whatsappNumber,
-        instagramHandle: user?.instagramHandle,
-      },
-    });
+    const templateId = (listing as any).templateId || DEFAULT_TEMPLATE_ID;
+    // Old card keys are cleaned up from R2 only once new cards are saved
+    let oldCardKeys: string[] = [];
+    // The edited image is what the seller paid for: if the card refresh fails, keep the old cards
+    // and still complete the re-edit rather than failing (and losing) the new image.
+    try {
+      const renderedCards = await renderSocialCards({
+        productImage: editOutput.buffer,
+        productTitle: listing.userTitle || "Product",
+        price: listing.price,
+        discountPrice: listing.discountPrice,
+        ctaText: listing.ctaText || user?.defaultCta?.text,
+        templateId,
+        sellerInfo: {
+          storeName: user?.storeName,
+          whatsappNumber: user?.whatsappNumber,
+          instagramHandle: user?.instagramHandle,
+        },
+        language: user?.cardSettings?.language ?? "en",
+        trustBadges: {
+          cod: user?.cardSettings?.cod === true,
+          freeDelivery: user?.cardSettings?.freeDelivery === true,
+          easyReturns: user?.cardSettings?.easyReturns === true,
+          madeInIndia: user?.cardSettings?.madeInIndia === true,
+        },
+      });
 
-    // Collect old card keys so they can be cleaned up from R2 storage once new ones are saved
-    const oldCardKeys: string[] = [
-      listing.whatsappCard?.s3Key,
-      listing.instagramPost?.s3Key,
-      listing.instagramStory?.s3Key,
-    ].filter(Boolean) as string[];
+      const waKey = `cards/${listing._id}/wa_${Date.now()}.jpg`;
+      const igPostKey = `cards/${listing._id}/ig_post_${Date.now()}.jpg`;
+      const igStoryKey = `cards/${listing._id}/ig_story_${Date.now()}.jpg`;
 
-    const waKey = `cards/${listing._id}/wa_${Date.now()}.webp`;
-    const igPostKey = `cards/${listing._id}/ig_post_${Date.now()}.webp`;
-    const igStoryKey = `cards/${listing._id}/ig_story_${Date.now()}.webp`;
+      const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
+        uploadBufferToR2(waKey, renderedCards.whatsappCard, "image/jpeg"),
+        uploadBufferToR2(igPostKey, renderedCards.instagramPost, "image/jpeg"),
+        uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/jpeg"),
+      ]);
 
-    const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
-      uploadBufferToR2(waKey, renderedCards.whatsappCard, "image/webp"),
-      uploadBufferToR2(igPostKey, renderedCards.instagramPost, "image/webp"),
-      uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/webp"),
-    ]);
+      oldCardKeys = [
+        listing.whatsappCard?.s3Key,
+        listing.instagramPost?.s3Key,
+        listing.instagramStory?.s3Key,
+      ].filter(Boolean) as string[];
 
-    listing.whatsappCard = {
-      s3Key: waUpload.s3Key,
-      url: waUpload.publicUrl,
-      generatedAt: new Date(),
-    };
-    listing.instagramPost = {
-      s3Key: igPostUpload.s3Key,
-      url: igPostUpload.publicUrl,
-      generatedAt: new Date(),
-    };
-    listing.instagramStory = {
-      s3Key: igStoryUpload.s3Key,
-      url: igStoryUpload.publicUrl,
-      generatedAt: new Date(),
-    };
+      listing.whatsappCard = {
+        s3Key: waUpload.s3Key,
+        url: waUpload.publicUrl,
+        templateId,
+        generatedAt: new Date(),
+      };
+      listing.instagramPost = {
+        s3Key: igPostUpload.s3Key,
+        url: igPostUpload.publicUrl,
+        templateId,
+        generatedAt: new Date(),
+      };
+      listing.instagramStory = {
+        s3Key: igStoryUpload.s3Key,
+        url: igStoryUpload.publicUrl,
+        templateId,
+        generatedAt: new Date(),
+      };
+    } catch (cardErr) {
+      logger.error(`Card refresh failed on re-edit for listing ${listingObjectId}; keeping previous cards`, { cardErr });
+    }
 
     listing.reEditStatus = {
       status: "completed",

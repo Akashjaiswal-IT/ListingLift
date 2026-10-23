@@ -13,6 +13,7 @@ import {
   refundCredits,
   captureServerException,
   IMAGE_GENERATION_MAX_ATTEMPTS,
+  DEFAULT_TEMPLATE_ID,
 } from "@repo/services";
 
 type GenerationStage = "preparing" | "enhancing_prompt" | "rendering_images" | "rendering_cards";
@@ -154,30 +155,51 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
       generatedOutputs.find((o) => o.variationType === "studio_white")?.buffer ||
       generatedOutputs[0]?.buffer ||
       optimizedBuffers[0]!;
-    const templateId = (listing as any).templateId || "minimal-luxury";
-    const renderedCards = await renderSocialCards({
-      productImage: primaryImgBuffer,
-      productTitle: listing.userTitle || "Product",
-      price: listing.price,
-      discountPrice: listing.discountPrice,
-      ctaText: listing.ctaText || user?.defaultCta?.text,
-      templateId,
-      sellerInfo: {
-        storeName: user?.storeName,
-        whatsappNumber: user?.whatsappNumber,
-        instagramHandle: user?.instagramHandle,
-      },
-    });
+    const templateId = (listing as any).templateId || DEFAULT_TEMPLATE_ID;
+    // Cards are a bonus on top of the paid studio images: if they fail, finish the listing without
+    // them (the seller can regenerate cards later) instead of failing and re-paying for Gemini.
+    let cardFields: Record<string, unknown> = {};
+    try {
+      const renderedCards = await renderSocialCards({
+        productImage: primaryImgBuffer,
+        productTitle: listing.userTitle || "Product",
+        price: listing.price,
+        discountPrice: listing.discountPrice,
+        ctaText: listing.ctaText || user?.defaultCta?.text,
+        templateId,
+        sellerInfo: {
+          storeName: user?.storeName,
+          whatsappNumber: user?.whatsappNumber,
+          instagramHandle: user?.instagramHandle,
+        },
+        language: user?.cardSettings?.language ?? "en",
+        trustBadges: {
+          cod: user?.cardSettings?.cod === true,
+          freeDelivery: user?.cardSettings?.freeDelivery === true,
+          easyReturns: user?.cardSettings?.easyReturns === true,
+          madeInIndia: user?.cardSettings?.madeInIndia === true,
+        },
+      });
 
-    const waKey = `cards/${listing._id}/wa_${Date.now()}.webp`;
-    const igPostKey = `cards/${listing._id}/ig_post_${Date.now()}.webp`;
-    const igStoryKey = `cards/${listing._id}/ig_story_${Date.now()}.webp`;
+      const waKey = `cards/${listing._id}/wa_${Date.now()}.jpg`;
+      const igPostKey = `cards/${listing._id}/ig_post_${Date.now()}.jpg`;
+      const igStoryKey = `cards/${listing._id}/ig_story_${Date.now()}.jpg`;
 
-    const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
-      uploadBufferToR2(waKey, renderedCards.whatsappCard, "image/webp"),
-      uploadBufferToR2(igPostKey, renderedCards.instagramPost, "image/webp"),
-      uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/webp"),
-    ]);
+      const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
+        uploadBufferToR2(waKey, renderedCards.whatsappCard, "image/jpeg"),
+        uploadBufferToR2(igPostKey, renderedCards.instagramPost, "image/jpeg"),
+        uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/jpeg"),
+      ]);
+      const card = (upload: { s3Key: string; publicUrl: string }) => ({
+        s3Key: upload.s3Key,
+        url: upload.publicUrl,
+        templateId,
+        generatedAt: new Date(),
+      });
+      cardFields = { whatsappCard: card(waUpload), instagramPost: card(igPostUpload), instagramStory: card(igStoryUpload) };
+    } catch (cardErr) {
+      logger.error(`Card rendering failed for listing ${listingObjectId}; completing without cards`, { cardErr });
+    }
 
     // 7. Update ListingObject to completed with BOTH images and SEO text deliverables
     await ListingObject.updateOne(
@@ -191,24 +213,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
           enhancedPrompt,
           productInventory: analysis.inventory,
           generatedImages: generatedImagesDocs,
-          whatsappCard: {
-            s3Key: waUpload.s3Key,
-            url: waUpload.publicUrl,
-            templateId,
-            generatedAt: new Date(),
-          },
-          instagramPost: {
-            s3Key: igPostUpload.s3Key,
-            url: igPostUpload.publicUrl,
-            templateId,
-            generatedAt: new Date(),
-          },
-          instagramStory: {
-            s3Key: igStoryUpload.s3Key,
-            url: igStoryUpload.publicUrl,
-            templateId,
-            generatedAt: new Date(),
-          },
+          ...cardFields,
         },
       }
     );
