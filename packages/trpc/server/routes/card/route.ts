@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
-import { ListingObject } from "@repo/database";
+import { ListingObject, Types } from "@repo/database";
 import {
   fetchBufferFromR2,
   uploadBufferToR2,
@@ -57,6 +57,13 @@ export const cardRouter = router({
           whatsappNumber: ctx.user.whatsappNumber,
           instagramHandle: ctx.user.instagramHandle,
         },
+        language: ctx.user.cardSettings?.language ?? "en",
+        trustBadges: {
+          cod: ctx.user.cardSettings?.cod === true,
+          freeDelivery: ctx.user.cardSettings?.freeDelivery === true,
+          easyReturns: ctx.user.cardSettings?.easyReturns === true,
+          madeInIndia: ctx.user.cardSettings?.madeInIndia === true,
+        },
       });
 
       // Collect old card keys so they can be cleaned up from R2 storage once new ones are saved
@@ -66,14 +73,14 @@ export const cardRouter = router({
         listing.instagramStory?.s3Key,
       ].filter(Boolean) as string[];
 
-      const waKey = `cards/${listing._id}/whatsapp-${Date.now()}.webp`;
-      const igPostKey = `cards/${listing._id}/ig-post-${Date.now()}.webp`;
-      const igStoryKey = `cards/${listing._id}/ig-story-${Date.now()}.webp`;
+      const waKey = `cards/${listing._id}/whatsapp-${Date.now()}.jpg`;
+      const igPostKey = `cards/${listing._id}/ig-post-${Date.now()}.jpg`;
+      const igStoryKey = `cards/${listing._id}/ig-story-${Date.now()}.jpg`;
 
       const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
-        uploadBufferToR2(waKey, cards.whatsappCard, "image/webp"),
-        uploadBufferToR2(igPostKey, cards.instagramPost, "image/webp"),
-        uploadBufferToR2(igStoryKey, cards.instagramStory, "image/webp"),
+        uploadBufferToR2(waKey, cards.whatsappCard, "image/jpeg"),
+        uploadBufferToR2(igPostKey, cards.instagramPost, "image/jpeg"),
+        uploadBufferToR2(igStoryKey, cards.instagramStory, "image/jpeg"),
       ]);
 
       listing.whatsappCard = {
@@ -110,7 +117,20 @@ export const cardRouter = router({
 
   getDownloadUrl: protectedProcedure
     .input(z.object({ s3Key: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // Only sign keys the caller owns: their own uploads, or images/cards of their own listing.
+      const [prefix, owner] = input.s3Key.split("/");
+      const userId = String(ctx.user._id);
+      let allowed = false;
+      if (prefix === "uploads") {
+        allowed = owner === userId;
+      } else if ((prefix === "generated" || prefix === "cards") && owner && Types.ObjectId.isValid(owner)) {
+        allowed = !!(await ListingObject.exists({ _id: owner, userId: ctx.user._id }));
+      }
+      if (!allowed || input.s3Key.includes("..")) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this file" });
+      }
+
       const url = await getPresignedDownloadUrl(input.s3Key, 3600);
       return { downloadUrl: url };
     }),
