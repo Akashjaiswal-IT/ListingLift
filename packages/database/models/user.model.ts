@@ -15,6 +15,23 @@ export interface IDefaultCta {
   link?: string;             // optional link
 }
 
+// Facts the seller vouches for; cards print only what is switched on here.
+export interface ICardSettings {
+  language: "en" | "hi";
+  cod: boolean;
+  freeDelivery: boolean;
+  easyReturns: boolean;
+  madeInIndia: boolean;
+}
+
+export const DEFAULT_CARD_SETTINGS: ICardSettings = {
+  language: "en",
+  cod: false,
+  freeDelivery: false,
+  easyReturns: false,
+  madeInIndia: false,
+};
+
 export interface IUser extends Document {
   clerkId: string;
   fullName: string;
@@ -28,6 +45,7 @@ export interface IUser extends Document {
   instagramHandle?: string;
   logoUrl?: string;
   defaultCta?: IDefaultCta;
+  cardSettings?: ICardSettings;
 
   // Credits (inline)
   creditBalance: number;
@@ -80,6 +98,13 @@ const UserSchema = new Schema<IUser>(
     defaultCta: {
       text: { type: String },
       link: { type: String },
+    },
+    cardSettings: {
+      language: { type: String, enum: ["en", "hi"], default: "en" },
+      cod: { type: Boolean, default: false },
+      freeDelivery: { type: Boolean, default: false },
+      easyReturns: { type: Boolean, default: false },
+      madeInIndia: { type: Boolean, default: false },
     },
 
     // Credits

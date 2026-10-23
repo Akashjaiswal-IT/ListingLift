@@ -1,13 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserCheck, Store, MessageCircle, Instagram, Image as ImageIcon, Save, Loader2 } from "lucide-react";
+import { UserCheck, Store, MessageCircle, Instagram, Image as ImageIcon, Save, Loader2, BadgeCheck } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Card, CardContent } from "~/components/ui/card";
+import { Switch } from "~/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { trpc } from "~/trpc/client";
 import { toast } from "sonner";
 import { useLanguage } from "~/providers/LanguageContext";
+
+type CardLanguage = "en" | "hi";
+type TrustBadgeKey = "cod" | "freeDelivery" | "easyReturns" | "madeInIndia";
+
+const TRUST_BADGES: { key: TrustBadgeKey; en: string; hi: string }[] = [
+  { key: "cod", en: "Cash on Delivery available", hi: "कैश ऑन डिलीवरी उपलब्ध" },
+  { key: "freeDelivery", en: "Free delivery", hi: "फ्री डिलीवरी" },
+  { key: "easyReturns", en: "Easy returns", hi: "आसान रिटर्न" },
+  { key: "madeInIndia", en: "Made in India", hi: "मेड इन इंडिया" },
+];
+
+const NO_TRUST_BADGES: Record<TrustBadgeKey, boolean> = {
+  cod: false,
+  freeDelivery: false,
+  easyReturns: false,
+  madeInIndia: false,
+};
 
 export default function ProfilePage() {
   const { language } = useLanguage();
@@ -21,6 +40,8 @@ export default function ProfilePage() {
   const [instagramHandle, setInstagramHandle] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [defaultCtaText, setDefaultCtaText] = useState(isHi ? "व्हाट्सएप पर ऑर्डर करें" : "Order Now via WhatsApp");
+  const [cardLanguage, setCardLanguage] = useState<CardLanguage>("en");
+  const [trustBadges, setTrustBadges] = useState<Record<TrustBadgeKey, boolean>>(NO_TRUST_BADGES);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -31,6 +52,14 @@ export default function ProfilePage() {
       setInstagramHandle(u.instagramHandle || "");
       setLogoUrl(u.logoUrl || "");
       if (u.defaultCta?.text) setDefaultCtaText(u.defaultCta.text);
+      const cs = u.cardSettings;
+      setCardLanguage(cs?.language === "hi" ? "hi" : "en");
+      setTrustBadges({
+        cod: cs?.cod === true,
+        freeDelivery: cs?.freeDelivery === true,
+        easyReturns: cs?.easyReturns === true,
+        madeInIndia: cs?.madeInIndia === true,
+      });
     }
   }, [profileQuery.data]);
 
@@ -44,6 +73,10 @@ export default function ProfilePage() {
         logoUrl: logoUrl || undefined,
         defaultCta: {
           text: defaultCtaText,
+        },
+        cardSettings: {
+          language: cardLanguage,
+          ...trustBadges,
         },
       });
       toast.success(isHi ? "सेलर प्रोफ़ाइल अपडेट हुई! मार्केटिंग कार्ड्स अब आपकी ब्रांडिंग का उपयोग करेंगे।" : "Seller profile updated! Marketing cards will now use your branding.");
@@ -133,6 +166,60 @@ export default function ProfilePage() {
               value={defaultCtaText}
               onChange={(e) => setDefaultCtaText(e.target.value)}
             />
+          </div>
+
+          <div className="pt-5 border-t border-border/40 space-y-4">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                <BadgeCheck className="h-4 w-4 text-primary" /> {isHi ? "कार्ड सेटिंग्स" : "Card settings"}
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                {isHi
+                  ? "इन्हें तभी चालू करें जब ये आपकी दुकान के लिए सच हों — ये आपके कार्ड पर छपेंगे।"
+                  : "Only switch these on if they are true for your shop — they are printed on your cards."}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="card-language"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
+                {isHi ? "कार्ड की भाषा" : "Card language"}
+              </label>
+              <Select value={cardLanguage} onValueChange={(val) => setCardLanguage(val === "hi" ? "hi" : "en")}>
+                <SelectTrigger id="card-language" className="w-[180px] h-9 text-xs rounded-xl border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="hi">हिंदी</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {TRUST_BADGES.map((badge) => {
+                const id = `card-badge-${badge.key}`;
+                return (
+                  <div
+                    key={badge.key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2.5"
+                  >
+                    <label htmlFor={id} className="text-sm text-foreground cursor-pointer">
+                      {isHi ? badge.hi : badge.en}
+                    </label>
+                    <Switch
+                      id={id}
+                      checked={trustBadges[badge.key]}
+                      onCheckedChange={(checked) =>
+                        setTrustBadges((prev) => ({ ...prev, [badge.key]: checked }))
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="pt-4 border-t border-border/40 flex justify-end">

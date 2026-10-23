@@ -1,12 +1,38 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
-import { User, CreditLedger } from "@repo/database";
+import { User, CreditLedger, DEFAULT_CARD_SETTINGS, type IUser } from "@repo/database";
 import { getPresignedUploadUrl, addCredits } from "@repo/services";
+
+const cardSettingsInput = z.object({
+  language: z.enum(["en", "hi"]).optional(),
+  cod: z.boolean().optional(),
+  freeDelivery: z.boolean().optional(),
+  easyReturns: z.boolean().optional(),
+  madeInIndia: z.boolean().optional(),
+});
+
+// Users created before card settings existed have none stored; fill every field
+// so the client always gets a complete object and nothing is ever claimed by default.
+function resolveCardSettings(stored: Partial<NonNullable<IUser["cardSettings"]>> | undefined | null) {
+  return {
+    language: stored?.language === "hi" ? ("hi" as const) : DEFAULT_CARD_SETTINGS.language,
+    cod: stored?.cod === true,
+    freeDelivery: stored?.freeDelivery === true,
+    easyReturns: stored?.easyReturns === true,
+    madeInIndia: stored?.madeInIndia === true,
+  };
+}
+
+function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
 
 export const userRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.user;
+    // toJSON() is exactly what the response serialised before; only cardSettings is normalised.
+    const profile = (typeof ctx.user.toJSON === "function" ? ctx.user.toJSON() : ctx.user) as IUser;
+    return { ...profile, cardSettings: resolveCardSettings(ctx.user.cardSettings) };
   }),
 
   updateProfile: protectedProcedure
@@ -39,6 +65,7 @@ export const userRouter = router({
             link: z.string().optional(),
           })
           .optional(),
+        cardSettings: cardSettingsInput.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -46,6 +73,14 @@ export const userRouter = router({
         ctx.user._id,
         {
           $set: {
+            ...(input.cardSettings !== undefined
+              ? {
+                  cardSettings: resolveCardSettings({
+                    ...resolveCardSettings(ctx.user.cardSettings),
+                    ...stripUndefined(input.cardSettings),
+                  }),
+                }
+              : {}),
             ...(input.storeName !== undefined ? { storeName: input.storeName } : {}),
             ...(input.whatsappNumber !== undefined ? { whatsappNumber: input.whatsappNumber } : {}),
             ...(input.instagramHandle !== undefined ? { instagramHandle: input.instagramHandle } : {}),
