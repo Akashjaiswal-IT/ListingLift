@@ -28,6 +28,8 @@ export const generateRouter = router({
         variants: z.array(z.string()).optional(),
         ctaText: z.string().optional(),
         templateId: z.string().optional().default("minimal-luxury"),
+        keepWear: z.boolean().optional().default(false),
+        qualityMode: z.enum(["standard", "pro"]).optional().default("standard"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -73,7 +75,8 @@ export const generateRouter = router({
       // Calculate credit cost
       const creditsNeeded = calculateGenerationCredits(
         listing.type,
-        listing.originalImages.length
+        listing.originalImages.length,
+        input.qualityMode
       );
 
       // Deduct credits atomically
@@ -82,7 +85,7 @@ export const generateRouter = router({
         const deductResult = await deductCredits({
           userId: ctx.user._id,
           amount: creditsNeeded,
-          description: `Generation for ${listing.type === "listing_product" ? "Quick Product" : "Listing Kit"}: ${input.userTitle}`,
+          description: `Generation for ${listing.type === "listing_product" ? "Quick Product" : "Listing Kit"}: ${input.userTitle}${input.qualityMode === "pro" ? " (Pro quality)" : ""}`,
           referenceId: String(listing._id),
           referenceType: "listing_object",
         });
@@ -108,7 +111,10 @@ export const generateRouter = router({
       // the job up (a plain listing.save() below could clobber the worker's stage).
       await ListingObject.updateOne(
         { _id: listing._id },
-        { $unset: { generationStage: 1 }, $set: { retryCount: 0 } }
+        {
+          $unset: { generationStage: 1 },
+          $set: { retryCount: 0, keepWear: input.keepWear, qualityMode: input.qualityMode },
+        }
       );
 
       let jobId: string | undefined;
@@ -145,6 +151,8 @@ export const generateRouter = router({
       listing.variants = input.variants;
       listing.ctaText = input.ctaText?.trim() || undefined;
       listing.templateId = input.templateId;
+      listing.keepWear = input.keepWear;
+      listing.qualityMode = input.qualityMode;
       listing.creditsCharged = creditsNeeded;
       listing.creditsRefunded = false;
       listing.status = "queued";
@@ -441,7 +449,8 @@ export const generateRouter = router({
       // failure that was never refunded can be retried for free.
       const creditsNeeded = calculateGenerationCredits(
         listing.type,
-        listing.originalImages.length
+        listing.originalImages.length,
+        listing.qualityMode === "pro" ? "pro" : "standard"
       );
 
       if (listing.creditsRefunded && creditsNeeded > 0) {
