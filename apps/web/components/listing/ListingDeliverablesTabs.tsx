@@ -25,11 +25,16 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { CARD_TEMPLATES_INFO, CARD_TEMPLATES_MAP, CardTemplateInfo, TemplateId } from "~/lib/card-templates";
+import {
+  CARD_TEMPLATES_INFO,
+  CARD_TEMPLATES_MAP,
+  CARD_TEMPLATE_GROUPS,
+  TemplateId,
+  resolveTemplateId,
+} from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
 import { trackEvent } from "~/lib/analytics";
-import { normalizePricing, formatINR } from "~/lib/price-display";
 import { trpc } from "~/trpc/client";
 import { Loader2 } from "lucide-react";
 
@@ -84,9 +89,12 @@ export function ListingDeliverablesTabs({
     },
   });
 
+  // Retired template IDs resolve to the design they now render as.
+  const currentTemplate = CARD_TEMPLATES_MAP[resolveTemplateId(listing.templateId)];
+
   const handleApplyTemplate = (templateId: TemplateId) => {
     setRenderingTemplateId(templateId);
-    toast.info(isHi ? "कार्ड्स रेंडर हो रहे हैं…" : "Rendering festival cards…");
+    toast.info(isHi ? "कार्ड्स रेंडर हो रहे हैं…" : "Rendering cards…");
     regenerateCardsMutation.mutate({
       listingObjectId: listingId,
       templateId,
@@ -480,17 +488,12 @@ export function ListingDeliverablesTabs({
               <div>
                 <span className="text-xs text-muted-foreground">{isHi ? "वर्तमान सक्रिय कार्ड टेम्पलेट:" : "Currently Active Template:"} </span>
                 <span className="font-bold text-xs text-foreground">
-                  {listing.templateId && CARD_TEMPLATES_MAP[listing.templateId as TemplateId]?.name || "Standard Luxury"}
+                  {currentTemplate ? (isHi ? currentTemplate.name.hi : currentTemplate.name.en) : ""}
                 </span>
-                {listing.templateId && CARD_TEMPLATES_MAP[listing.templateId as TemplateId]?.description && (
-                  <span className="text-[11px] text-muted-foreground hidden sm:inline ml-1.5">
-                    — {CARD_TEMPLATES_MAP[listing.templateId as TemplateId].description}
-                  </span>
-                )}
               </div>
             </div>
             <Badge variant="outline" className="text-[10px] w-fit border-primary/30 text-primary font-semibold">
-              {isHi ? "1080x1080 & 9:16 फ़ॉर्मैट्स" : "1080x1080 & 9:16 Formats"}
+              {isHi ? "1:1 · 4:5 · 9:16 फ़ॉर्मैट्स" : "1:1 · 4:5 · 9:16 Formats"}
             </Badge>
           </div>
 
@@ -516,11 +519,12 @@ export function ListingDeliverablesTabs({
 
             {listing.instagramPost?.url && (
               <Card className="overflow-hidden border-border/60">
-                <div className="aspect-square bg-muted">
-                  <img src={listing.instagramPost.url} alt="Instagram Post" className="w-full h-full object-cover" />
+                {/* New posts are 4:5; older listings have 1:1 posts, so contain instead of crop. */}
+                <div className="aspect-[4/5] bg-muted">
+                  <img src={listing.instagramPost.url} alt="Instagram Post" className="w-full h-full object-contain" />
                 </div>
                 <CardContent className="p-3.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम पोस्ट (1:1)" : "Instagram Post (1:1)"}</span>
+                  <span className="text-xs font-semibold">{isHi ? "इंस्टाग्राम पोस्ट (4:5)" : "Instagram Post (4:5)"}</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -554,57 +558,18 @@ export function ListingDeliverablesTabs({
           </div>
         </div>
 
-        {/* 4 Festive & Studio Collections (35 Cards Total) */}
-        {[
-          {
-            sectionId: "diwali",
-            title: isHi ? "🪔 शुभ दीपावली स्पेशल (9 विशेष टेम्पलेट्स)" : "🪔 Shubh Deepavali Special (9 Festival Templates)",
-            subtitle: isHi ? "रॉयल झरोखा मेहराब, गेंद फूल माला, 3D गोल्डन पैडेस्टल, प्रज्वलित मिट्टी के दीये एवं 24K गोल्ड रिबन" : "Royal jharokha arch, cascading marigold garlands, 3D golden pedestal, lit clay diyas & gold ribbon",
-            badgeText: "SHUBH DIWALI",
-            badgeClass: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30",
-            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "diwali"),
-          },
-          {
-            sectionId: "navratri",
-            title: isHi ? "🌟 नवरात्रि स्पेशल कार्ड्स (8 विशेष टेम्पलेट्स)" : "🌟 Navratri Utsav Cards (8 Festival Templates)",
-            subtitle: isHi ? "डांडिया स्टिक्स, दुर्गा शक्ति त्रिशूल, कच्छी मिरर एम्ब्रॉयडरी एवं रास लीला वेक्टर्स" : "Authored Gujarati dandiya sticks, Durga trishul, Kutch mirror & Raas Leela vectors",
-            badgeText: "NAVRATRI UTSAV",
-            badgeClass: "bg-pink-500/10 text-pink-600 border-pink-500/30",
-            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "navratri"),
-          },
-          {
-            sectionId: "dussehra",
-            title: isHi ? "🏹 दशहरा एवं विजयादशमी स्पेशल (8 विशेष टेम्पलेट्स)" : "🏹 Dussehra & Vijayadashami Special (8 Festival Templates)",
-            subtitle: isHi ? "विजय धनुष बाण, विजय अग्नि, शुभ आप्टा पत्तियां एवं राजपूताना शस्त्र पूजा कलाकृति" : "Authored Vijay Dhanush bow, victory agni, golden apta leaves & shastra puja crest",
-            badgeText: "VIJAYADASHAMI",
-            badgeClass: "bg-amber-500/10 text-amber-600 border-amber-500/30",
-            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "dussehra"),
-          },
-          {
-            sectionId: "luxury",
-            title: isHi ? "👑 लग्जरी स्टूडियो एवं एडिटोरियल (10 विशेष टेम्पलेट्स)" : "👑 Luxury Studio & Editorial (10 Premium Templates)",
-            subtitle: isHi ? "मिनिमलिस्ट आइवरी, 24K गोल्ड फॉयल, एमराल्ड प्रेस्टीज, और सायबर नियॉन ड्रॉप लेआउट्स" : "Minimalist ivory, 24K gold foil, royal emerald, and cyber neon drop layouts",
-            badgeText: "STUDIO LUXE",
-            badgeClass: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30",
-            templates: CARD_TEMPLATES_INFO.filter((t) => t.festivalSection === "luxury" || !t.festivalSection),
-          },
-        ].map((sec) => (
-          <div key={sec.sectionId} className="space-y-4 pt-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  {sec.title}
-                  <Badge variant="outline" className={`text-[10px] font-bold ${sec.badgeClass}`}>
-                    {sec.badgeText}
-                  </Badge>
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{sec.subtitle}</p>
-              </div>
-            </div>
+        {/* Card designs, grouped like the picker on the generate page */}
+        {CARD_TEMPLATE_GROUPS.map((group) => (
+          <div key={group.id} className="space-y-3 pt-2">
+            <h3 className="text-sm font-bold text-foreground border-b border-border/60 pb-2">
+              {isHi ? group.label.hi : group.label.en}
+            </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              {sec.templates.map((tpl) => {
-                const isCurrent = listing.templateId === tpl.id;
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {CARD_TEMPLATES_INFO.filter((t) => t.group === group.id).map((tpl) => {
+                const isCurrent = currentTemplate?.id === tpl.id;
+                // A retired ID highlights its new equivalent but can still be re-rendered in the new design.
+                const isExactCurrent = listing.templateId === tpl.id;
                 const isRendering = renderingTemplateId === tpl.id;
 
                 return (
@@ -616,95 +581,34 @@ export function ListingDeliverablesTabs({
                         : "border-border/60 hover:border-border hover:shadow-xs"
                     }`}
                   >
-                    {/* Rich Visual Card Preview Box (Accurate Reference Rendering) */}
-                    <div
-                      className={`aspect-[4/3] p-2.5 bg-gradient-to-b ${tpl.cardGradClass} border-b ${tpl.borderClass} flex flex-col justify-between relative overflow-hidden`}
-                    >
-                      {/* Top Royal Arch Contour Silhouette */}
-                      <div className="absolute top-0 inset-x-0 h-6 border-b border-amber-400/40 bg-black/20 rounded-b-2xl pointer-events-none" />
-
-                      {/* Side Marigold Garland Dots */}
-                      <div className="absolute left-1.5 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 shadow-xs" />
-                      </div>
-                      <div className="absolute right-1.5 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shadow-xs" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 shadow-xs" />
-                      </div>
-
-                      {/* Header Pill & Active Badge */}
-                      <div className="relative z-10 flex items-center justify-between">
-                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${tpl.tagBadgeClass}`}>
-                          {tpl.tag}
+                    <div className="relative">
+                      <img
+                        src={tpl.previewSrc}
+                        alt=""
+                        width={480}
+                        height={480}
+                        loading="lazy"
+                        className="w-full aspect-square object-cover bg-muted"
+                      />
+                      {isCurrent && (
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-xs">
+                          {isHi ? "सक्रिय" : "ACTIVE"}
                         </span>
-                        {isCurrent && (
-                          <span className="text-[8px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-xs">
-                            {isHi ? "सक्रिय" : "ACTIVE"}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Center 3D Stepped Golden Pedestal with Title */}
-                      <div className="relative z-10 my-auto text-center px-3 space-y-1">
-                        <p className={`text-[10px] font-serif font-black tracking-tight ${tpl.titleColorClass} line-clamp-1`}>
-                          {tpl.headline || tpl.name}
-                        </p>
-                        {/* 3D Circular Pedestal Simulation */}
-                        <div className="mx-auto w-24 h-4 rounded-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 border border-amber-300 shadow-sm flex items-center justify-center">
-                          <span className="text-[7px] font-bold text-stone-900 truncate px-1">
-                            {listing.userTitle?.slice(0, 14) || "Product"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bottom Pricing & Metallic Gold Ribbon Preview */}
-                      <div className="relative z-10 space-y-1 pt-1">
-                        {/* Strikethrough MRP and Price */}
-                        {(() => {
-                          const { mrp, selling } = normalizePricing(listing.price, listing.discountPrice);
-                          if (selling === undefined) return null;
-                          return (
-                            <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold">
-                              {mrp !== undefined && (
-                                <span className="line-through text-muted-foreground/80 opacity-70 text-[8px]">
-                                  {formatINR(mrp)}
-                                </span>
-                              )}
-                              <span className={`font-black text-[11px] ${tpl.priceColorClass}`}>
-                                {formatINR(selling)}
-                              </span>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Gold Ribbon Bar */}
-                        <div className="w-full h-4 rounded bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-400 flex items-center justify-between px-1.5 text-[7px] font-black text-amber-950 shadow-xs">
-                          <span className="truncate max-w-[85px]">🎁 {tpl.tagline?.slice(0, 18) || "Special Offer"}</span>
-                          <span>🔗 SHARE</span>
-                        </div>
-                      </div>
+                      )}
                     </div>
 
-                    <CardContent className="p-3 space-y-2 flex-1 flex flex-col justify-between">
-                      <div>
-                        <h4 className="text-xs font-bold truncate text-foreground">{tpl.name}</h4>
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
-                          {tpl.description}
-                        </p>
-                      </div>
+                    <CardContent className="p-2.5 space-y-2 flex-1 flex flex-col justify-between">
+                      <h4 className="text-xs font-bold text-foreground line-clamp-2">
+                        {isHi ? tpl.name.hi : tpl.name.en}
+                      </h4>
 
                       <Button
                         size="sm"
-                        variant={isCurrent ? "secondary" : "outline"}
-                        disabled={isRendering || isCurrent}
+                        variant={isExactCurrent ? "secondary" : "outline"}
+                        disabled={isRendering || isExactCurrent || regenerateCardsMutation.isPending}
                         onClick={() => handleApplyTemplate(tpl.id)}
-                        className={`w-full h-7 text-[11px] font-bold gap-1 mt-2 ${
-                          isCurrent
+                        className={`w-full h-7 text-[11px] font-bold gap-1 ${
+                          isExactCurrent
                             ? "bg-muted text-muted-foreground"
                             : "border-primary/30 text-primary hover:bg-primary hover:text-white"
                         }`}
@@ -714,8 +618,13 @@ export function ListingDeliverablesTabs({
                             <Loader2 className="h-3 w-3 animate-spin" />
                             {isHi ? "रेंडर हो रहा है…" : "Rendering…"}
                           </>
-                        ) : isCurrent ? (
+                        ) : isExactCurrent ? (
                           isHi ? "लागू है" : "Currently Applied"
+                        ) : isCurrent ? (
+                          <>
+                            <RotateCw className="h-3 w-3" />
+                            {isHi ? "नए डिज़ाइन में बनाएं" : "Update to new design"}
+                          </>
                         ) : (
                           <>
                             <Sparkles className="h-3 w-3" />

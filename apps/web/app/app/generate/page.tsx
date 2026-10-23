@@ -37,7 +37,7 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { useGenerationStore } from "~/stores/useGenerationStore";
 import { TemplateSelector } from "~/components/generate/TemplateSelector";
 import { SmallPrintTip } from "~/components/generate/SmallPrintTip";
-import { TemplateId } from "~/lib/card-templates";
+import { DEFAULT_TEMPLATE_ID, TemplateId } from "~/lib/card-templates";
 import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
@@ -74,7 +74,7 @@ export default function GeneratePage() {
   const [mrp, setMrp] = useState<string>("");
   const [sellingPrice, setSellingPrice] = useState<string>("");
   const [sizes, setSizes] = useState<string>("S, M, L, XL");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>("minimal-luxury");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>(DEFAULT_TEMPLATE_ID);
   const [keepWear, setKeepWear] = useState(false);
   const [qualityMode, setQualityMode] = useState<"standard" | "pro">("standard");
   const creditsNeeded = calculateGenerationCredits(selectedType, selectedFiles.length, qualityMode);
