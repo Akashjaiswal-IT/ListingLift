@@ -229,6 +229,14 @@ export const generateRouter = router({
             whatsappNumber: ctx.user.whatsappNumber,
             instagramHandle: ctx.user.instagramHandle,
             originalImageUrls: listing.originalImages?.map((img) => img.url) || [],
+            language: ctx.user.cardSettings?.language === "hi" ? "hi" : "en",
+            productInventory: listing.productInventory,
+            sellerFacts: {
+              cod: ctx.user.cardSettings?.cod === true,
+              freeDelivery: ctx.user.cardSettings?.freeDelivery === true,
+              easyReturns: ctx.user.cardSettings?.easyReturns === true,
+              madeInIndia: ctx.user.cardSettings?.madeInIndia === true,
+            },
           });
 
           await ListingObject.updateOne(

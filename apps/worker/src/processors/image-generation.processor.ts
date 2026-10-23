@@ -115,6 +115,14 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
         whatsappNumber: user?.whatsappNumber,
         instagramHandle: user?.instagramHandle,
         originalImageUrls: listing.originalImages.map((img) => img.url),
+        language: user?.cardSettings?.language === "hi" ? "hi" : "en",
+        productInventory: analysis.inventory,
+        sellerFacts: {
+          cod: user?.cardSettings?.cod === true,
+          freeDelivery: user?.cardSettings?.freeDelivery === true,
+          easyReturns: user?.cardSettings?.easyReturns === true,
+          madeInIndia: user?.cardSettings?.madeInIndia === true,
+        },
       }),
     ]);
     logger.info(`OpenAI generated SEO Title: "${generatedText.seoTitle}"`);
