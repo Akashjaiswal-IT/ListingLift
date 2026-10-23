@@ -2,6 +2,22 @@ import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import { trackAIGeneration } from "./ai-observability";
 import { checkProductFidelity } from "./fidelity-check.service";
+import {
+  inventoryToPromptBlock,
+  SMALL_PRINT_NOTE,
+  type ProductBox,
+  type ProductInventory,
+} from "./product-inventory";
+import {
+  checkShotQuality,
+  cropToBox,
+  finishWhiteShot,
+  toMarketplaceJpeg,
+  type ShotProblem,
+  type WhiteShotResult,
+} from "../image/listing-export.service";
+
+const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -11,16 +27,22 @@ function getGeminiClient(): GoogleGenAI | null {
   return new GoogleGenAI({ apiKey });
 }
 
+export type FidelityStatus = "verified" | "issues" | "not_verified";
+
 export interface GeneratedImageOutput {
   buffer: Buffer;
   interactionId: string;
   variationType: "studio_white" | "studio_premium" | "lifestyle" | "custom";
   promptUsed: string;
-  // Set when the fidelity check still flagged this (kept) image after the retry
+  // Set when the fidelity check still flagged this (kept) image after all attempts
   fidelityIssues?: string[];
+  fidelityStatus: FidelityStatus;
+  /** Gemini calls made for this slot (0 for the offline Sharp composite). */
+  attempts: number;
 }
 
 type StudioVariation = GeneratedImageOutput["variationType"];
+export type QualityMode = "standard" | "pro";
 
 const variationTypes: StudioVariation[] = [
   "studio_white", // Variation 1: Guaranteed pure clean white background (#FFFFFF) for Amazon/Flipkart
@@ -69,12 +91,72 @@ export function planStudioShots(
   return plan;
 }
 
-// Placed FIRST in every prompt. Two halves: the product's DESIGN must stay
-// identical (nothing added/removed/redrawn), but it must be PRESENTED like new
-// stock - a "pixel-faithful" wording made Gemini paste the slouched, creased
-// phone-photo product onto the new background.
-const PRODUCT_LOCK_RULE =
-  "PRODUCT LOCK: Reproduce the exact same product design as the reference photo(s): same model and silhouette, same panels, pockets, zippers, straps, handles and hardware, same colours and materials, and every logo, label and printed graphic exactly as printed (including faded or distressed print effects). Do NOT add, remove or replace any part, object, accessory or text. Pockets, holders and compartments stay empty if they are empty. Nothing inside, on, or attached to the product. PRESENT IT AS BRAND-NEW RETAIL STOCK: standing upright and symmetrical, filled out to its natural structured shape, with no slouching, creases, wrinkles, dust, lint, stains or loose threads, and its true colour under neutral studio light. Only the product's condition and pose improve - never its design.";
+const PRODUCT_DESIGN_LOCK =
+  "PRODUCT LOCK: Reproduce the exact same product design as the reference photo(s): same model and silhouette, same panels, pockets, zippers, straps, handles and hardware, same colours and materials, and every logo, label and printed graphic exactly as printed (including faded or distressed print effects). Do NOT add, remove or replace any part, object, accessory or text. Pockets, holders and compartments stay empty if they are empty. Nothing inside, on, or attached to the product.";
+
+// A "pixel-faithful" wording made Gemini paste the slouched, creased phone-photo
+// product onto the new background, so presentation is allowed to improve.
+const PRESENT_AS_NEW =
+  "PRESENT IT AS BRAND-NEW RETAIL STOCK: standing upright and symmetrical, filled out to its natural structured shape, with no slouching, creases, wrinkles, dents, dust, lint, stains or loose threads, and its true colour under neutral light. Keep the material's natural surface texture visible: fabric weave, leather grain, stitching, brushed or polished metal finish. Texture is not damage. Only the product's condition and pose improve - never its design.";
+
+const PRESENT_WITH_WEAR =
+  "PRESENT IT CLEANLY AND HONESTLY: you may straighten its pose, fill out its natural shape, and improve background and lighting, but keep every visible sign of use exactly as in the photo (scuffs, scratches, fading, peeling print, worn edges). Do not make it look brand-new. Only the pose, background and lighting improve - never the product's design or condition.";
+
+/** Placed FIRST in every prompt: the design never changes; presentation depends on keepWear. */
+export function buildProductLock(keepWear: boolean): string {
+  return `${PRODUCT_DESIGN_LOCK} ${keepWear ? PRESENT_WITH_WEAR : PRESENT_AS_NEW}`;
+}
+
+// One lighting plan for every variation so a listing's images look like one shoot.
+const SHARED_LIGHTING =
+  "Lighting: a soft key light from camera-left at about 45 degrees and slightly above the product, a white fill from the right that keeps the shadows open, daylight-balanced neutral colour (about 5500K), and a real soft contact shadow where the product meets the surface.";
+
+const REAL_PHOTO =
+  "It must look like a real photograph taken with a camera in a studio: true material texture, natural reflections and shadows, no illustrated or computer-generated look.";
+
+export function buildSceneText(variation: StudioVariation, scenePrompt: string): string {
+  switch (variation) {
+    case "studio_white":
+      // No scene prompt: the background must stay pure white
+      return `Turn the reference photo into a catalog photograph of this same product on a seamless pure white (#FFFFFF) backdrop, with no tint, colour cast or gradient and nothing else in the frame. Camera at eye level with a 100mm lens at around f/11, so the whole product is sharp from front to back. The whole product is in frame and centred, with a comfortable margin on every side. ${SHARED_LIGHTING} ${REAL_PHOTO}`;
+    case "studio_premium":
+      return `Photograph this same product for a premium brand catalogue, standing on a sculpted stone pedestal (travertine, honed stone or matte ceramic). ${SHARED_LIGHTING} Keep the key light gentle and directional so it shapes the product. Shallow, natural depth of field: the product is fully sharp while the warm neutral background behind it falls softly out of focus. ${REAL_PHOTO} ${scenePrompt}`;
+    case "lifestyle":
+      return `Photograph this same product in a realistic, relatable home setting, such as a wooden table or shelf in a lived-in room. Soft natural window light from camera-left acts as the key light. ${SHARED_LIGHTING} Any props or decor stay in the background and never touch, overlap, or sit inside or on the product. The product is the clear, fully sharp subject. ${REAL_PHOTO} ${scenePrompt}`;
+    default:
+      return `Photograph this same product as a professional product photographer would, following this style direction: ${scenePrompt}. Unless that direction asks for different lighting: ${SHARED_LIGHTING} ${REAL_PHOTO}`;
+  }
+}
+
+function safeInventoryBlock(inventory: ProductInventory | null | undefined, keepWear: boolean): string {
+  if (!inventory) return "";
+  try {
+    return inventoryToPromptBlock(inventory, { keepWear }).trim();
+  } catch (err) {
+    console.warn("Could not build product inventory block, continuing without it:", err);
+    return "";
+  }
+}
+
+// Post-processing must never cost the user an image, so fall back to a plain JPEG encode.
+async function safeJpeg(buffer: Buffer): Promise<Buffer> {
+  try {
+    return await toMarketplaceJpeg(buffer);
+  } catch (err) {
+    console.warn("toMarketplaceJpeg failed, using a plain JPEG encode:", err);
+    return sharp(buffer).jpeg({ quality: 92 }).toBuffer();
+  }
+}
+
+async function safeCrop(buffer: Buffer, box: ProductBox | null | undefined): Promise<Buffer | null> {
+  if (!box) return null;
+  try {
+    return await cropToBox(buffer, box);
+  } catch (err) {
+    console.warn("cropToBox failed, sending no close-up reference:", err);
+    return null;
+  }
+}
 
 /**
  * Fallback studio composite for development/offline/testing, or when Gemini
@@ -140,14 +222,307 @@ async function buildSharpStudioComposite(params: {
       { input: shadowSvg, top: 0, left: 0 },
       { input: resizedProduct, gravity: "center" },
     ])
-    .webp({ quality: 90 })
+    .jpeg({ quality: 92 })
     .toBuffer();
 
   return {
-    buffer: compositeBuffer,
+    buffer: await safeJpeg(compositeBuffer),
     interactionId,
     variationType: variation,
     promptUsed: `${prompt} (${variation})`,
+    fidelityStatus: "not_verified",
+    attempts: 0,
+  };
+}
+
+interface GeminiCallResult {
+  buffer: Buffer | null;
+  interactionId: string;
+}
+
+interface Candidate {
+  /** Finished (post-processed) image. */
+  buffer: Buffer;
+  interactionId: string;
+  prompt: string;
+  detProblems: ShotProblem[];
+  /** Null until the paid judge has run on this candidate. */
+  judge: { pass: boolean; issues: string[]; verified: boolean } | null;
+}
+
+interface SlotContext {
+  ai: GoogleGenAI;
+  variation: StudioVariation;
+  pro: boolean;
+  keepWear: boolean;
+  primary: Buffer;
+  primaryBox: ProductBox | null;
+  crop: Buffer | null;
+  /** Original photos sent to Gemini and the judge (primary first; never the crop). */
+  referenceImages: Buffer[];
+  productInventory: ProductInventory | null;
+}
+
+/** Request options shared by every call in a slot; Pro upgrades only the white main image. */
+function slotRequestOptions(ctx: SlotContext): Record<string, unknown> {
+  const responseFormat: Record<string, unknown> = {
+    type: "image",
+    mime_type: "image/jpeg",
+    aspect_ratio: "1:1",
+  };
+  if (!ctx.pro) return { response_format: responseFormat };
+  return {
+    response_format: { ...responseFormat, image_size: "2K" },
+    generation_config: { thinking_level: "high" },
+  };
+}
+
+function buildReferencePayload(prompt: string, ctx: SlotContext): any[] {
+  const image = (buf: Buffer) => ({ type: "image", mime_type: "image/jpeg", data: buf.toString("base64") });
+  const payload: any[] = [{ type: "text", text: prompt }];
+  payload.push({ type: "text", text: "Reference photo — viewpoint and product:" }, image(ctx.primary));
+  if (ctx.crop) {
+    payload.push(
+      { type: "text", text: "Close-up of the same product from that photo, for detail only:" },
+      image(ctx.crop)
+    );
+  }
+  for (const other of ctx.referenceImages.slice(1)) {
+    payload.push({ type: "text", text: "Another angle of the same product, for detail only:" }, image(other));
+  }
+  return payload;
+}
+
+async function callGemini(
+  ctx: SlotContext,
+  request: Record<string, unknown>,
+  promptText: string,
+  attempt: number,
+  kind: "fresh" | "fix"
+): Promise<GeminiCallResult> {
+  const start = Date.now();
+  const interaction: any = await (ctx.ai as any).interactions.create({
+    model: GEMINI_IMAGE_MODEL,
+    ...request,
+    ...slotRequestOptions(ctx),
+  });
+  const latencySeconds = (Date.now() - start) / 1000;
+
+  const imageBase64 = interaction?.output_image?.data;
+  const interactionId =
+    interaction?.id || `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  trackAIGeneration({
+    provider: "gemini",
+    model: GEMINI_IMAGE_MODEL,
+    input: promptText,
+    output: imageBase64 ? `[Image generated: ${ctx.variation}]` : "[No image returned]",
+    inputTokens: interaction?.usage?.total_input_tokens,
+    outputTokens: interaction?.usage?.total_output_tokens,
+    thoughtTokens: interaction?.usage?.total_thought_tokens,
+    latencySeconds,
+    traceId: interactionId,
+    properties: {
+      variation: ctx.variation,
+      imageSize: ctx.pro ? "2K" : "1K",
+      attempt,
+      kind,
+    },
+  });
+
+  return { buffer: imageBase64 ? Buffer.from(imageBase64, "base64") : null, interactionId };
+}
+
+function generateFresh(ctx: SlotContext, prompt: string, attempt: number) {
+  return callGemini(ctx, { input: buildReferencePayload(prompt, ctx) }, prompt, attempt, "fresh");
+}
+
+// Multi-turn edit of the rejected image: keeps its good composition and only fixes what failed.
+function generateFix(ctx: SlotContext, previousId: string, fixPrompt: string, attempt: number) {
+  return callGemini(
+    ctx,
+    { input: fixPrompt, previous_interaction_id: previousId },
+    fixPrompt,
+    attempt,
+    "fix"
+  );
+}
+
+/** Post-processes a raw Gemini image and runs the free deterministic checks (no paid judge). */
+async function finishCandidate(
+  ctx: SlotContext,
+  raw: Buffer,
+  interactionId: string,
+  prompt: string
+): Promise<Candidate> {
+  let finished: WhiteShotResult = { buffer: raw, productCutOff: false, backgroundFailed: false };
+  try {
+    finished =
+      ctx.variation === "studio_white"
+        ? await finishWhiteShot(raw)
+        : { buffer: await toMarketplaceJpeg(raw), productCutOff: false, backgroundFailed: false };
+  } catch (err) {
+    console.warn(`Post-processing failed for ${ctx.variation}, using a plain JPEG:`, err);
+    finished = { buffer: await sharp(raw).jpeg({ quality: 92 }).toBuffer(), productCutOff: false, backgroundFailed: false };
+  }
+
+  let detProblems: ShotProblem[] = [];
+  try {
+    detProblems = await checkShotQuality({
+      generated: finished.buffer,
+      original: ctx.primary,
+      originalBox: ctx.primaryBox,
+      variation: ctx.variation,
+      productCutOff: finished.productCutOff,
+      backgroundFailed: finished.backgroundFailed,
+      // An untouched white shot could not be measured reliably, so never spend a retry on its blur score.
+      skipBlur: finished.untouched === true,
+    });
+  } catch (err) {
+    console.warn("checkShotQuality failed, skipping deterministic checks:", err);
+  }
+
+  return { buffer: finished.buffer, interactionId, prompt, detProblems, judge: null };
+}
+
+async function judgeCandidate(ctx: SlotContext, candidate: Candidate): Promise<void> {
+  const judge = await checkProductFidelity({
+    originalImages: ctx.referenceImages,
+    generatedImage: candidate.buffer,
+    inventory: ctx.productInventory,
+    originalCrop: ctx.crop,
+    keepWear: ctx.keepWear,
+  });
+  candidate.judge = { pass: judge.pass, issues: judge.issues, verified: judge.verified !== false };
+}
+
+/** Deterministic problems are free to find, so the paid judge only runs on clean candidates. */
+async function evaluateCandidate(
+  ctx: SlotContext,
+  raw: Buffer,
+  interactionId: string,
+  prompt: string
+): Promise<Candidate> {
+  const candidate = await finishCandidate(ctx, raw, interactionId, prompt);
+  if (candidate.detProblems.length === 0) await judgeCandidate(ctx, candidate);
+  return candidate;
+}
+
+// An unverifiable image is accepted: retries are never spent on judge uncertainty.
+function isAccepted(c: Candidate): boolean {
+  return c.detProblems.length === 0 && !!c.judge && (c.judge.pass || !c.judge.verified);
+}
+
+function candidateIssues(c: Candidate): string[] {
+  const judgeIssues = c.judge && c.judge.verified && !c.judge.pass ? c.judge.issues : [];
+  return [...c.detProblems.map((p) => p.message), ...judgeIssues];
+}
+
+/** Fewest by `count`; ties go to the later attempt, which got the explicit feedback. */
+function fewest(candidates: Candidate[], count: (c: Candidate) => number): Candidate {
+  return candidates.reduce((best, c) => (count(c) <= count(best) ? c : best));
+}
+
+/** Every shipped image gets a fidelity verdict: judged candidates beat never-judged ones. */
+async function pickCandidate(ctx: SlotContext, candidates: Candidate[]): Promise<Candidate> {
+  const passing = candidates.find(isAccepted);
+  if (passing) return passing;
+  const judged = candidates.filter((c) => c.judge);
+  if (judged.length > 0) return fewest(judged, (c) => c.judge!.issues.length);
+  const best = fewest(candidates, (c) => c.detProblems.length);
+  await judgeCandidate(ctx, best);
+  return best;
+}
+
+function statusOf(c: Candidate): FidelityStatus {
+  if (c.detProblems.length > 0) return "issues";
+  if (!c.judge || !c.judge.verified) return "not_verified";
+  return c.judge.pass ? "verified" : "issues";
+}
+
+const PRESENTATION_PROBLEMS: ShotProblem["code"][] = ["blurry", "cut_off", "background_not_white"];
+
+function buildFixPrompt(previous: Candidate, keepWear: boolean): string {
+  const issueText = candidateIssues(previous).join("; ");
+  const presentationOnly =
+    previous.detProblems.length > 0 &&
+    previous.detProblems.every((p) => PRESENTATION_PROBLEMS.includes(p.code));
+  const note = presentationOnly
+    ? "These are photography problems, not product problems: leave the product itself exactly as it is. "
+    : "";
+  return `PREVIOUS ATTEMPT WAS REJECTED because: ${issueText}. In the image you just generated, fix ONLY these problems. ${note}Keep everything else exactly the same: the product's design and every detail, and every part of the photo the problems above do not mention. ${buildProductLock(keepWear)}`;
+}
+
+/**
+ * maxCalls is a hard cap on Gemini calls per slot. Call 1 is fresh; later calls
+ * are targeted multi-turn fixes of the last rejected image, except that a failed
+ * fix and Pro's 3rd call regenerate fresh (a second edit of a twice-rejected
+ * image tends to stack artefacts).
+ */
+async function generateSlot(
+  ctx: SlotContext,
+  specializedPrompt: string
+): Promise<GeneratedImageOutput | null> {
+  const maxCalls = ctx.pro ? 3 : 2;
+  const candidates: Candidate[] = [];
+  let calls = 0;
+  let fixFailed = false;
+
+  while (calls < maxCalls) {
+    const previous = candidates[candidates.length - 1];
+    if (previous && isAccepted(previous)) break;
+    const callNo = calls + 1;
+    calls++;
+
+    if (!previous) {
+      // Errors on the first call propagate: the caller isolates them per slot
+      const result = await generateFresh(ctx, specializedPrompt, callNo);
+      if (!result.buffer) return null;
+      candidates.push(await evaluateCandidate(ctx, result.buffer, result.interactionId, specializedPrompt));
+      continue;
+    }
+
+    const issueText = candidateIssues(previous).join("; ");
+    console.warn(`Rejected ${ctx.variation} image (call ${callNo - 1}): ${issueText}`);
+    const useFix = !fixFailed && callNo < 3;
+    const prompt = useFix
+      ? buildFixPrompt(previous, ctx.keepWear)
+      : `${specializedPrompt} PREVIOUS ATTEMPT WAS REJECTED because: ${issueText}. Do NOT include any of these.`;
+
+    let result: GeminiCallResult = { buffer: null, interactionId: "" };
+    try {
+      result = useFix
+        ? await generateFix(ctx, previous.interactionId, prompt, callNo)
+        : await generateFresh(ctx, prompt, callNo);
+    } catch (err) {
+      console.warn(`${useFix ? "Targeted fix" : "Regeneration"} failed for ${ctx.variation}:`, err);
+    }
+    if (!result.buffer) {
+      // A failed fix hands the remaining budget to a fresh regeneration
+      if (useFix) {
+        fixFailed = true;
+        continue;
+      }
+      break;
+    }
+    candidates.push(await evaluateCandidate(ctx, result.buffer, result.interactionId, prompt));
+  }
+
+  const chosen = await pickCandidate(ctx, candidates);
+  const fidelityStatus = statusOf(chosen);
+  const issues = candidateIssues(chosen);
+  if (fidelityStatus === "issues") {
+    console.warn(`Keeping flagged ${ctx.variation} image after ${calls} calls: ${issues.join("; ")}`);
+  }
+
+  return {
+    buffer: chosen.buffer,
+    interactionId: chosen.interactionId,
+    variationType: ctx.variation,
+    promptUsed: chosen.prompt,
+    ...(fidelityStatus === "issues" ? { fidelityIssues: issues } : {}),
+    fidelityStatus,
+    attempts: calls,
   };
 }
 
@@ -156,190 +531,131 @@ export async function generateStudioImages(params: {
   prompt: string;
   count: number;
   multiAngle?: boolean;
+  productInventory?: ProductInventory | null;
+  /** One entry per original image, aligned by index. */
+  productBoxes?: (ProductBox | null)[];
+  keepWear?: boolean;
+  qualityMode?: QualityMode;
 }): Promise<GeneratedImageOutput[]> {
-  const { originalImages, prompt, count, multiAngle = false } = params;
+  const {
+    originalImages,
+    prompt,
+    count,
+    multiAngle = false,
+    productInventory = null,
+    productBoxes,
+    keepWear = false,
+    qualityMode = "standard",
+  } = params;
   const ai = getGeminiClient();
 
   const useMultiAngle = multiAngle && originalImages.length >= 2;
   const shotPlan = planStudioShots(originalImages.length, count, useMultiAngle);
+  const productLock = buildProductLock(keepWear);
+  const inventoryBlock = safeInventoryBlock(productInventory, keepWear);
 
-  if (ai) {
+  const fallbackAll = async () => {
+    const results: GeneratedImageOutput[] = [];
+    for (const { sourceIndex, variation } of shotPlan) {
+      results.push(await buildSharpStudioComposite({ baseImg: originalImages[sourceIndex], variation, prompt }));
+    }
+    return results;
+  };
+  if (!ai) return fallbackAll();
+
+  // Per slot: an image, null (Gemini returned none: slot skipped) or "error"
+  const slots: (GeneratedImageOutput | null | "error")[] = [];
+  for (let i = 0; i < count; i++) {
+    const { sourceIndex, variation } = shotPlan[i]!;
     try {
-      const results: GeneratedImageOutput[] = [];
+      const primaryIndex = useMultiAngle ? sourceIndex : 0;
+      const primary = originalImages[primaryIndex]!;
 
-      for (let i = 0; i < count; i++) {
-        const { sourceIndex, variation } = shotPlan[i]!;
-        let sceneText = "";
-
-        if (variation === "studio_white") {
-          sceneText = `Commercial product catalog photography of the exact product shown, set against a seamless, solid 100% pure white background (#FFFFFF). The subject product is standing upright, perfectly centered, crisp, with sharp edges and rich textures. Natural, soft subtle contact shadow anchored directly under the base of the product on the pure white floor, creating realistic depth without dirt or tint. Studio diffused softbox lighting with even balance and accurate true-to-life colors. Zero background clutter, zero gray cast, no gradient or tint, 100% Amazon, Flipkart, and Meesho marketplace standard e-commerce hero image.`; // no scene text: the background must stay pure white
-        } else if (variation === "studio_premium") {
-          sceneText = `Award-winning luxury commercial studio product photography of the exact product shown. The product is standing upright and elegantly displayed on a minimalist sculpted pedestal or podium (matte stone, travertine, or architectural ceramic). Soft dramatic studio rim lighting, cinematic fill light, gentle warm ambient glow, and refined directional shadows. Subtle shallow depth of field with a beautifully blurred, warm neutral architectural studio background. 8K UHD advertising campaign aesthetic, ultra-clean and pleasing to the eyes. ${prompt}`;
-        } else if (variation === "lifestyle") {
-          sceneText = `Modern aesthetic lifestyle commercial product photography of the exact product shown. The product is standing upright and staged in an aspirational, sunlit contemporary home setting (clean wooden surface, soft morning sunlight through window). Any props or decor may appear only in the background and must never touch, overlap, or sit inside or on the product. Natural ambient shadows, authentic atmosphere, premium lifestyle catalog visual. ${prompt}`;
-        } else {
-          sceneText = `Creative commercial product photography of the exact product shown, styled according to: ${prompt}. Pristine lighting, commercial advertising grade.`;
-        }
-
-        // Multi-angle: the assigned photo goes first (the viewpoint to reproduce),
-        // followed by up to 2 other photos purely as detail references.
-        let referenceImages = originalImages.slice(0, 3);
-        let viewpointLock = "";
-        if (useMultiAngle) {
-          referenceImages = [
-            originalImages[sourceIndex]!,
-            ...originalImages.filter((_, idx) => idx !== sourceIndex).slice(0, 2),
-          ];
-          viewpointLock = `VIEWPOINT LOCK: Reproduce the product from the SAME camera angle and viewpoint as the FIRST reference image (this is angle ${sourceIndex + 1} of ${originalImages.length}). The other reference images are ONLY for product detail, texture and colour accuracy - do NOT switch to their viewpoint. `;
-        }
-        const specializedPrompt = `${PRODUCT_LOCK_RULE} ${viewpointLock}${sceneText}`;
-
-        // One Gemini call for this slot: text prompt + reference images
-        const generateOnce = async (promptText: string) => {
-          const inputPayload: any[] = [{ type: "text", text: promptText }];
-          for (const img of referenceImages) {
-            inputPayload.push({
-              type: "image",
-              mime_type: "image/jpeg",
-              data: img.toString("base64"),
-            });
-          }
-
-          // Generate via Google GenAI Interactions API (gemini-3.1-flash-image)
-          const geminiStart = Date.now();
-          const interaction: any = await (ai as any).interactions.create({
-            model: "gemini-3.1-flash-image",
-            input: inputPayload,
-            response_format: {
-              type: "image",
-              mime_type: "image/jpeg",
-              aspect_ratio: "1:1",
-            },
-          });
-          const latencySeconds = (Date.now() - geminiStart) / 1000;
-
-          const imageBase64 = interaction?.output_image?.data;
-          const interactionId =
-            interaction?.id ||
-            `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-          trackAIGeneration({
-            provider: "gemini",
-            model: "gemini-3.1-flash-image",
-            input: promptText,
-            output: imageBase64 ? `[Image generated: ${variation}]` : "[No image returned]",
-            latencySeconds,
-            traceId: interactionId,
-          });
-
-          return {
-            buffer: imageBase64 ? Buffer.from(imageBase64, "base64") : null,
-            interactionId,
-          };
-        };
-
-        const first = await generateOnce(specializedPrompt);
-        if (!first.buffer) continue;
-
-        const firstCheck = await checkProductFidelity({
-          originalImages: referenceImages,
-          generatedImage: first.buffer,
-        });
-        if (firstCheck.pass) {
-          results.push({
-            buffer: first.buffer,
-            interactionId: first.interactionId,
-            variationType: variation,
-            promptUsed: specializedPrompt,
-          });
-          continue;
-        }
-
-        // Rejected: regenerate the SAME slot once, telling the model what went wrong
-        console.warn(
-          `Fidelity check rejected ${variation} image (photo ${sourceIndex + 1}): ${firstCheck.issues.join("; ")}`
-        );
-        const retryPrompt = `${specializedPrompt} PREVIOUS ATTEMPT WAS REJECTED because: ${firstCheck.issues.join("; ")}. Do NOT include any of these.`;
-        const retry = await generateOnce(retryPrompt);
-
-        if (!retry.buffer) {
-          results.push({
-            buffer: first.buffer,
-            interactionId: first.interactionId,
-            variationType: variation,
-            promptUsed: specializedPrompt,
-            fidelityIssues: firstCheck.issues,
-          });
-          continue;
-        }
-
-        const retryCheck = await checkProductFidelity({
-          originalImages: referenceImages,
-          generatedImage: retry.buffer,
-        });
-        if (retryCheck.pass) {
-          results.push({
-            buffer: retry.buffer,
-            interactionId: retry.interactionId,
-            variationType: variation,
-            promptUsed: retryPrompt,
-          });
-          continue;
-        }
-
-        // Both rejected: keep whichever attempt has fewer flagged problems (ties
-        // go to the retry, which got the explicit warning) and record them -
-        // never degrade to a pasted raw photo.
-        const keepRetry = retryCheck.issues.length <= firstCheck.issues.length;
-        console.warn(
-          `Fidelity check rejected ${variation} retry (photo ${sourceIndex + 1}), keeping the ${keepRetry ? "retry" : "first"} attempt: ${retryCheck.issues.join("; ")}`
-        );
-        results.push(
-          keepRetry
-            ? {
-                buffer: retry.buffer,
-                interactionId: retry.interactionId,
-                variationType: variation,
-                promptUsed: retryPrompt,
-                fidelityIssues: retryCheck.issues,
-              }
-            : {
-                buffer: first.buffer,
-                interactionId: first.interactionId,
-                variationType: variation,
-                promptUsed: specializedPrompt,
-                fidelityIssues: firstCheck.issues,
-              }
-        );
+      // Multi-angle: the assigned photo first (the viewpoint to reproduce),
+      // followed by up to 2 other photos purely as detail references.
+      let referenceImages = originalImages.slice(0, 3);
+      let viewpointLock = "";
+      if (useMultiAngle) {
+        referenceImages = [
+          primary,
+          ...originalImages.filter((_, idx) => idx !== sourceIndex).slice(0, 2),
+        ];
+        viewpointLock = `VIEWPOINT LOCK: Reproduce the product from the SAME camera angle and viewpoint as the FIRST reference photo (this is angle ${sourceIndex + 1} of ${originalImages.length}). The close-up and other angles are ONLY for product detail, texture and colour accuracy - do NOT switch to their viewpoint. `;
       }
 
-      if (results.length > 0) {
-        return results;
-      }
+      const primaryBox = productBoxes?.[primaryIndex] ?? null;
+      const ctx: SlotContext = {
+        ai,
+        variation,
+        pro: qualityMode === "pro" && variation === "studio_white",
+        keepWear,
+        primary,
+        primaryBox,
+        crop: await safeCrop(primary, primaryBox),
+        referenceImages,
+        productInventory,
+      };
+
+      const specializedPrompt = [productLock, inventoryBlock, `${viewpointLock}${buildSceneText(variation, prompt)}`]
+        .filter(Boolean)
+        .join(" ");
+
+      slots.push(await generateSlot(ctx, specializedPrompt));
     } catch (err) {
       trackAIGeneration({
         provider: "gemini",
-        model: "gemini-3.1-flash-image",
+        model: GEMINI_IMAGE_MODEL,
         input: prompt,
         output: "",
         latencySeconds: 0,
         isError: true,
         errorMessage: String(err),
       });
-      console.warn("Gemini generation failed, falling back to Sharp studio composite:", err);
+      console.warn(`Gemini generation failed for ${variation} (slot ${i + 1}), using a Sharp composite for it:`, err);
+      slots.push("error");
     }
   }
 
-  // Fallback for development/offline/testing: studio composite of the original product
-  const results: GeneratedImageOutput[] = [];
-  for (let i = 0; i < count; i++) {
-    const { sourceIndex, variation } = shotPlan[i]!;
-    results.push(
-      await buildSharpStudioComposite({ baseImg: originalImages[sourceIndex], variation, prompt })
-    );
-  }
+  // Nothing from Gemini at all: offline-style composites for every slot, as before
+  if (!slots.some((s) => s && s !== "error")) return fallbackAll();
 
+  const results: GeneratedImageOutput[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (slot === "error") {
+      const { sourceIndex, variation } = shotPlan[i]!;
+      results.push(await buildSharpStudioComposite({ baseImg: originalImages[sourceIndex], variation, prompt }));
+    } else if (slot) {
+      results.push(productInventory?.smallPrint ? withSmallPrintNote(slot) : slot);
+    }
+  }
   return results;
+}
+
+// The judge only checks fully legible text, so a "verified" small-print product could still
+// carry redrawn tiny labels; never let it show as verified.
+function withSmallPrintNote(output: GeneratedImageOutput): GeneratedImageOutput {
+  return {
+    ...output,
+    fidelityStatus: "issues",
+    fidelityIssues: [...(output.fidelityIssues ?? []), SMALL_PRINT_NOTE],
+  };
+}
+
+// The user may have asked for a coloured background, so white finishing only applies when it succeeds.
+async function finishReEdit(
+  raw: Buffer,
+  variationType: string | undefined
+): Promise<{ buffer: Buffer; isWhiteShot: boolean }> {
+  if (variationType === "studio_white") {
+    try {
+      const finished = await finishWhiteShot(raw);
+      if (!finished.backgroundFailed) return { buffer: finished.buffer, isWhiteShot: true };
+    } catch (err) {
+      console.warn("finishWhiteShot failed on re-edit, using a plain JPEG:", err);
+    }
+  }
+  return { buffer: await safeJpeg(raw), isWhiteShot: false };
 }
 
 export async function reEditStudioImage(params: {
@@ -347,52 +663,39 @@ export async function reEditStudioImage(params: {
   previousImage: Buffer;
   interactionId: string;
   newPrompt: string;
+  keepWear?: boolean;
+  /** Variation of the image being edited; "studio_white" keeps the marketplace white finishing. */
+  variationType?: string;
 }): Promise<GeneratedImageOutput> {
-  const { originalImages, previousImage, interactionId, newPrompt } = params;
+  const { interactionId, newPrompt, keepWear = false, variationType } = params;
   const ai = getGeminiClient();
+  // No silent stand-in for a paid re-edit (the old fallback recoloured the previous image):
+  // every failure throws so the re-edit processor marks the job failed and refunds the credit.
+  if (!ai) throw new Error("Re-edit is unavailable: the image model is not configured");
 
-  if (ai) {
-    try {
-      // Use multi-turn editing with previous_interaction_id for seamless conversational editing
-      const interaction: any = await (ai as any).interactions.create({
-        model: "gemini-3.1-flash-image",
-        input: `${PRODUCT_LOCK_RULE} Apply the user's requested change to the scene. Only change the product itself if the user explicitly asks to change the product. User request: ${newPrompt}`,
-        previous_interaction_id: interactionId,
-        response_format: {
-          type: "image",
-          mime_type: "image/jpeg",
-          aspect_ratio: "1:1",
-        },
-      });
+  // Multi-turn editing with previous_interaction_id continues the original generation
+  const interaction: any = await (ai as any).interactions.create({
+    model: GEMINI_IMAGE_MODEL,
+    input: `${buildProductLock(keepWear)} Apply the user's requested change to the scene. Only change the product itself if the user explicitly asks to change the product. User request: ${newPrompt}`,
+    previous_interaction_id: interactionId,
+    response_format: {
+      type: "image",
+      mime_type: "image/jpeg",
+      aspect_ratio: "1:1",
+    },
+  });
 
-      const imageBase64 = interaction?.output_image?.data;
-      const newInteractionId =
-        interaction?.id ||
-        `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const imageBase64 = interaction?.output_image?.data;
+  if (!imageBase64) throw new Error("Re-edit failed: the image model returned no image");
 
-      if (imageBase64) {
-        return {
-          buffer: Buffer.from(imageBase64, "base64"),
-          interactionId: newInteractionId,
-          variationType: "custom",
-          promptUsed: newPrompt,
-        };
-      }
-    } catch (err) {
-      console.warn("Gemini re-edit failed, using fallback:", err);
-    }
-  }
-
-  // Fallback: apply new edit aesthetic
-  const editedBuffer = await sharp(previousImage || originalImages[0])
-    .modulate({ brightness: 1.05, saturation: 1.1 })
-    .webp({ quality: 90 })
-    .toBuffer();
-
+  const finished = await finishReEdit(Buffer.from(imageBase64, "base64"), variationType);
   return {
-    buffer: editedBuffer,
-    interactionId: `int_reedit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-    variationType: "custom",
+    buffer: finished.buffer,
+    interactionId: interaction?.id || `int_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    // A re-edit that is still a valid white shot stays the main image, so later re-edits keep the white finishing.
+    variationType: finished.isWhiteShot ? "studio_white" : "custom",
     promptUsed: newPrompt,
+    fidelityStatus: "not_verified",
+    attempts: 1,
   };
 }

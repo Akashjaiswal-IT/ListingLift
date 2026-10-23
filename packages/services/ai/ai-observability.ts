@@ -11,11 +11,15 @@ export interface TrackAIGenerationParams {
   output: unknown;
   inputTokens?: number;
   outputTokens?: number;
+  /** Billed thinking tokens (Gemini thinking models). */
+  thoughtTokens?: number;
   latencySeconds: number;
   distinctId?: string;
   traceId?: string;
   isError?: boolean;
   errorMessage?: string;
+  /** Extra event properties (e.g. variation, attempt); cannot override the standard $ai_* fields. */
+  properties?: Record<string, unknown>;
 }
 
 export function trackAIGeneration(params: TrackAIGenerationParams): void {
@@ -37,6 +41,7 @@ export function trackAIGeneration(params: TrackAIGenerationParams): void {
         distinct_id: params.distinctId || "system",
         timestamp: new Date().toISOString(),
         properties: {
+          ...(params.properties ?? {}),
           $ai_provider: params.provider,
           $ai_model: params.model,
           $ai_input: params.input,
@@ -53,6 +58,7 @@ export function trackAIGeneration(params: TrackAIGenerationParams): void {
               ],
           $ai_input_tokens: params.inputTokens ?? 0,
           $ai_output_tokens: params.outputTokens ?? 0,
+          ...(params.thoughtTokens !== undefined ? { thought_tokens: params.thoughtTokens } : {}),
           $ai_latency: params.latencySeconds,
           $ai_trace_id: params.traceId,
           $ai_is_error: !!params.isError,
