@@ -36,13 +36,15 @@ import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
 import { useGenerationStore } from "~/stores/useGenerationStore";
 import { TemplateSelector } from "~/components/generate/TemplateSelector";
+import { SmallPrintTip } from "~/components/generate/SmallPrintTip";
 import { TemplateId } from "~/lib/card-templates";
 import { toast } from "sonner";
 import { ListingDeliverablesTabs } from "~/components/listing/ListingDeliverablesTabs";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
 import { trackEvent, captureError } from "~/lib/analytics";
-import { calculateGenerationCredits } from "~/lib/pricing";
+import { calculateGenerationCredits, calculateProQualitySurcharge } from "~/lib/pricing";
+import { Checkbox } from "~/components/ui/checkbox";
 import { adaptiveStatusInterval } from "~/lib/polling";
 import { GenerationProgressCard } from "~/components/generate/GenerationProgressCard";
 import { compressImage, putWithProgress } from "~/lib/upload-image";
@@ -73,6 +75,10 @@ export default function GeneratePage() {
   const [sellingPrice, setSellingPrice] = useState<string>("");
   const [sizes, setSizes] = useState<string>("S, M, L, XL");
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>("minimal-luxury");
+  const [keepWear, setKeepWear] = useState(false);
+  const [qualityMode, setQualityMode] = useState<"standard" | "pro">("standard");
+  const creditsNeeded = calculateGenerationCredits(selectedType, selectedFiles.length, qualityMode);
+  const proSurcharge = calculateProQualitySurcharge(selectedType, selectedFiles.length);
   const sellingExceedsMrp = !!mrp && !!sellingPrice && parseFloat(sellingPrice) > parseFloat(mrp);
   const priceErrorMessage = isHi ? "बिक्री मूल्य MRP से ज़्यादा नहीं हो सकता" : "Selling price can't be higher than MRP";
 
@@ -297,9 +303,8 @@ export default function GeneratePage() {
       return;
     }
 
-    // Use the shared pricing helper so the quote here always matches what the
-    // server actually charges (see lib/pricing.ts).
-    const creditsNeeded = calculateGenerationCredits(selectedType, selectedFiles.length);
+    // creditsNeeded comes from the shared pricing helper (see lib/pricing.ts) so
+    // the quote here always matches what the server actually charges.
     if (balance < creditsNeeded) {
       toast.error(`You need at least ${creditsNeeded} credits. Current balance: ${balance}`);
       router.push("/pricing");
@@ -313,6 +318,8 @@ export default function GeneratePage() {
         type: selectedType,
         templateId: selectedTemplateId,
         creditsNeeded,
+        keepWear,
+        qualityMode,
       });
 
       const genRes = await startGenerationMutation.mutateAsync({
@@ -326,6 +333,8 @@ export default function GeneratePage() {
         discountPrice: sellingPrice ? parseFloat(sellingPrice) : undefined,
         sizes: sizes ? sizes.split(",").map((s) => s.trim()) : undefined,
         ctaText: ctaText.trim() || undefined,
+        keepWear,
+        qualityMode,
       });
 
       // Generation successfully queued on server! Reflect in URL so user can safely refresh to resume
@@ -793,8 +802,8 @@ export default function GeneratePage() {
               <div>
                 <span className="text-sm font-bold block">
                   {selectedType === "listing_product"
-                    ? isHi ? "क्विक स्टूडियो जेनरेशन (2 क्रेडिट्स)" : "Quick Studio Generate (2 Credits)"
-                    : isHi ? "फुल लिस्टिंग किट (5 क्रेडिट्स)" : "Full Listing Kit (5 Credits)"}
+                    ? isHi ? `क्विक स्टूडियो जेनरेशन (${creditsNeeded} क्रेडिट्स)` : `Quick Studio Generate (${creditsNeeded} Credits)`
+                    : isHi ? `फुल लिस्टिंग किट (${creditsNeeded} क्रेडिट्स)` : `Full Listing Kit (${creditsNeeded} Credits)`}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {isHi
@@ -907,6 +916,59 @@ export default function GeneratePage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+            </div>
+
+            <SmallPrintTip />
+
+            {/* Generation options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                htmlFor="opt-keep-wear"
+                className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
+                  keepWear ? "border-primary bg-primary/5" : "border-border/60 hover:border-border"
+                }`}
+              >
+                <Checkbox
+                  id="opt-keep-wear"
+                  checked={keepWear}
+                  onCheckedChange={(v) => setKeepWear(v === true)}
+                  className="mt-0.5"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-bold text-foreground">
+                    {isHi ? "इस्तेमाल के निशान रखें" : "Keep signs of use"}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {isHi
+                      ? "पुराने या इस्तेमाल किए गए सामान के लिए। खरोंच और घिसाव आपकी फ़ोटो जैसे ही रहेंगे — बाकी सब कुछ साफ़ और सुंदर तरीके से दिखाया जाएगा।"
+                      : "For used or pre-owned items. Scuffs and wear stay exactly as in your photo — everything else is still cleaned up and presented well."}
+                  </span>
+                </span>
+              </label>
+
+              <label
+                htmlFor="opt-pro-quality"
+                className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
+                  qualityMode === "pro" ? "border-primary bg-primary/5" : "border-border/60 hover:border-border"
+                }`}
+              >
+                <Checkbox
+                  id="opt-pro-quality"
+                  checked={qualityMode === "pro"}
+                  onCheckedChange={(v) => setQualityMode(v === true ? "pro" : "standard")}
+                  className="mt-0.5"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-bold text-foreground">
+                    {isHi ? `प्रो क्वालिटी (+${proSurcharge} क्रेडिट)` : `Pro quality (+${proSurcharge} ${proSurcharge === 1 ? "credit" : "credits"})`}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {isHi
+                      ? "ज़्यादा शार्प 2K मुख्य फ़ोटो, गहरी AI सोच और एक अतिरिक्त क्वालिटी-चेक प्रयास। Amazon और Flipkart के लिए सबसे अच्छा।"
+                      : "Sharper 2K main image, deeper AI thinking and one extra quality-check attempt. Best for Amazon & Flipkart."}
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* Visual Card & Story Design Template Selector (10 Sleek Styles) */}

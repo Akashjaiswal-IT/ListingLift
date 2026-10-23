@@ -12,7 +12,13 @@ import {
   CheckCircle2,
   Search,
   Tag,
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  ChevronDown,
+  Columns2,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
@@ -177,6 +183,12 @@ export function ListingDeliverablesTabs({
                   </Badge>
                 </div>
               </div>
+
+              <FidelityStatus
+                image={img}
+                originalImages={listing.originalImages || []}
+                isHi={isHi}
+              />
 
               <CardContent className="p-3.5 flex items-center justify-between border-t border-border/40">
                 <span className="text-xs text-muted-foreground font-medium">
@@ -720,5 +732,153 @@ export function ListingDeliverablesTabs({
         ))}
       </TabsContent>
     </Tabs>
+  );
+}
+
+type FidelityStatusValue = "verified" | "issues" | "not_verified";
+
+// Must match SMALL_PRINT_NOTE in packages/services/ai/product-inventory.ts (services can't be imported in the browser).
+const SMALL_PRINT_NOTE_EN =
+  "Small printed text on the product may differ from your photo. Check it before uploading.";
+const SMALL_PRINT_NOTE_HI =
+  "उत्पाद पर छपा छोटा टेक्स्ट आपकी फ़ोटो से अलग हो सकता है। अपलोड करने से पहले इसे जांच लें।";
+
+interface FidelityImage {
+  url: string;
+  fidelityStatus?: FidelityStatusValue;
+  fidelityIssues?: string[];
+}
+
+// Per-image "product unchanged" check result. Kept as its own component so its
+// expand/dialog state doesn't add hooks to the parent (which returns early).
+function FidelityStatus({
+  image,
+  originalImages,
+  isHi,
+}: {
+  image: FidelityImage;
+  originalImages: { url: string }[];
+  isHi: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const status = image.fidelityStatus;
+
+  if (status !== "verified" && status !== "issues" && status !== "not_verified") return null;
+
+  if (status === "verified") {
+    return (
+      <div className="px-3.5 pt-3">
+        <Badge
+          variant="outline"
+          className="gap-1 text-[10px] font-semibold border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+        >
+          <ShieldCheck className="h-3 w-3" />
+          {isHi ? "उत्पाद सत्यापित" : "Product verified"}
+        </Badge>
+      </div>
+    );
+  }
+
+  const isIssues = status === "issues";
+  const issues = (image.fidelityIssues || []).filter((s) => typeof s === "string" && s.trim());
+
+  return (
+    <div className="px-3.5 pt-3 space-y-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <Badge
+          variant="outline"
+          className={`gap-1 text-[10px] font-semibold cursor-pointer ${
+            isIssues
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              : "border-border bg-muted/50 text-muted-foreground"
+          }`}
+        >
+          {isIssues ? <ShieldAlert className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+          {isIssues ? (isHi ? "विवरण जांचें" : "Check details") : isHi ? "सत्यापित नहीं" : "Not verified"}
+          <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </Badge>
+      </button>
+
+      {expanded && (
+        <div
+          className={`rounded-lg border p-2.5 space-y-2 text-xs ${
+            isIssues ? "border-amber-500/30 bg-amber-500/5" : "border-border/60 bg-muted/30"
+          }`}
+        >
+          {isIssues ? (
+            issues.length > 0 && (
+              <ul className="list-disc pl-4 space-y-1 text-foreground break-words">
+                {issues.map((issue, i) => (
+                  <li key={i}>{isHi && issue === SMALL_PRINT_NOTE_EN ? SMALL_PRINT_NOTE_HI : issue}</li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <p className="text-muted-foreground">
+              {isHi
+                ? "इस फ़ोटो के लिए स्वचालित उत्पाद जांच नहीं हो सकी। अपलोड करने से पहले इसे अपनी फ़ोटो से मिलाकर देखें।"
+                : "We couldn't run the automatic product check for this image. Please compare it with your photo before uploading."}
+            </p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-[11px] gap-1"
+            onClick={() => setCompareOpen(true)}
+          >
+            <Columns2 className="h-3 w-3" /> {isHi ? "मूल फ़ोटो से तुलना करें" : "Compare with original"}
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isHi ? "मूल फ़ोटो से तुलना करें" : "Compare with original"}</DialogTitle>
+            <DialogDescription>
+              {isHi
+                ? "अगर आपके उत्पाद में कुछ अलग दिखे, तो अपलोड करने से पहले Re-edit से ठीक करें।"
+                : "If something on your product looks different, use Re-edit to fix it before uploading."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-muted-foreground">
+                {isHi ? "आपकी फ़ोटो" : "Your photo"}
+              </span>
+              <div className={`grid gap-2 ${originalImages.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                {originalImages.map((orig, i) => (
+                  <div key={i} className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+                    <img
+                      src={orig.url}
+                      alt={isHi ? `मूल फ़ोटो ${i + 1}` : `Original photo ${i + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-muted-foreground">
+                {isHi ? "स्टूडियो फ़ोटो" : "Studio photo"}
+              </span>
+              <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+                <img
+                  src={image.url}
+                  alt={isHi ? "स्टूडियो फ़ोटो" : "Studio photo"}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
