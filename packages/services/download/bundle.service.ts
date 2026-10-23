@@ -4,6 +4,13 @@ import { fetchBufferFromR2, uploadBufferToR2, getPresignedDownloadUrl } from "..
 import { generateGenericMarketplaceExcel } from "../export/excel-export.service";
 import { IListingObject } from "@repo/database";
 
+// Older listings stored JPEG bytes under .webp keys, so name files by their actual content.
+export function imageExtension(buffer: Buffer): "jpg" | "png" | "webp" {
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return "jpg";
+  if (buffer[0] === 0x89 && buffer.toString("ascii", 1, 4) === "PNG") return "png";
+  return "webp";
+}
+
 function getZipArchiveInstance() {
   const mod: any = archiver;
   if (mod.ZipArchive) {
@@ -41,7 +48,7 @@ export async function createListingBundleZip(
     try {
       const buffer = await fetchBufferFromR2(img.s3Key);
       archive.append(buffer, {
-        name: `studio-photos/studio-photo-${i + 1}-${img.variationType}.webp`,
+        name: `studio-photos/studio-photo-${i + 1}-${img.variationType}.${imageExtension(buffer)}`,
       });
     } catch (e) {
       console.warn(`Failed to include image in zip: ${img.s3Key}`, e);
@@ -52,21 +59,21 @@ export async function createListingBundleZip(
   if (listing.whatsappCard?.s3Key) {
     try {
       const waBuf = await fetchBufferFromR2(listing.whatsappCard.s3Key);
-      archive.append(waBuf, { name: "social-cards/whatsapp-card.webp" });
+      archive.append(waBuf, { name: `social-cards/whatsapp-card.${imageExtension(waBuf)}` });
     } catch {}
   }
 
   if (listing.instagramPost?.s3Key) {
     try {
       const igPostBuf = await fetchBufferFromR2(listing.instagramPost.s3Key);
-      archive.append(igPostBuf, { name: "social-cards/instagram-post-1x1.webp" });
+      archive.append(igPostBuf, { name: `social-cards/instagram-post.${imageExtension(igPostBuf)}` });
     } catch {}
   }
 
   if (listing.instagramStory?.s3Key) {
     try {
       const igStoryBuf = await fetchBufferFromR2(listing.instagramStory.s3Key);
-      archive.append(igStoryBuf, { name: "social-cards/instagram-story-9x16.webp" });
+      archive.append(igStoryBuf, { name: `social-cards/instagram-story-9x16.${imageExtension(igStoryBuf)}` });
     } catch {}
   }
 
