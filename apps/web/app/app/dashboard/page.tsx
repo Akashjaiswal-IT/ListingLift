@@ -27,6 +27,7 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { useEffect, useState } from "react";
 import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
+import { buildReferralLink } from "~/lib/referral-link";
 
 export default function DashboardPage() {
   const { language } = useLanguage();
@@ -45,8 +46,8 @@ export default function DashboardPage() {
     onSuccess: (data) => {
       toast.success(
         isHi
-          ? `रेफ़रल कोड लागू हुआ! आपको 5 मुफ़्त क्रेडिट्स मिले (${data.referrerName} द्वारा आमंत्रित)`
-          : `Referral applied! 5 bonus credits awarded (Invited by ${data.referrerName})`
+          ? `रेफ़रल कोड लागू हुआ (${data.referrerName} द्वारा आमंत्रित)`
+          : `Referral applied (Invited by ${data.referrerName})`
       );
       setInputCode("");
       utils.user.getReferralStats.invalidate();
@@ -59,20 +60,31 @@ export default function DashboardPage() {
 
   const referralData = referralQuery.data;
   const myCode = referralData?.referralCode || "";
+  const bonusPerReferral = referralData?.bonusPerReferral ?? 3;
 
-  const handleCopyCode = () => {
-    if (!myCode) return;
-    navigator.clipboard.writeText(myCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-    toast.success(isHi ? "रेफ़रल कोड कॉपी हुआ!" : "Referral code copied to clipboard!");
+  // Built on the client so the link always points at the site the seller is using.
+  const [myLink, setMyLink] = useState("");
+  useEffect(() => {
+    setMyLink(myCode ? buildReferralLink(window.location.origin, myCode) : "");
+  }, [myCode]);
+
+  const handleCopyLink = async () => {
+    if (!myLink) return;
+    try {
+      await navigator.clipboard.writeText(myLink);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+      toast.success(isHi ? "इनवाइट लिंक कॉपी हुआ!" : "Invite link copied!");
+    } catch {
+      toast.error(isHi ? "कॉपी नहीं हो सका — लिंक को हाथ से चुनें" : "Couldn't copy — please select the link manually");
+    }
   };
 
   const handleShareWhatsApp = () => {
-    if (!myCode) return;
+    if (!myLink) return;
     const msg = isHi
-      ? `नमस्ते! मैं अपने प्रॉडक्ट्स की 8K AI स्टूडियो फ़ोटो और कैटलॉग बनाने के लिए Peshkar AI का उपयोग कर रहा हूँ। मेरे रेफ़रल कोड ${myCode} का उपयोग करें और 5 मुफ़्त बोनस क्रेडिट्स पाएं: https://peshkar.ai`
-      : `Hey! I'm using Peshkar AI to turn phone photos into 8K studio e-commerce listings in seconds. Use my code ${myCode} on signup to get 5 free bonus credits: https://peshkar.ai`;
+      ? `नमस्ते! मैं अपने प्रॉडक्ट्स की AI स्टूडियो फ़ोटो, लिस्टिंग और व्हाट्सएप कार्ड्स बनाने के लिए Peshkar AI का उपयोग करता/करती हूँ। मेरे लिंक से जुड़ें और 3 मुफ़्त क्रेडिट्स से शुरू करें: ${myLink}`
+      : `Hey! I use Peshkar AI to turn phone photos into studio product photos, listings and WhatsApp cards. Join with my link and start free with 3 credits: ${myLink}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -120,11 +132,6 @@ export default function DashboardPage() {
                 <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
                   {isHi ? "उपलब्ध क्रेडिट्स" : "Available Credits"}
                 </span>
-                {balance >= 10 && (
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 font-bold">
-                    {isHi ? "₹249 मूल्य" : "₹249 Value"}
-                  </Badge>
-                )}
               </div>
               <div className="text-3xl font-black text-primary">
                 {isInitialized ? balance : (balanceQuery.isLoading ? "..." : balance)}
@@ -198,28 +205,30 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* "Give 5, Get 5" Merchant Referral Program */}
+      {/* Seller referral program: the referrer earns credits once an invited seller makes a first purchase */}
       <Card className="rounded-2xl border border-border/70 bg-gradient-to-br from-card via-card to-amber-500/5 p-6 shadow-sm overflow-hidden relative">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold text-xs gap-1.5 py-0.5">
                 <Gift className="h-3.5 w-3.5" />
-                {isHi ? "सेलर इनवाइट प्रोग्राम" : "Give 5, Get 5 Referral Program"}
+                {isHi ? "सेलर इनवाइट प्रोग्राम" : "Seller Invite Program"}
               </Badge>
               <span className="text-xs text-muted-foreground font-semibold">
-                {isHi ? "5 क्रेडिट्स दें, 5 क्रेडिट्स पाएं" : "Each Friend = 5 Free Credits"}
+                {isHi
+                  ? `हर खरीदने वाले सेलर पर ${bonusPerReferral} क्रेडिट्स`
+                  : `${bonusPerReferral} credits per seller who buys`}
               </span>
             </div>
             <h3 className="text-xl font-serif font-black tracking-tight text-foreground">
               {isHi
-                ? "साथी सेलर्स को आमंत्रित करें — दोनों को मिलेंगे 5-5 मुफ़्त क्रेडिट्स!"
-                : "Invite Fellow Sellers — Both Get 5 Free Studio Credits!"}
+                ? `साथी सेलर्स को आमंत्रित करें — हर खरीदारी पर ${bonusPerReferral} मुफ़्त क्रेडिट्स कमाएं`
+                : `Invite fellow sellers — earn ${bonusPerReferral} free credits for each one who buys`}
             </h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               {isHi
-                ? "जब आपका कोई दोस्त आपके कोड का उपयोग करके Peshkar AI पर जुड़ता है, तो उन्हें तुरंत 5 बोनस क्रेडिट्स मिलते हैं और आपको भी 5 मुफ़्त क्रेडिट्स मिलते हैं।"
-                : "Share your code with sellers on WhatsApp or Meesho/Amazon groups. When they register or redeem, they get 5 free credits instantly and you earn 5 credits too."}
+                ? `अपना इनवाइट लिंक व्हाट्सएप या सेलर ग्रुप्स में शेयर करें। जब कोई सेलर इस लिंक से जुड़कर अपनी पहली खरीदारी करता है, तो आपको ${bonusPerReferral} मुफ़्त क्रेडिट्स मिलते हैं।`
+                : `Share your invite link on WhatsApp or in Meesho/Amazon seller groups. When a seller signs up through it and makes their first purchase, you get ${bonusPerReferral} free credits.`}
             </p>
 
             <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground">
@@ -236,21 +245,25 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3 min-w-[320px]">
-            {/* My Referral Code Pill */}
+            {/* My Invite Link (applies my code automatically when a seller signs up through it) */}
             <div className="p-3 rounded-xl border border-border/80 bg-muted/30 flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">
-                  {isHi ? "आपका रेफ़रल कोड" : "Your Referral Code"}
+                  {isHi ? "आपका इनवाइट लिंक" : "Your Invite Link"}
                 </span>
-                <span className="font-mono text-base font-black tracking-wider text-foreground">
-                  {myCode || "..."}
+                <span className="block font-mono text-xs font-bold text-foreground truncate select-all" title={myLink}>
+                  {myLink || "..."}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isHi ? "कोड" : "Code"}: <span className="font-mono font-bold">{myCode || "..."}</span>
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleCopyCode}
+                  onClick={handleCopyLink}
+                  disabled={!myLink}
                   className="h-8 text-xs gap-1 font-bold"
                 >
                   {copiedCode ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -259,6 +272,7 @@ export default function DashboardPage() {
                 <Button
                   size="sm"
                   onClick={handleShareWhatsApp}
+                  disabled={!myLink}
                   className="h-8 text-xs gap-1 font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
@@ -279,7 +293,7 @@ export default function DashboardPage() {
               >
                 <input
                   type="text"
-                  placeholder={isHi ? "दोस्त का कोड दर्ज करें (उदा. PESH-XXXX)" : "Have a code? Enter (e.g. PESH-XXXX)"}
+                  placeholder={isHi ? "किसी ने आमंत्रित किया? उनका कोड डालें (उदा. PESH-XXXX)" : "Invited by someone? Enter their code (e.g. PESH-XXXX)"}
                   value={inputCode}
                   onChange={(e) => setInputCode(e.target.value.toUpperCase())}
                   className="flex-1 h-9 px-3 text-xs uppercase font-mono rounded-lg border border-border/80 bg-background text-foreground placeholder:normal-case placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-primary"
@@ -290,7 +304,7 @@ export default function DashboardPage() {
                   disabled={!inputCode.trim() || applyReferralMutation.isPending}
                   className="h-9 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-white"
                 >
-                  {applyReferralMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : (isHi ? "रिडीम करें" : "Claim 5 Cr")}
+                  {applyReferralMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : (isHi ? "लागू करें" : "Apply")}
                 </Button>
               </form>
             )}
