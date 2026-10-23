@@ -69,9 +69,9 @@ describe("generate.startGeneration pricing and options", () => {
 
     const res = await caller().startGeneration({ listingObjectId: "list1", userTitle: "Bag" });
 
-    expect(res.creditsCharged).toBe(5);
+    expect(res.creditsCharged).toBe(6); // 3-photo kit = 6 studio images
     expect(deductCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 5, description: expect.not.stringContaining("Pro quality") })
+      expect.objectContaining({ amount: 6, description: expect.not.stringContaining("Pro quality") })
     );
     expect(updateOne).toHaveBeenCalledWith(
       { _id: "list1" },
@@ -95,9 +95,9 @@ describe("generate.startGeneration pricing and options", () => {
       qualityMode: "pro",
     });
 
-    expect(res.creditsCharged).toBe(8); // 3-photo kit: 5 + 3
+    expect(res.creditsCharged).toBe(9); // 3-photo kit: 6 + 3
     expect(deductCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 8, description: expect.stringContaining("(Pro quality)") })
+      expect.objectContaining({ amount: 9, description: expect.stringContaining("(Pro quality)") })
     );
     expect(updateOne).toHaveBeenCalledWith(
       { _id: "list1" },
@@ -111,13 +111,13 @@ describe("generate.startGeneration pricing and options", () => {
     );
     expect(listing.keepWear).toBe(true);
     expect(listing.qualityMode).toBe("pro");
-    expect(listing.creditsCharged).toBe(8);
+    expect(listing.creditsCharged).toBe(9);
   });
 
-  it("Quick Generate on Pro costs 3", async () => {
+  it("Quick Generate on Pro costs 4", async () => {
     findOne.mockResolvedValue(makeListing({ type: "listing_product", originalImages: [{}] }));
     const res = await caller().startGeneration({ listingObjectId: "list1", userTitle: "Mug", qualityMode: "pro" });
-    expect(res.creditsCharged).toBe(3);
+    expect(res.creditsCharged).toBe(4);
   });
 });
 
@@ -136,8 +136,8 @@ describe("generate.retry pricing", () => {
 
     await caller().retry({ listingObjectId: "list1" });
 
-    expect(deductCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 8 }));
-    expect(listing.creditsCharged).toBe(8);
+    expect(deductCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 9 }));
+    expect(listing.creditsCharged).toBe(9);
   });
 
   it("legacy listings without qualityMode retry at standard price", async () => {
@@ -146,6 +146,6 @@ describe("generate.retry pricing", () => {
 
     await caller().retry({ listingObjectId: "list1" });
 
-    expect(deductCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 5 }));
+    expect(deductCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 6 }));
   });
 });

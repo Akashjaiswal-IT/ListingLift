@@ -18,7 +18,7 @@ vi.mock("@repo/database", () => ({
 
 vi.mock("@repo/services", () => ({
   getPresignedUploadUrl: vi.fn(),
-  addCredits: vi.fn(),
+  REFERRAL_BONUS_CREDITS: 3,
 }));
 
 import { userRouter } from "../server/routes/user/route";
