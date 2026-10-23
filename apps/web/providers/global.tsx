@@ -9,6 +9,7 @@ import { trpc } from "~/trpc/client";
 import { createTRPCHttpBatchClientClient } from "~/trpc/create-client";
 
 import { LanguageProvider } from "./LanguageContext";
+import { ReferralLinkHandler } from "~/components/referral/ReferralLinkHandler";
 
 export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [queryClient] = useState(
@@ -39,6 +40,7 @@ export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ child
         <LanguageProvider>
           <trpc.Provider queryClient={queryClient} client={trpcClient}>
             {children}
+            <ReferralLinkHandler />
             <Toaster />
           </trpc.Provider>
         </LanguageProvider>
