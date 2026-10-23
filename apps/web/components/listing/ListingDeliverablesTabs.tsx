@@ -318,7 +318,7 @@ export function ListingDeliverablesTabs({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isHi ? "एसईओ सर्च-ऑप्टिमाइज़्ड टाइटल (50-80 अक्षर)" : "SEO Search-Optimized Title (50-80 chars)"}
+                {isHi ? "एसईओ सर्च-ऑप्टिमाइज़्ड टाइटल (~60 अक्षर)" : "SEO Search-Optimized Title (~60 chars)"}
               </span>
               <Button
                 variant="ghost"
