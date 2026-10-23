@@ -2,12 +2,49 @@ import OpenAI from "openai";
 import { IAiGeneratedText } from "@repo/database";
 import { trackAIGeneration } from "./ai-observability";
 import { normalizePricing, buildPriceLine, formatINR, findDisallowedAmounts } from "../pricing/price";
+import { sanitizeInventory, inventoryToCopyFacts, type ProductInventory } from "./product-inventory";
 
 const PRICE_LINE_TOKEN = "{{PRICE_LINE}}";
+
+// Platform limits (verified 2025/26):
+// - Amazon India title policy (Jan 2025): 200 chars; bans ! $ ? _ { } ^ ¬ ¦ and promo phrases.
+// - Google SERP: title truncates ~60 chars, meta description ~160.
+// - Instagram (Dec 2025): max 5 hashtags per post/reel.
+const MARKETPLACE_TITLE_MAX = 200;
+const SEO_TITLE_MAX = 60;
+const SEO_DESC_MAX = 160;
+const MAX_HASHTAGS = 5;
+
+// Characters Amazon bans in titles (unless part of a registered brand name).
+const BANNED_TITLE_CHARS = /[!$?_{}^¬¦]/g;
+// Banned/weak promotional claims — removed from titles as a safety net even if the model emits them.
+const PROMO_PHRASES = [
+  "best seller",
+  "bestseller",
+  "top rated",
+  "top-rated",
+  "best price online",
+  "best price",
+  "lowest price",
+  "cheapest",
+  "number one",
+  "#1",
+  "100% genuine",
+];
+// A line in a WhatsApp caption that carries a link or a phone number — the server writes the
+// contact line itself (from the seller's saved number), so any model-written one is dropped.
+const URL_OR_PHONE = /(https?:\/\/|wa\.me|api\.whatsapp|\b\d[\d\s-]{8,}\d\b)/i;
 
 function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY || "sk-mock-key";
   return new OpenAI({ apiKey });
+}
+
+export interface SellerFacts {
+  cod?: boolean;
+  freeDelivery?: boolean;
+  easyReturns?: boolean;
+  madeInIndia?: boolean;
 }
 
 export interface GenerateTextParams {
@@ -23,102 +60,212 @@ export interface GenerateTextParams {
   whatsappNumber?: string;
   instagramHandle?: string;
   originalImageUrls?: string[];
+  /** Copy language; comes from the seller's card settings. Defaults to English. */
+  language?: "en" | "hi";
+  /** What the photo analysis saw on the product — so the copy describes the real item, not a guess. */
+  productInventory?: ProductInventory | null;
+  /** Trust claims the seller has actually turned on; nothing else (COD, delivery, returns...) is printed. */
+  sellerFacts?: SellerFacts;
+}
+
+/** Trust claims the seller has enabled, as printable labels. Empty when the seller enabled none. */
+function sellerFactLabels(facts: SellerFacts | undefined, hi: boolean): string[] {
+  if (!facts) return [];
+  const out: string[] = [];
+  if (facts.cod) out.push(hi ? "कैश ऑन डिलीवरी उपलब्ध" : "Cash on Delivery available");
+  if (facts.freeDelivery) out.push(hi ? "फ्री डिलीवरी" : "Free delivery");
+  if (facts.easyReturns) out.push(hi ? "आसान रिटर्न" : "Easy returns");
+  if (facts.madeInIndia) out.push(hi ? "मेड इन इंडिया" : "Made in India");
+  return out;
+}
+
+/** Trims text to a character budget at a word boundary, without adding an ellipsis. */
+function clampWords(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
+}
+
+/** Removes weak/banned promotional phrases and collapses the leftover spacing. */
+function stripPromo(text: string): string {
+  let out = text;
+  for (const phrase of PROMO_PHRASES) {
+    out = out.replace(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
+  }
+  return out.replace(/\s{2,}/g, " ").replace(/\s+([,.])/g, "$1").trim();
+}
+
+/** Makes a marketplace title Amazon-safe: no banned characters, no promo phrases, within the cap. */
+function cleanMarketplaceTitle(text: string): string {
+  const cleaned = stripPromo(text.replace(BANNED_TITLE_CHARS, " "))
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,–-]+|[\s,–-]+$/g, "")
+    .trim();
+  return clampWords(cleaned, MARKETPLACE_TITLE_MAX);
+}
+
+/** Normalises one hashtag to "#word" (letters/digits only); returns "" when nothing usable is left. */
+function cleanHashtag(raw: string): string {
+  const body = raw.replace(/^#+/, "").replace(/[^\p{L}\p{N}]/gu, "");
+  return body ? `#${body}` : "";
+}
+
+/** Order line written by the server from the seller's own saved contact, so the number is always right. */
+function buildContactLine(params: GenerateTextParams, hi: boolean): string {
+  const store = (params.storeName || "").trim();
+  const phone = (params.whatsappNumber || "").replace(/[^0-9]/g, "");
+  const handle = (params.instagramHandle || "").replace(/^@/, "").trim();
+  const storeSuffix = store ? ` — ${store}` : "";
+  if (phone) {
+    const pretty = phone.length === 10 ? `+91 ${phone.slice(0, 5)} ${phone.slice(5)}` : phone;
+    return hi ? `📲 ऑर्डर के लिए व्हाट्सएप: ${pretty}${storeSuffix}` : `📲 Order on WhatsApp: ${pretty}${storeSuffix}`;
+  }
+  if (handle) {
+    return hi ? `📩 ऑर्डर के लिए DM करें @${handle}` : `📩 DM @${handle} to order`;
+  }
+  return store ? `🛍️ ${store}` : "";
 }
 
 export function generateFallbackListingText(params: GenerateTextParams): IAiGeneratedText {
-  const title = params.userTitle?.trim() || "Trending Product";
-  const desc = params.userDescription?.trim() || "High quality premium material, durable design, perfect for daily and festive wear.";
-  const cleanPhone = params.whatsappNumber?.replace(/[^0-9]/g, "") || "";
+  const hi = params.language === "hi";
+  const title = params.userTitle?.trim() || (hi ? "नया प्रोडक्ट" : "New Product");
+  const inv = sanitizeInventory(params.productInventory);
+  const category = inv?.category?.trim();
+  const material = inv?.material?.trim();
+  const colours = inv?.colours ?? [];
   const pricing = normalizePricing(params.price, params.discountPrice);
-  const offerPrice = pricing.selling !== undefined ? formatINR(pricing.selling) : "Best Wholesale Price";
   const priceLine = buildPriceLine(pricing);
-  const sizesStr = params.sizes?.length ? params.sizes.join(", ") : "Free Size / Standard";
+  const offer = pricing.selling !== undefined ? formatINR(pricing.selling) : "";
+  const trust = sellerFactLabels(params.sellerFacts, hi);
+  const hasSizes = (params.sizes?.length ?? 0) > 0;
+  const sizesStr = params.sizes?.join(", ") ?? "";
+
+  // Features come only from what the photo actually showed, plus seller-entered sizes — nothing invented.
+  const keyFeatures: string[] = [];
+  if (material) keyFeatures.push(hi ? `मटेरियल: ${material}` : `Material: ${material}`);
+  if (colours.length) keyFeatures.push(hi ? `रंग: ${colours.join(", ")}` : `Colour: ${colours.join(", ")}`);
+  for (const d of inv?.details?.slice(0, 2) ?? []) keyFeatures.push(d);
+  if (hasSizes) keyFeatures.push(hi ? `उपलब्ध साइज़: ${sizesStr}` : `Available sizes: ${sizesStr}`);
+  if (keyFeatures.length === 0) {
+    keyFeatures.push(hi ? `${title}${category ? ` (${category})` : ""}` : `${title}${category ? ` (${category})` : ""}`);
+  }
+
+  // Keywords from real product words only.
+  const titleWords = title.split(/\s+/).filter((w) => w.length > 2);
+  const keywords = Array.from(
+    new Set([title.toLowerCase(), ...(category ? [category.toLowerCase()] : []), ...colours.map((c) => c.toLowerCase()), ...titleWords.map((w) => w.toLowerCase())])
+  ).slice(0, 8);
+
+  const marketTitle = cleanMarketplaceTitle([title, category].filter(Boolean).join(" "));
+
+  const hashSource = Array.from(new Set([...titleWords, ...(category ? [category] : [])]));
+  const instagramHashtags = hashSource.map((w) => cleanHashtag(w)).filter(Boolean).slice(0, MAX_HASHTAGS);
+
+  const descLines = [
+    hi ? `प्रोडक्ट: ${title}` : `Product: ${title}`,
+    ...(category ? [hi ? `प्रकार: ${category}` : `Type: ${category}`] : []),
+    ...(material ? [hi ? `मटेरियल: ${material}` : `Material: ${material}`] : []),
+    ...(colours.length ? [hi ? `रंग: ${colours.join(", ")}` : `Colour: ${colours.join(", ")}`] : []),
+    ...(hasSizes ? [hi ? `साइज़: ${sizesStr}` : `Sizes: ${sizesStr}`] : []),
+    ...trust,
+  ];
+
+  const waLines = [
+    `*${title}*`,
+    ...(priceLine ? [priceLine] : []),
+    ...trust.map((t) => `✅ ${t}`),
+  ];
+  const contact = buildContactLine(params, hi);
+  if (contact) waLines.push("", contact);
+
+  const igFirst = [title, category, colours[0]].filter(Boolean).join(" · ");
 
   return {
-    seoTitle: `${title} - Premium Quality & Best Price Online`,
-    seoDescription: `Buy authentic ${title} online at ${offerPrice}. Premium material, verified quality, fast dispatch, and Cash on Delivery. Order now!`,
-    keyFeatures: [
-      `Premium Grade Craftsmanship: Designed with durable, high-grade materials for long-lasting use`,
-      `Optimal Fit & Everyday Comfort: Tailored design suitable for ${sizesStr}`,
-      `Fade-Resistant Finish: Retains rich texture and vibrant colors through repeated washes`,
-      `Fast Dispatch & Easy Returns: Dispatched within 24-48 hours with 100% replacement guarantee`,
-    ],
-    keywords: [
-      title.toLowerCase(),
-      "trending online",
-      "best seller marketplace",
-      "premium quality",
-      "cash on delivery",
-      "wholesale fashion deals",
-      "fast dispatch",
-      "latest collection",
-    ],
+    seoTitle: clampWords(stripPromo(title), SEO_TITLE_MAX),
+    seoDescription: clampWords(
+      (hi ? `${title} ऑनलाइन` : `${title} online`) +
+        (offer ? ` – ${offer}` : "") +
+        (trust.length ? ` · ${trust.join(" · ")}` : ""),
+      SEO_DESC_MAX
+    ),
+    keyFeatures: keyFeatures.slice(0, 4),
+    keywords,
     meeshoListing: {
-      title: `${title} - Trending Collection`,
-      description: `Product Name: ${title}\n\nFabric/Material: Premium High-Grade\nSizes Available: ${sizesStr}\nColor/Pattern: As per product image\nDetails: ${desc}\n\nDispatch Timeline: 1-2 Business Days\nPayment: Cash on Delivery (COD) / Prepaid Available\nReturns: Easy 7-Day Hassle-Free Return Policy\nCountry of Origin: India`,
-      category: "Fashion & Lifestyle",
-      subcategory: "Apparel & Accessories",
+      title: marketTitle,
+      description: descLines.join("\n"),
+      category: category || (hi ? "सामान्य" : "General"),
+      subcategory: category || "",
     },
-    whatsappCaption: `✨ *EXCLUSIVE NEW ARRIVAL* ✨\n\n🛍️ *${title}*\n${priceLine ? `${priceLine}\n` : ""}📏 *Sizes Available:* ${sizesStr}\n\n✅ Premium Verified Quality\n🚚 Free Delivery & COD Available\n📦 Easy 7-Day Exchange Guarantee\n\n👇 *Click to order directly on WhatsApp:* \nhttps://wa.me/${cleanPhone}?text=Hi,%20I%20want%20to%20order%20${encodeURIComponent(title)}`,
-    instagramCaption: `Upgrade your collection with our bestselling ${title}! ✨ Crafted for elegance, made for comfort. Tap the link in bio to grab yours before stock runs out! 🛍️ Available in ${sizesStr}. Direct message or WhatsApp us for instant booking.`,
-    instagramHashtags: [
-      "#shopnow",
-      "#trendingnow",
-      "#onlineseller",
-      "#ecommerce",
-      "#indianfashion",
-      "#styleinspo",
-      "#fashionblogger",
-      "#onlineshoppingindia",
-      "#d2cindia",
-      "#bestseller",
-    ],
+    whatsappCaption: waLines.join("\n").trim(),
+    instagramCaption: hi
+      ? `${igFirst}${trust.length ? `\n${trust.join(" · ")}` : ""}`
+      : `${igFirst}${trust.length ? `\n${trust.join(" · ")}` : ""}`,
+    instagramHashtags,
   };
 }
 
-function buildPrompts(params: GenerateTextParams) {
-  const systemPrompt = `You are Peshkar AI's elite e-commerce SEO copywriter and growth marketer specializing in multi-channel e-commerce (Amazon, Flipkart, Meesho, Shopify, D2C, Instagram & WhatsApp catalogs).
-Your task is to write exceptionally high-converting, SEO-optimized product titles, descriptions, marketplace catalog specifications, WhatsApp broadcast copy, and Instagram posts.
-Ensure titles have maximum search volume potential, descriptions include high commercial intent keywords, bullet points are persuasive, and social captions include clear call-to-actions and emojis.
-NEVER write any price, amount, discount percentage or currency figure anywhere. In whatsappCaption, put the exact token ${PRICE_LINE_TOKEN} on its own line where the price should go. Do not mention prices in any other field.
-CRITICAL: Respond ONLY with valid, raw JSON matching the requested structure. Do not wrap in markdown quotes or extra text.`;
-
+export function buildPrompts(params: GenerateTextParams) {
+  const hi = params.language === "hi";
+  const langName = hi ? "Hindi (Devanagari script)" : "English";
   const pricing = normalizePricing(params.price, params.discountPrice);
+  const facts = sellerFactLabels(params.sellerFacts, false); // English labels for the prompt
+  const copyFacts = inventoryToCopyFacts(params.productInventory);
+
+  const trustRule = facts.length
+    ? `The seller offers ONLY these and you may mention ONLY these: ${facts.join(", ")}.`
+    : `The seller has NOT confirmed any delivery, COD, return, warranty or origin claim. Do NOT mention Cash on Delivery, free delivery, returns, exchange, warranty, guarantee, or country of origin anywhere.`;
+
+  const systemPrompt = `You are Peshkar AI's e-commerce copywriter for Indian sellers (Amazon, Flipkart, Meesho, Shopify, Instagram, WhatsApp).
+Write copy that is accurate, trustworthy and genuinely helps the product sell and rank.
+
+ACCURACY RULES (most important):
+- Describe ONLY what you are told. NEVER invent material, fabric, size, fit, colour, origin, certification, or features that are not given.
+- NEVER claim delivery speed, Cash on Delivery, free delivery, returns, exchange, warranty or guarantee unless explicitly allowed below.
+- NEVER create false urgency or scarcity ("hurry", "stock running out", "limited time", "only few left").
+- NEVER use banned promotional words in titles: "best seller", "#1", "top rated", "best price", "lowest price", "cheapest".
+- Do NOT use these characters in any title: ! $ ? _ { } ^
+- ${trustRule}
+
+PRICE RULE:
+- NEVER write any price, amount, discount percentage or currency figure anywhere.
+- In whatsappCaption, put the exact token ${PRICE_LINE_TOKEN} on its own line where the price should go. Do not write contact numbers or links in whatsappCaption — those are added separately.
+
+LANGUAGE: Write seoDescription, keyFeatures, meeshoListing.description, whatsappCaption and instagramCaption in ${langName}. Keep brand names and model numbers in their original script. Titles may stay in English/transliterated for search.
+
+OUTPUT: Respond ONLY with valid raw JSON matching the requested structure — no markdown, no commentary.`;
 
   const userContent = `
-Product Details:
-- Title: ${params.userTitle || "Product"}
-- Description / Material: ${params.userDescription || "High quality material"}
-- Custom Instructions / Prompt: ${params.userPrompt || "N/A"}
-- MRP (strike-through price): ${pricing.mrp !== undefined ? formatINR(pricing.mrp) : "N/A"}
-- Selling price (customer pays): ${pricing.selling !== undefined ? formatINR(pricing.selling) : "N/A"}
-- Sizes Available: ${params.sizes?.length ? params.sizes.join(", ") : "Free Size / Standard"}
-- Colors/Variants: ${params.variants?.length ? params.variants.join(", ") : "Standard"}
-- CTA: ${params.ctaText || "Order Now via WhatsApp"}
-- Store Name: ${params.storeName || "Our Store"}
-- WhatsApp Number: ${params.whatsappNumber || "Contact for order"}
-- Instagram Handle: ${params.instagramHandle || "@shop"}
+Product facts (the only truth — do not add to these):
+- Seller's title: ${params.userTitle || "Product"}
+- Seller's notes: ${params.userDescription || "none"}
+- Custom instructions: ${params.userPrompt || "none"}
+- Sizes: ${params.sizes?.length ? params.sizes.join(", ") : "none given"}
+- Variants/colours: ${params.variants?.length ? params.variants.join(", ") : "none given"}
+${copyFacts ? `\nWhat the product photo shows (use this to describe the real item):\n${copyFacts}\n` : ""}
+Pricing context (for your judgement only — never print numbers): ${pricing.selling !== undefined ? "a selling price exists" : "no price given"}.
 
-Generate the JSON with the following exact keys:
+Produce JSON with EXACTLY these keys:
 {
-  "seoTitle": "String - 50-80 chars high-converting, keyword-rich product title for e-commerce search algorithms",
-  "seoDescription": "String - 150-160 chars SEO meta description with hook, keywords, and COD / trust appeal",
+  "seoTitle": "Google search title, <= ${SEO_TITLE_MAX} characters, main keyword first, no promo words",
+  "seoDescription": "Meta description, <= ${SEO_DESC_MAX} characters, factual hook with real keywords",
   "keyFeatures": [
-    "String - Feature 1 highlighting material quality and durability",
-    "String - Feature 2 highlighting fit, sizing, and comfort",
-    "String - Feature 3 highlighting style, finish, and aesthetic",
-    "String - Feature 4 highlighting care instructions, dispatch, or guarantee"
+    "Benefit-led bullet grounded in a real given feature",
+    "Second bullet (for apparel: fit/fabric; for electronics/other: a real spec or use-case)",
+    "Third bullet from a real detail",
+    "Fourth bullet from a real detail, care, or the sizes given"
   ],
-  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8"],
+  "keywords": ["6-8 real search keywords a buyer would type (include Hindi terms where natural)"],
   "meeshoListing": {
-    "title": "String - Multi-channel marketplace optimized title following seller best practices (Type + Fabric + Pattern + Color)",
-    "description": "String - Detailed marketplace catalog description with fabric, specifications, sizing, and return policy",
-    "category": "String - Primary Category (e.g. Women Ethnic Wear, Fashion Accessories, etc.)",
-    "subcategory": "String - Specific Subcategory"
+    "title": "Marketplace title <= ${MARKETPLACE_TITLE_MAX} chars: Brand + Model + Product type + up to 2 real key attributes. No promo words, no banned characters.",
+    "description": "Factual catalog description: product type, material, colours, real features, and the sizes given. No invented specs or policies.",
+    "category": "Best-fit marketplace category",
+    "subcategory": "Specific subcategory"
   },
-  "whatsappCaption": "String - Highly formatted WhatsApp message with emojis, bold highlights (*text*), sizes, and direct order link. Put the exact token ${PRICE_LINE_TOKEN} on its own line where the price should go",
-  "instagramCaption": "String - Engaging Instagram caption with hook, benefits, and CTA",
-  "instagramHashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6", "#tag7", "#tag8", "#tag9", "#tag10"]
+  "whatsappCaption": "4-6 short lines, minimal emoji, plain and warm. First line = product. Put ${PRICE_LINE_TOKEN} on its own line. No phone numbers or links.",
+  "instagramCaption": "Short caption whose FIRST line is a plain, searchable description of the product, then 1-2 benefit lines. No price.",
+  "instagramHashtags": ["exactly ${MAX_HASHTAGS} specific, relevant hashtags"]
 }
 `;
 
@@ -126,10 +273,11 @@ Generate the JSON with the following exact keys:
 }
 
 /**
- * Turns the parsed LLM JSON into complete, valid IAiGeneratedText and enforces
- * that the only prices in the copy are the ones the seller entered.
+ * Turns the parsed LLM JSON into complete, valid IAiGeneratedText and enforces the guardrails in
+ * code (prices, platform limits, banned title characters, hashtag cap, server-written contact).
  */
 export function sanitizeListingText(parsed: any, params: GenerateTextParams): IAiGeneratedText {
+  const hi = params.language === "hi";
   const fallback = generateFallbackListingText(params);
   const pricing = normalizePricing(params.price, params.discountPrice);
   const priceLine = buildPriceLine(pricing);
@@ -151,7 +299,7 @@ export function sanitizeListingText(parsed: any, params: GenerateTextParams): IA
     return kept.length > 0 ? kept : fb;
   };
 
-  // WhatsApp: the server, not the model, writes the price line.
+  // WhatsApp: the server, not the model, writes the price line and the contact line.
   const modelCaption: string | undefined = parsed.whatsappCaption?.trim();
   let whatsappCaption = fallback.whatsappCaption;
   if (modelCaption) {
@@ -163,31 +311,41 @@ export function sanitizeListingText(parsed: any, params: GenerateTextParams): IA
     } else if (priceLine) {
       lines.splice(1, 0, priceLine);
     }
-    whatsappCaption = lines
-      .filter((line) => line === priceLine || !hasBadAmount(line))
+    const contact = buildContactLine(params, hi);
+    const body = lines
+      .filter((line) => line === priceLine || (!hasBadAmount(line) && !URL_OR_PHONE.test(line)))
       .join("\n")
-      .trim() || fallback.whatsappCaption;
+      .trim();
+    whatsappCaption = (contact ? `${body}\n\n${contact}` : body) || fallback.whatsappCaption;
   }
 
   const keyFeatures: unknown[] =
     Array.isArray(parsed.keyFeatures) && parsed.keyFeatures.length > 0 ? parsed.keyFeatures : fallback.keyFeatures;
 
+  const seoTitleRaw = singleLine(parsed.seoTitle, fallback.seoTitle);
+  const marketTitleRaw = singleLine(parsed.meeshoListing?.title, fallback.meeshoListing.title);
+
+  const hashtags = tagList(parsed.instagramHashtags, fallback.instagramHashtags)
+    .map((t) => cleanHashtag(String(t)))
+    .filter(Boolean)
+    .slice(0, MAX_HASHTAGS);
+
   return {
-    seoTitle: singleLine(parsed.seoTitle, fallback.seoTitle),
-    seoDescription: singleLine(parsed.seoDescription, fallback.seoDescription),
+    seoTitle: clampWords(stripPromo(seoTitleRaw), SEO_TITLE_MAX),
+    seoDescription: clampWords(singleLine(parsed.seoDescription, fallback.seoDescription), SEO_DESC_MAX),
     keyFeatures: keyFeatures.map((feature, i) =>
       singleLine(feature, fallback.keyFeatures[i % fallback.keyFeatures.length]!)
     ),
     keywords: tagList(parsed.keywords, fallback.keywords),
     meeshoListing: {
-      title: singleLine(parsed.meeshoListing?.title, fallback.meeshoListing.title),
+      title: cleanMarketplaceTitle(marketTitleRaw),
       description: multiLine(parsed.meeshoListing?.description, fallback.meeshoListing.description),
       category: singleLine(parsed.meeshoListing?.category, fallback.meeshoListing.category),
       subcategory: singleLine(parsed.meeshoListing?.subcategory, fallback.meeshoListing.subcategory),
     },
     whatsappCaption,
     instagramCaption: multiLine(parsed.instagramCaption, fallback.instagramCaption),
-    instagramHashtags: tagList(parsed.instagramHashtags, fallback.instagramHashtags),
+    instagramHashtags: hashtags.length > 0 ? hashtags : fallback.instagramHashtags,
   };
 }
 
@@ -207,7 +365,7 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
   try {
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -221,7 +379,7 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
 
     trackAIGeneration({
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -243,7 +401,7 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
   } catch (error) {
     trackAIGeneration({
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -279,7 +437,7 @@ export async function generateListingTextStream(
   try {
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },

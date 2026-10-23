@@ -218,3 +218,21 @@ export function inventoryToChecklist(
   ];
   return items.map((line, i) => `${i + 1}. ${line}`).join("\n");
 }
+
+/**
+ * Plain, readable list of what the product actually is, read from the seller's photo, for the
+ * copywriter prompt. Lets the text model describe the real product instead of inventing a
+ * material or a feature. Returns "" for a null/empty inventory.
+ */
+export function inventoryToCopyFacts(inventory: ProductInventory | null | undefined): string {
+  const inv = sanitizeInventory(inventory);
+  if (!inv) return "";
+  const parts: string[] = [];
+  if (inv.category) parts.push(`Product type: ${inv.category}`);
+  if (inv.material) parts.push(`Material/build: ${inv.material}`);
+  if (inv.colours.length) parts.push(`Colours: ${inv.colours.join(", ")}`);
+  if (inv.details.length) parts.push(`Visible features: ${inv.details.join("; ")}`);
+  if (inv.counts.length) parts.push(`Counts: ${inv.counts.map((c) => `${c.count} ${c.item}`).join(", ")}`);
+  if (inv.exactText.length) parts.push(`Text printed on the product: ${inv.exactText.map((t) => `"${t}"`).join(", ")}`);
+  return parts.join("\n");
+}
