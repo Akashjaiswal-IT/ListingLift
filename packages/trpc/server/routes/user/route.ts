@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { User, CreditLedger, DEFAULT_CARD_SETTINGS, type IUser } from "@repo/database";
-import { getPresignedUploadUrl, addCredits } from "@repo/services";
+import { getPresignedUploadUrl, REFERRAL_BONUS_CREDITS } from "@repo/services";
 
 const cardSettingsInput = z.object({
   language: z.enum(["en", "hi"]).optional(),
@@ -143,7 +143,7 @@ export const userRouter = router({
       referralCount: user.referralCount || 0,
       referralCreditsEarned: user.referralCreditsEarned || 0,
       referredBy: user.referredBy || null,
-      bonusPerReferral: 5,
+      bonusPerReferral: REFERRAL_BONUS_CREDITS,
     };
   }),
 
@@ -212,21 +212,13 @@ export const userRouter = router({
         });
       }
 
-      // The invited user gets their welcome bonus now. The REFERRER is paid
-      // later — only once this invited user makes their first purchase — via
-      // grantReferralRewardOnFirstPurchase(). This removes the farming incentive
-      // where throwaway accounts minted free credits for a referrer at no cost.
-      const bonusCredits = 5;
-      await addCredits({
-        userId: String(user._id),
-        amount: bonusCredits,
-        type: "BONUS",
-        description: `Referral welcome bonus (Invited by ${referrer.fullName || "Seller"})`,
-      });
-
+      // The invited user gets no extra credits (only the normal signup trial). The
+      // REFERRER is paid later — only once this invited user makes their first
+      // purchase — via grantReferralRewardOnFirstPurchase(), so throwaway accounts
+      // can't mint free credits for anyone.
       return {
         success: true,
-        creditsAwarded: bonusCredits,
+        creditsAwarded: 0,
         referrerName: referrer.fullName,
       };
     }),

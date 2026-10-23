@@ -1,8 +1,15 @@
-import { User } from "@repo/database";
+import { User, CreditLedger } from "@repo/database";
 import { Types } from "mongoose";
 import { addCredits } from "./credit.service";
 
-export const REFERRAL_BONUS_CREDITS = 5;
+/** Credits the REFERRER earns once an invited seller makes their first purchase. */
+export const REFERRAL_BONUS_CREDITS = 3;
+/**
+ * Invites redeemed under the old "give 5, get 5" offer were promised 5 credits for the referrer.
+ * Those invitees are recognisable by the old welcome-bonus ledger entry, so their referrer still gets 5.
+ */
+export const LEGACY_REFERRAL_BONUS_CREDITS = 5;
+const LEGACY_WELCOME_BONUS_PREFIX = /^Referral welcome bonus/;
 // A referrer can earn from at most this many successful invites. A hard cap
 // limits the blast radius if someone finds a way around the other checks.
 export const MAX_REWARDED_REFERRALS = 100;
@@ -13,7 +20,7 @@ export const MAX_REWARDED_REFERRALS = 100;
  *
  * Why gate on purchase? If the referrer were paid the moment a code is redeemed,
  * an attacker could create N throwaway accounts, redeem their own code N times,
- * and mint 5N free credits. Requiring the invited account to pay real money
+ * and mint free credits. Requiring the invited account to pay real money
  * before the referrer earns anything makes farming unprofitable.
  *
  * The "claim" below is atomic: findOneAndUpdate only matches while
@@ -41,19 +48,25 @@ export async function grantReferralRewardOnFirstPurchase(
   const referrer = await User.findOne({ clerkId: claimed.referredBy });
   // Guard against self-referral and a missing referrer account.
   if (!referrer || String(referrer._id) === String(claimed._id)) return;
-  if ((referrer.referralCreditsEarned || 0) >= MAX_REWARDED_REFERRALS * REFERRAL_BONUS_CREDITS) {
-    return;
-  }
+  // Cap by number of rewarded invites (not credits), so old 5-credit and new 3-credit rewards count the same.
+  if ((referrer.referralCount || 0) >= MAX_REWARDED_REFERRALS) return;
+
+  const redeemedUnderOldOffer = await CreditLedger.exists({
+    userId: claimed._id,
+    type: "BONUS",
+    description: LEGACY_WELCOME_BONUS_PREFIX,
+  });
+  const amount = redeemedUnderOldOffer ? LEGACY_REFERRAL_BONUS_CREDITS : REFERRAL_BONUS_CREDITS;
 
   await Promise.all([
     addCredits({
       userId: String(referrer._id),
-      amount: REFERRAL_BONUS_CREDITS,
+      amount,
       type: "BONUS",
       description: `Referral reward — ${claimed.fullName || "your invite"} made their first purchase`,
     }),
     User.findByIdAndUpdate(referrer._id, {
-      $inc: { referralCount: 1, referralCreditsEarned: REFERRAL_BONUS_CREDITS },
+      $inc: { referralCount: 1, referralCreditsEarned: amount },
     }),
   ]);
 }
