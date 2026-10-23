@@ -30,6 +30,7 @@ import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
 import { AnimatedHero } from "~/components/landing/hero/AnimatedHero";
 import { HERO_COPY, pick } from "~/components/landing/hero/hero-content";
 import { CustomTopup } from "~/components/pricing/CustomTopup";
+import { LANDING_PACKS, formatPackPrice } from "~/lib/credit-packs";
 
 // Demo photos in /public/images/demo-*.webp come from Unsplash (free to use under the Unsplash License):
 // - demo-watch-white:           https://unsplash.com/photos/black-smart-watch-with-white-background-O43D6CYzxqM
@@ -667,11 +668,11 @@ export default function HomePage() {
                   {isHi ? "स्टूडियो किकस्टार्ट" : "Studio Kickstart"}
                 </h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">₹249</span>
-                  <span className="text-xs text-muted-foreground">/ 10 {t.sections.creditsUnit}</span>
+                  <span className="text-4xl font-black font-serif text-foreground">{formatPackPrice(LANDING_PACKS[0])}</span>
+                  <span className="text-xs text-muted-foreground">/ {LANDING_PACKS[0].credits} {t.sections.creditsUnit}</span>
                 </div>
                 <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹24.90 {t.pricingPage.perCredit}
+                  ₹{LANDING_PACKS[0].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
                 </span>
               </div>
 
@@ -682,7 +683,7 @@ export default function HomePage() {
                 <ul className="space-y-2.5 text-xs text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>5 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                    <span>{Math.floor(LANDING_PACKS[0].credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
@@ -701,7 +702,7 @@ export default function HomePage() {
 
               <Link href="/pricing" className="block w-full">
                 <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} (₹249)
+                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[0])})
                 </Button>
               </Link>
             </CardContent>
@@ -715,11 +716,11 @@ export default function HomePage() {
                   {isHi ? "ग्रोथ सेलर" : "Growth Seller"}
                 </h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">₹599</span>
-                  <span className="text-xs text-muted-foreground">/ 30 {t.sections.creditsUnit}</span>
+                  <span className="text-4xl font-black font-serif text-foreground">{formatPackPrice(LANDING_PACKS[1])}</span>
+                  <span className="text-xs text-muted-foreground">/ {LANDING_PACKS[1].credits} {t.sections.creditsUnit}</span>
                 </div>
                 <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹19.97 {t.pricingPage.perCredit}
+                  ₹{LANDING_PACKS[1].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
                 </span>
               </div>
 
@@ -730,7 +731,7 @@ export default function HomePage() {
                 <ul className="space-y-2.5 text-xs text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>15 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                    <span>{Math.floor(LANDING_PACKS[1].credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
@@ -749,7 +750,7 @@ export default function HomePage() {
 
               <Link href="/pricing" className="block w-full">
                 <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} (₹599)
+                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[1])})
                 </Button>
               </Link>
             </CardContent>
@@ -768,11 +769,11 @@ export default function HomePage() {
                   {isHi ? "मर्चेंट प्रो" : "Merchant Pro"}
                 </h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">₹1,299</span>
-                  <span className="text-xs text-muted-foreground">/ 80 {t.sections.creditsUnit}</span>
+                  <span className="text-4xl font-black font-serif text-foreground">{formatPackPrice(LANDING_PACKS[2])}</span>
+                  <span className="text-xs text-muted-foreground">/ {LANDING_PACKS[2].credits} {t.sections.creditsUnit}</span>
                 </div>
                 <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹16.24 {t.pricingPage.perCredit}
+                  ₹{LANDING_PACKS[2].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
                 </span>
               </div>
 
@@ -783,7 +784,7 @@ export default function HomePage() {
                 <ul className="space-y-2.5 text-xs text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>40 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                    <span>{Math.floor(LANDING_PACKS[2].credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
@@ -802,7 +803,7 @@ export default function HomePage() {
 
               <Link href="/pricing" className="block w-full">
                 <Button className="w-full font-bold h-11 rounded-xl shadow-md shadow-primary/20 text-xs bg-primary hover:bg-primary/90 text-white">
-                  {t.pricingPage.buyBtn} (₹1,299)
+                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[2])})
                 </Button>
               </Link>
             </CardContent>
@@ -816,11 +817,11 @@ export default function HomePage() {
                   {isHi ? "ब्रांड स्टूडियो" : "Brand Studio"}
                 </h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">₹2,799</span>
-                  <span className="text-xs text-muted-foreground">/ 200 {t.sections.creditsUnit}</span>
+                  <span className="text-4xl font-black font-serif text-foreground">{formatPackPrice(LANDING_PACKS[3])}</span>
+                  <span className="text-xs text-muted-foreground">/ {LANDING_PACKS[3].credits} {t.sections.creditsUnit}</span>
                 </div>
                 <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹13.99 {t.pricingPage.perCredit}
+                  ₹{LANDING_PACKS[3].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
                 </span>
               </div>
 
@@ -831,7 +832,7 @@ export default function HomePage() {
                 <ul className="space-y-2.5 text-xs text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>100 {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
+                    <span>{Math.floor(LANDING_PACKS[3].credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
@@ -850,7 +851,7 @@ export default function HomePage() {
 
               <Link href="/pricing" className="block w-full">
                 <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} (₹2,799)
+                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[3])})
                 </Button>
               </Link>
             </CardContent>

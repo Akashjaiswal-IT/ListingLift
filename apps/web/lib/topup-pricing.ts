@@ -9,17 +9,19 @@
  * so the price shown here always equals what the server charges.
  */
 
-// The slider is narrower than the server limit (10 - 2,000 credits per order)
-export const CUSTOM_SLIDER_MIN = 10;
+// The slider is narrower than the server limit (15 - 2,000 credits per order).
+// Step 5 from 15 lands exactly on every tier boundary (40, 100, 250, 500, 1000).
+export const CUSTOM_SLIDER_MIN = 15;
 export const CUSTOM_SLIDER_MAX = 1000;
-export const CUSTOM_SLIDER_STEP = 10;
+export const CUSTOM_SLIDER_STEP = 5;
 
 function perCreditPaise(qty: number): number {
-  if (qty >= 500) return 1100;
-  if (qty >= 200) return 1400;
-  if (qty >= 80) return 1700;
-  if (qty >= 30) return 2000;
-  return 2500;
+  if (qty >= 1000) return 2000;
+  if (qty >= 500) return 2100;
+  if (qty >= 250) return 2200;
+  if (qty >= 100) return 2500;
+  if (qty >= 40) return 3000;
+  return 3400;
 }
 
 /** Total price in rupees for a custom top-up of `qty` credits. */

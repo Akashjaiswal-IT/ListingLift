@@ -18,12 +18,12 @@ export const RE_EDIT_CREDIT_COST = 1;
 
 export type QualityMode = "standard" | "pro";
 
-// Pro upgrades each main white image (2K + extra attempt + extra thinking); a 2+ photo kit gets one per photo, otherwise exactly one.
+// Pro upgrades each main white image (2K + up to 3 attempts + extra thinking): Quick Pro is +2, a Kit adds one per photo (clamped 1..5).
 export function calculateProQualitySurcharge(
   type: "listing_product" | "listing_kit",
   imageCount: number
 ): number {
-  if (type === "listing_product") return 1;
+  if (type === "listing_product") return 2;
   return Math.min(5, Math.max(1, imageCount));
 }
 
@@ -34,7 +34,7 @@ export function calculateGenerationCredits(
 ): number {
   const surcharge = qualityMode === "pro" ? calculateProQualitySurcharge(type, imageCount) : 0;
   if (type === "listing_product") return 2 + surcharge; // Quick Generate
-  if (imageCount <= 3) return 5 + surcharge;
-  if (imageCount === 4) return 6 + surcharge;
+  if (imageCount <= 2) return 5 + surcharge;
+  if (imageCount <= 4) return 6 + surcharge; // 3-4 photos: 6 studio images
   return 7 + surcharge; // 5 photos
 }

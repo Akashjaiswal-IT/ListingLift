@@ -12,16 +12,17 @@ import {
  * change and lib/topup-pricing.ts isn't updated, one of the two fails.
  */
 const EXPECTED: Array<{ credits: number; rupees: number }> = [
-  { credits: 10, rupees: 250 },
-  { credits: 29, rupees: 725 },
-  { credits: 30, rupees: 600 },
-  { credits: 79, rupees: 1580 },
-  { credits: 80, rupees: 1360 },
-  { credits: 199, rupees: 3383 },
-  { credits: 200, rupees: 2800 },
-  { credits: 499, rupees: 6986 },
-  { credits: 500, rupees: 5500 },
-  { credits: 1000, rupees: 11000 },
+  { credits: 15, rupees: 510 },
+  { credits: 39, rupees: 1326 },
+  { credits: 40, rupees: 1200 },
+  { credits: 99, rupees: 2970 },
+  { credits: 100, rupees: 2500 },
+  { credits: 249, rupees: 6225 },
+  { credits: 250, rupees: 5500 },
+  { credits: 499, rupees: 10978 },
+  { credits: 500, rupees: 10500 },
+  { credits: 999, rupees: 20979 },
+  { credits: 1000, rupees: 20000 },
 ];
 
 describe("web top-up pricing mirror", () => {
@@ -31,13 +32,19 @@ describe("web top-up pricing mirror", () => {
     });
   }
 
-  it("keeps the slider at 10 - 1,000 in steps of 10", () => {
-    expect(CUSTOM_SLIDER_MIN).toBe(10);
+  it("keeps the slider at 15 - 1,000 in steps of 5", () => {
+    expect(CUSTOM_SLIDER_MIN).toBe(15);
     expect(CUSTOM_SLIDER_MAX).toBe(1000);
-    expect(CUSTOM_SLIDER_STEP).toBe(10);
+    expect(CUSTOM_SLIDER_STEP).toBe(5);
   });
 
-  it("quotes the example from the bug report: 220 credits = ₹3,080", () => {
-    expect(getTopupPriceRupees(220)).toBe(3080);
+  it("the slider can reach every tier boundary and its default of 220", () => {
+    for (const qty of [40, 100, 250, 500, 1000, 220]) {
+      expect((qty - CUSTOM_SLIDER_MIN) % CUSTOM_SLIDER_STEP).toBe(0);
+    }
+  });
+
+  it("quotes 220 credits (the slider default) at ₹5,500", () => {
+    expect(getTopupPriceRupees(220)).toBe(5500);
   });
 });
