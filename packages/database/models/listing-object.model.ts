@@ -24,7 +24,21 @@ export interface IGeneratedImage {
   isLatest: boolean;         // true = currently shown; false = hidden history
   replacedBy?: Types.ObjectId; // points to the newer version if re-edited
   fidelityIssues?: string[];   // product changes the fidelity check still flagged on this image
+  fidelityStatus?: "verified" | "issues" | "not_verified"; // absent on images made before fidelity tracking
+  attempts?: number;
   createdAt: Date;
+}
+
+// Mirrors ProductInventory in @repo/services (ai/product-inventory.ts); duplicated because database must not import services.
+export interface IProductInventory {
+  category: string;
+  material: string;
+  colours: string[];
+  details: string[];
+  counts: { item: string; count: number }[];
+  exactText: string[];
+  wear: string[];
+  smallPrint?: boolean;
 }
 
 export interface IAiGeneratedText {
@@ -73,6 +87,9 @@ export interface IListingObject extends Document {
   variants?: string[];       // ["Red", "Blue"]
   ctaText?: string;          // "Order Now via WhatsApp"
   templateId?: string;       // "minimal-luxury" | "midnight-gold" | ...
+  keepWear?: boolean;        // keep scratches/scuffs instead of making the product look new
+  qualityMode?: "standard" | "pro";
+  productInventory?: IProductInventory | null;
 
   // Step 3: AI-generated text (streamed via SSE, persisted)
   aiGeneratedText?: IAiGeneratedText;
@@ -139,6 +156,8 @@ const GeneratedImageSchema = new Schema<IGeneratedImage>({
   isLatest: { type: Boolean, default: true },
   replacedBy: { type: Schema.Types.ObjectId, ref: "ListingObject" },
   fidelityIssues: { type: [String], default: undefined },
+  fidelityStatus: { type: String, enum: ["verified", "issues", "not_verified"] },
+  attempts: { type: Number },
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -205,6 +224,9 @@ const ListingObjectSchema = new Schema<IListingObject>(
     variants: [{ type: String }],
     ctaText: { type: String },
     templateId: { type: String, default: "minimal-luxury" },
+    keepWear: { type: Boolean, default: false },
+    qualityMode: { type: String, enum: ["standard", "pro"], default: "standard" },
+    productInventory: { type: Schema.Types.Mixed },
 
     // Step 3
     aiGeneratedText: AiGeneratedTextSchema,
