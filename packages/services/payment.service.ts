@@ -15,82 +15,88 @@ export interface CreditPack {
   isPopular?: boolean;
 }
 
+// Pack ids are stable (stored on Payment records and in Razorpay notes) - only change prices/credits.
+// The landing page mirrors the first four in apps/web/lib/credit-packs.ts; the parity tests keep them equal.
+// Every pack stays at or above ₹20/credit, the floor that covers worst-case AI cost per credit.
 export const CREDIT_PACKS: CreditPack[] = [
   {
     id: "trial",
     name: "Studio Kickstart",
-    credits: 10,
-    priceRupees: 249,
-    amountPaise: 24900,
-    perCreditRupees: 24.9,
+    credits: 15,
+    priceRupees: 499,
+    amountPaise: 49900,
+    perCreditRupees: 33.27,
     badge: "First Purchase",
   },
   {
     id: "starter",
     name: "Growth Seller",
-    credits: 30,
-    priceRupees: 599,
-    amountPaise: 59900,
-    perCreditRupees: 19.97,
-    savingsPercent: 20,
+    credits: 40,
+    priceRupees: 1199,
+    amountPaise: 119900,
+    perCreditRupees: 29.98,
+    savingsPercent: 10,
     badge: "Starter Studio",
   },
   {
     id: "standard",
     name: "Merchant Pro",
-    credits: 80,
-    priceRupees: 1299,
-    amountPaise: 129900,
-    perCreditRupees: 16.24,
-    savingsPercent: 35,
+    credits: 100,
+    priceRupees: 2499,
+    amountPaise: 249900,
+    perCreditRupees: 24.99,
+    savingsPercent: 25,
     isPopular: true,
     badge: "Most Popular",
   },
   {
     id: "pro",
     name: "Brand Studio",
-    credits: 200,
-    priceRupees: 2799,
-    amountPaise: 279900,
-    perCreditRupees: 13.99,
-    savingsPercent: 44,
+    credits: 250,
+    priceRupees: 5499,
+    amountPaise: 549900,
+    perCreditRupees: 22.0,
+    savingsPercent: 34,
     badge: "Best Value",
   },
   {
     id: "business_s",
     name: "Business Studio",
-    credits: 450,
-    priceRupees: 5499,
-    amountPaise: 549900,
-    perCreditRupees: 12.22,
-    savingsPercent: 51,
+    credits: 500,
+    priceRupees: 10499,
+    amountPaise: 1049900,
+    perCreditRupees: 21.0,
+    savingsPercent: 37,
   },
   {
     id: "business_l",
     name: "Agency Bulk",
     credits: 1000,
-    priceRupees: 9999,
-    amountPaise: 999900,
-    perCreditRupees: 9.99,
-    savingsPercent: 60,
+    priceRupees: 19999,
+    amountPaise: 1999900,
+    perCreditRupees: 20.0,
+    savingsPercent: 40,
   },
 ];
 
-// Custom top-up limits. The UI slider is narrower (10-1,000) but the server accepts up to 2,000.
-export const TOPUP_MIN_CREDITS = 10;
+// Custom top-up limits. The UI slider is narrower (15-1,000) but the server accepts up to 2,000.
+// The minimum is 15 so no top-up costs less than the ₹499 entry pack.
+export const TOPUP_MIN_CREDITS = 15;
 export const TOPUP_MAX_CREDITS = 2000;
 
 /**
- * Price per credit (in paise) for a custom top-up of `qty` credits.
+ * Price per credit (in paise) for a custom top-up of `qty` credits. Each tier is just above the
+ * matching pack, so a pack is always the better deal.
  * The web app mirrors this table in apps/web/lib/topup-pricing.ts - keep both
  * (and their tests) identical so the quote always equals the charge.
  */
 function getTopupPerCreditPaise(qty: number): number {
-  if (qty >= 500) return 1100; // ₹11
-  if (qty >= 200) return 1400; // ₹14
-  if (qty >= 80) return 1700; // ₹17
-  if (qty >= 30) return 2000; // ₹20
-  return 2500; // ₹25
+  if (qty >= 1000) return 2000; // ₹20
+  if (qty >= 500) return 2100; // ₹21
+  if (qty >= 250) return 2200; // ₹22
+  if (qty >= 100) return 2500; // ₹25
+  if (qty >= 40) return 3000; // ₹30
+  return 3400; // ₹34
 }
 
 /** Total price in paise for a custom top-up of `qty` credits. */
