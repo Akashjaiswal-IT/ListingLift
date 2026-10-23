@@ -4,9 +4,14 @@ import { router, adminProcedure } from "../../trpc";
 import { User, ListingObject, Payment, CreditLedger } from "@repo/database";
 import { enqueueImageGeneration } from "@repo/services";
 
+// Estimates from Google's per-image token counts and third-party $ rates (~₹84/$); replace with logged token costs.
+const EST_IMAGE_COST_INR = 5.6; // one 1K Gemini 3.1 Flash Image output (1,120 tokens); 2K Pro calls cost more
+const EST_CHECK_COST_INR = 1; // gpt-4.1 fidelity judge, at most once per Gemini call
+const EST_TEXT_COST_INR = 0.5; // photo analysis and listing text per listing
+
 export const adminRouter = router({
   getStats: adminProcedure.query(async () => {
-    const [totalUsers, totalListings, completedListings, failedListings, totalPayments] =
+    const [totalUsers, totalListings, completedListings, failedListings, totalPayments, imageTotals] =
       await Promise.all([
         User.countDocuments(),
         ListingObject.countDocuments(),
@@ -16,12 +21,33 @@ export const adminRouter = router({
           { $match: { status: "captured" } },
           { $group: { _id: null, totalPaise: { $sum: "$amountPaise" }, totalCredits: { $sum: "$creditsPurchased" } } },
         ]),
+        ListingObject.aggregate([
+          { $match: { status: "completed" } },
+          // Each image records how many Gemini calls it took (retries); older images have no count, so assume 1.
+          {
+            $group: {
+              _id: null,
+              calls: {
+                $sum: {
+                  $sum: {
+                    $map: {
+                      input: { $ifNull: ["$generatedImages", []] },
+                      as: "img",
+                      in: { $ifNull: ["$$img.attempts", 1] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ]),
       ]);
 
     const revenueRupees = (totalPayments[0]?.totalPaise || 0) / 100;
     const creditsSold = totalPayments[0]?.totalCredits || 0;
-    // Estimated cost: ~₹3.5 per generation
-    const estimatedAiCostRupees = completedListings * 3.5;
+    const geminiCalls: number = imageTotals[0]?.calls || 0;
+    const estimatedAiCostRupees =
+      geminiCalls * (EST_IMAGE_COST_INR + EST_CHECK_COST_INR) + completedListings * EST_TEXT_COST_INR;
 
     return {
       totalUsers,
