@@ -4,10 +4,10 @@ import { router, adminProcedure } from "../../trpc";
 import { User, ListingObject, Payment, CreditLedger } from "@repo/database";
 import { enqueueImageGeneration } from "@repo/services";
 
-// Estimates from Google's per-image token counts and third-party $ rates (~₹84/$); replace with logged token costs.
-const EST_IMAGE_COST_INR = 5.6; // one 1K Gemini 3.1 Flash Image output (1,120 tokens); 2K Pro calls cost more
+// Estimates from Google's official per-image prices at ~₹95/$ (Oct 2026); replace with logged token costs.
+const EST_IMAGE_COST_INR = 6.6; // one 1K Gemini 3.1 Flash Image call ($0.067 output + reference-image input); 2K Pro calls ~₹10.4
 const EST_CHECK_COST_INR = 1; // gpt-4.1 fidelity judge, at most once per Gemini call
-const EST_TEXT_COST_INR = 0.5; // photo analysis and listing text per listing
+const EST_TEXT_COST_INR = 1.5; // gpt-4.1 photo analysis + gpt-4.1-mini listing text per listing
 
 export const adminRouter = router({
   getStats: adminProcedure.query(async () => {
