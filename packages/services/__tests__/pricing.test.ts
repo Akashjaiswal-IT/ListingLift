@@ -115,8 +115,10 @@ describe("sanitizeListingText", () => {
     const fallback = generateFallbackListingText(params);
     const out = sanitizeListingText(llmOutput, params);
     expect(out.seoDescription).toBe(fallback.seoDescription);
-    expect(out.keyFeatures[1]).toBe(fallback.keyFeatures[1]);
+    // The clean bullets are kept; the one with a bad amount is swapped for a price-free fallback bullet.
     expect(out.keyFeatures[0]).toBe("Soft cotton fabric");
+    expect(out.keyFeatures[2]).toBe("Easy wash");
+    expect(findDisallowedAmounts(out.keyFeatures.join(" "), [700, 1200])).toEqual([]);
     expect(out.keywords).toEqual(["kurti"]);
   });
 
