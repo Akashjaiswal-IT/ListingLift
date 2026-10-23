@@ -167,11 +167,11 @@ export default function DashboardPage() {
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                {isHi ? "सफलता दर" : "Listing Success Rate"}
+                {isHi ? "रिफंड सुरक्षा" : "Refund Protection"}
               </span>
-              <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">99.4%</div>
+              <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{isHi ? "ऑटो" : "Auto"}</div>
               <span className="text-xs text-muted-foreground block">
-                {isHi ? "ऑटोमेटेड क्रेडिट रिफंड सुरक्षा" : "Automated credit refund protection"}
+                {isHi ? "जेनरेशन असफल होने पर क्रेडिट अपने-आप वापस" : "Credits come back automatically if a generation fails"}
               </span>
             </div>
             <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
@@ -193,8 +193,8 @@ export default function DashboardPage() {
             </h3>
             <p className="text-xs text-[#FAF7F2]/70 mt-0.5 max-w-xl">
               {isHi
-                ? "फ़ोन से सामान्य फ़ोटो अपलोड करें। AI बनाएगा 8K स्टूडियो फ़ोटो, अमेज़ॅन/फ्लिपकार्ट प्योर व्हाइट बैकग्राउंड और व्हाट्सएप कार्ड्स।"
-                : "Upload raw product photos from your phone. AI generates 8K studio variations, marketplace titles, and branded social cards."}
+                ? "फ़ोन से सामान्य फ़ोटो अपलोड करें। AI बनाएगा स्टूडियो-क्वालिटी फ़ोटो, अमेज़ॅन/फ्लिपकार्ट प्योर व्हाइट बैकग्राउंड और व्हाट्सएप कार्ड्स।"
+                : "Upload raw product photos from your phone. AI generates studio-quality photos, marketplace titles, and branded social cards."}
             </p>
           </div>
         </div>
@@ -340,8 +340,8 @@ export default function DashboardPage() {
               </h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
                 {isHi
-                  ? "अपनी पहली प्रोडक्ट फ़ोटो अपलोड करें और सेकंडों में स्टूडियो फ़ोटो, लिस्टिंग कॉपी और कार्ड्स प्राप्त करें।"
-                  : "Upload your first product photo to see studio outputs, marketplace listing copy, and social cards in seconds."}
+                  ? "अपनी पहली प्रोडक्ट फ़ोटो अपलोड करें और कुछ ही मिनटों में स्टूडियो फ़ोटो, लिस्टिंग कॉपी और कार्ड्स प्राप्त करें।"
+                  : "Upload your first product photo to see studio outputs, marketplace listing copy, and social cards in minutes."}
               </p>
             </div>
             <Link href="/app/generate">

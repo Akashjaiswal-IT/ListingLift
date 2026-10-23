@@ -178,7 +178,7 @@ export default function HomePage() {
             beforeLabel={t.hero.originalPhoto}
             afterLabel={t.hero.aiStudioRevamp}
             beforeSubtitle={isHi ? "बिस्तर पर सामान्य फ़ोन फ़ोटो" : "Casual photo on bed"}
-            afterSubtitle={isHi ? "सीधा 8K स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright 8K Studio Lighting"}
+            afterSubtitle={isHi ? "सीधा स्टूडियो ट्रांसफ़ॉर्मेशन" : "Upright Studio Lighting"}
           />
         </div>
       </section>
@@ -256,7 +256,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Right Column: AI Results Preview (Generated in 4.2 seconds) */}
+          {/* Right Column: AI Results Preview */}
           <div className="lg:col-span-7 flex flex-col h-full gap-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold tracking-tight text-foreground">

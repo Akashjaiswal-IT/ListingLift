@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     template: "%s · Peshkar AI",
   },
   description:
-    "Transform ordinary phone photos into studio-grade e-commerce catalogs, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and viral social cards in seconds.",
+    "Transform ordinary phone photos into studio-grade e-commerce catalogs, compliant marketplace listings (Amazon, Flipkart, Meesho, Shopify), and viral social cards in minutes.",
   applicationName: "Peshkar AI",
   keywords: [
     "ecommerce listing generator",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Peshkar AI — AI Studio Photos & Listings for Sellers",
     description:
-      "Turn phone photos into studio-grade product images, marketplace listings, and social cards in seconds.",
+      "Turn phone photos into studio-grade product images, marketplace listings, and social cards in minutes.",
     siteName: "Peshkar AI",
     type: "website",
   },

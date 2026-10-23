@@ -14,8 +14,8 @@ export const HERO_COPY = {
   headline: { en: "Your shortcut to a", hi: "फ़ोन फ़ोटो से" } as Copy,
   headlineAccent: { en: "ready listing", hi: "तैयार लिस्टिंग" } as Copy,
   subhead: {
-    en: "Drop one phone photo. Get studio images, marketplace copy and social posts in seconds.",
-    hi: "एक फ़ोन फ़ोटो डालें। सेकंडों में स्टूडियो फ़ोटो, मार्केटप्लेस कॉपी और सोशल पोस्ट पाएं।",
+    en: "Drop one phone photo. Get studio images, marketplace copy and social posts in minutes.",
+    hi: "एक फ़ोन फ़ोटो डालें। कुछ ही मिनटों में स्टूडियो फ़ोटो, मार्केटप्लेस कॉपी और सोशल पोस्ट पाएं।",
   } as Copy,
   ctaPrimary: { en: "Start free", hi: "मुफ़्त शुरू करें" } as Copy,
   ctaSecondary: { en: "See pricing", hi: "प्राइसिंग देखें" } as Copy,

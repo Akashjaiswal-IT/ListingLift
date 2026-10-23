@@ -303,8 +303,8 @@ export default function ReEditPage({
               </CardTitle>
               <CardDescription className="text-xs">
                 {isHi
-                  ? "AI को बताएं कि क्या संशोधित करना है। उत्पाद की मुख्य पहचान 100% सुरक्षित रखी जाएगी।"
-                  : "Tell the AI what to modify. The core product identity will be strictly preserved."}
+                  ? "AI को बताएं कि क्या बदलना है। AI को प्रोडक्ट को बिना बदले रखने का निर्देश दिया जाता है।"
+                  : "Tell the AI what to change. It is instructed to keep the product itself unchanged."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
