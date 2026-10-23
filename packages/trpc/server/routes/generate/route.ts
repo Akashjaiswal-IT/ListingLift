@@ -12,6 +12,7 @@ import {
   checkRateLimit,
   generateListingText,
   IMAGE_GENERATION_MAX_ATTEMPTS,
+  DEFAULT_TEMPLATE_ID,
 } from "@repo/services";
 
 export const generateRouter = router({
@@ -27,7 +28,7 @@ export const generateRouter = router({
         sizes: z.array(z.string()).optional(),
         variants: z.array(z.string()).optional(),
         ctaText: z.string().optional(),
-        templateId: z.string().optional().default("minimal-luxury"),
+        templateId: z.string().optional().default(DEFAULT_TEMPLATE_ID),
         keepWear: z.boolean().optional().default(false),
         qualityMode: z.enum(["standard", "pro"]).optional().default("standard"),
       })

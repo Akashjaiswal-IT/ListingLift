@@ -19,6 +19,7 @@ vi.mock("@repo/services", async () => {
   return {
     calculateGenerationCredits: pricing.calculateGenerationCredits,
     RE_EDIT_CREDIT_COST: pricing.RE_EDIT_CREDIT_COST,
+    DEFAULT_TEMPLATE_ID: "studio-auto",
     deductCredits: (...args: unknown[]) => deductCredits(...args),
     refundCredits: (...args: unknown[]) => refundCredits(...args),
     enqueueImageGeneration: (...args: unknown[]) => enqueueImageGeneration(...args),

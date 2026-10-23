@@ -86,7 +86,7 @@ export interface IListingObject extends Document {
   sizes?: string[];          // ["S", "M", "L", "XL"]
   variants?: string[];       // ["Red", "Blue"]
   ctaText?: string;          // "Order Now via WhatsApp"
-  templateId?: string;       // "minimal-luxury" | "midnight-gold" | ...
+  templateId?: string;       // card template id, e.g. "studio-auto" (retired ids are mapped by the renderer)
   keepWear?: boolean;        // keep scratches/scuffs instead of making the product look new
   qualityMode?: "standard" | "pro";
   productInventory?: IProductInventory | null;
@@ -223,7 +223,7 @@ const ListingObjectSchema = new Schema<IListingObject>(
     sizes: [{ type: String }],
     variants: [{ type: String }],
     ctaText: { type: String },
-    templateId: { type: String, default: "minimal-luxury" },
+    templateId: { type: String, default: "studio-auto" },
     keepWear: { type: Boolean, default: false },
     qualityMode: { type: String, enum: ["standard", "pro"], default: "standard" },
     productInventory: { type: Schema.Types.Mixed },
