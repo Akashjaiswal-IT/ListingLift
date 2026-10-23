@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { Webhook } from "svix";
 import crypto from "crypto";
 import { User, Payment, ListingObject, CreditLedger, connectToDatabase } from "@repo/database";
-import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase, getPackDisplayName } from "@repo/services";
+import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase, getPackDisplayName, TRIAL_CREDITS } from "@repo/services";
 import { logger } from "@repo/logger";
 
 export const webhookRouter = Router();
@@ -59,8 +59,8 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
       const fullName = [first_name, last_name].filter(Boolean).join(" ") || primaryEmail.split("@")[0] || "Seller";
       const phone = phone_numbers?.[0]?.phone_number;
 
-      // Seed 10 trial credits
-      const trialCredits = 10;
+      // Seed the trial credits (shared constant, also used by JIT provisioning in trpc context)
+      const trialCredits = TRIAL_CREDITS;
 
       const existingUser = await User.findOne({ clerkId: id });
       if (!existingUser) {

@@ -10,12 +10,16 @@ export class InsufficientCreditsError extends Error {
 
 type QualityMode = "standard" | "pro";
 
-// Pro upgrades each main white image (2K + extra attempt + extra thinking); a 2+ photo kit gets one per photo, otherwise exactly one.
+/** Credits every new account starts with: enough for one Quick listing (2) plus one re-edit (1). */
+export const TRIAL_CREDITS = 3;
+
+// Pro upgrades each main white image (2K + up to 3 attempts + extra thinking). Quick Pro is +2 because
+// its single Pro slot can use 3 attempts at the 2K price; a Kit adds one per photo (one Pro image each), clamped 1..5.
 export function calculateProQualitySurcharge(
   type: "listing_product" | "listing_kit",
   imageCount: number
 ): number {
-  if (type === "listing_product") return 1;
+  if (type === "listing_product") return 2;
   return Math.min(5, Math.max(1, imageCount));
 }
 
@@ -30,9 +34,9 @@ export function calculateGenerationCredits(
     return 2 + surcharge; // Quick Generate: 2 credits
   }
 
-  // Listing Kit: 3 photos = 5, 4 photos = 6, 5 photos = 7
-  if (imageCount <= 3) return 5 + surcharge;
-  if (imageCount === 4) return 6 + surcharge;
+  // Listing Kit: 1-2 photos = 5, 3-4 photos = 6 (6 studio images), 5 photos = 7
+  if (imageCount <= 2) return 5 + surcharge;
+  if (imageCount <= 4) return 6 + surcharge;
   return 7 + surcharge;
 }
 

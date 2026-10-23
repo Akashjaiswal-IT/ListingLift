@@ -1,6 +1,7 @@
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { User, IUser, CreditLedger, connectToDatabase } from "@repo/database";
+import { TRIAL_CREDITS } from "@repo/services";
 
 export interface Context {
   clerkUserId: string | null;
@@ -33,7 +34,7 @@ export async function createContext(
 
       // Just-In-Time Provisioning: If user logged in but webhook has not created them yet
       if (!user) {
-        const trialCredits = 10;
+        const trialCredits = TRIAL_CREDITS;
         const newReferralCode = `PESH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         try {
           const clerkUser = await clerkClient.users.getUser(clerkUserId);
