@@ -6,7 +6,7 @@ import {
   uploadBufferToR2,
   optimizeForAi,
   generateThumbnail,
-  enhancePromptWithVision,
+  analyzeProductPhotos,
   generateStudioImages,
   generateListingText,
   renderSocialCards,
@@ -66,15 +66,18 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
       originalBuffers.map((b) => optimizeForAi(b))
     );
 
-    // 3. Prompt Enhancement with OpenAI Vision
+    // 3. Photo analysis with OpenAI Vision: scene prompt, product inventory, product boxes
     await setStage(listingObjectId, "enhancing_prompt");
-    logger.info(`Enhancing prompt for ${listing.userTitle}...`);
-    const enhancedPrompt = await enhancePromptWithVision({
+    logger.info(`Analyzing product photos for ${listing.userTitle}...`);
+    const analysis = await analyzeProductPhotos({
       imageBuffers: optimizedBuffers,
       userTitle: listing.userTitle,
       userDescription: listing.userDescription,
       userPrompt: listing.userPrompt,
     });
+    const enhancedPrompt = analysis.scenePrompt;
+    const keepWear = !!listing.keepWear;
+    const qualityMode = listing.qualityMode === "pro" ? "pro" : "standard";
     logger.info(`Enhanced prompt generated: "${enhancedPrompt.slice(0, 100)}..."`);
 
     // 4. Generate Studio Images with Gemini AND SEO Deliverables with OpenAI concurrently
@@ -93,6 +96,10 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
         prompt: enhancedPrompt,
         count: imageCount,
         multiAngle: listing.type === "listing_kit",
+        productInventory: analysis.inventory,
+        productBoxes: analysis.productBoxes,
+        keepWear,
+        qualityMode,
       }),
       generateListingText({
         userTitle: listing.userTitle || "Product",
@@ -115,11 +122,11 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
     const generatedImagesDocs = [];
     for (let i = 0; i < generatedOutputs.length; i++) {
       const output = generatedOutputs[i]!;
-      const s3Key = `generated/${listing._id}/studio_${i + 1}_${Date.now()}.webp`;
+      const s3Key = `generated/${listing._id}/studio_${i + 1}_${Date.now()}.jpg`;
       const thumbKey = `generated/${listing._id}/thumb_studio_${i + 1}_${Date.now()}.webp`;
 
       const [imgUpload, thumbBuffer] = await Promise.all([
-        uploadBufferToR2(s3Key, output.buffer, "image/webp"),
+        uploadBufferToR2(s3Key, output.buffer, "image/jpeg"),
         generateThumbnail(output.buffer, 360, 360),
       ]);
 
@@ -133,6 +140,8 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
         promptUsed: output.promptUsed,
         interactionId: output.interactionId,
         ...(output.fidelityIssues?.length ? { fidelityIssues: output.fidelityIssues } : {}),
+        fidelityStatus: output.fidelityStatus,
+        attempts: output.attempts,
         isLatest: true,
         createdAt: new Date(),
       });
@@ -180,6 +189,7 @@ export async function processImageGeneration(job: Job<{ listingObjectId: string 
           textStatus: "completed",
           aiGeneratedText: generatedText,
           enhancedPrompt,
+          productInventory: analysis.inventory,
           generatedImages: generatedImagesDocs,
           whatsappCard: {
             s3Key: waUpload.s3Key,

@@ -62,15 +62,17 @@ export async function processReEdit(
       previousImage: oldBuffer,
       interactionId: oldImage.interactionId,
       newPrompt,
+      keepWear: !!listing.keepWear,
+      variationType: oldImage.variationType,
     });
 
     // 3. Upload new edited image and thumbnail to R2
     const newImageId = new Types.ObjectId();
-    const s3Key = `generated/${listing._id}/reedit_${newImageId}_${Date.now()}.webp`;
+    const s3Key = `generated/${listing._id}/reedit_${newImageId}_${Date.now()}.jpg`;
     const thumbKey = `generated/${listing._id}/thumb_reedit_${newImageId}_${Date.now()}.webp`;
 
     const [imgUpload, thumbBuffer] = await Promise.all([
-      uploadBufferToR2(s3Key, editOutput.buffer, "image/webp"),
+      uploadBufferToR2(s3Key, editOutput.buffer, "image/jpeg"),
       generateThumbnail(editOutput.buffer, 360, 360),
     ]);
     const thumbUpload = await uploadBufferToR2(thumbKey, thumbBuffer, "image/webp");
