@@ -527,8 +527,8 @@ export default function GeneratePage() {
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               {isHi
-                ? "एक अपलोड → 8K स्टूडियो फ़ोटो, अमेज़ॅन/मीशो कैटलॉग, और व्हाट्सएप व इंस्टाग्राम स्टोरी कार्ड्स।"
-                : "One upload → 8K Studio Photos, Marketplace Catalog, and WhatsApp & Instagram Story Cards."}
+                ? "एक अपलोड → स्टूडियो-क्वालिटी फ़ोटो, अमेज़ॅन/मीशो कैटलॉग, और व्हाट्सएप व इंस्टाग्राम स्टोरी कार्ड्स।"
+                : "One upload → Studio-Quality Photos, Marketplace Catalog, and WhatsApp & Instagram Story Cards."}
             </p>
           </div>
 
@@ -1015,8 +1015,8 @@ export default function GeneratePage() {
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
               {isHi
-                ? "हमारे मॉडल्स सामान्य बैकग्राउंड हटा रहे हैं, 8K स्टूडियो लाइटिंग रेंडर कर रहे हैं और रियल-टाइम में आपकी लिस्टिंग कॉपी जनरेट कर रहे हैं।"
-                : "Our models are removing raw backgrounds, rendering 8K lighting, and generating your marketplace copy in real time."}
+                ? "हमारे मॉडल्स सामान्य बैकग्राउंड हटा रहे हैं, स्टूडियो लाइटिंग रेंडर कर रहे हैं और रियल-टाइम में आपकी लिस्टिंग कॉपी जनरेट कर रहे हैं।"
+                : "Our models are removing raw backgrounds, rendering studio lighting, and generating your marketplace copy in real time."}
             </p>
           </div>
 

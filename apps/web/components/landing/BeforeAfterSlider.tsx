@@ -18,9 +18,9 @@ export function BeforeAfterSlider({
   beforeImage = "/images/hero-before.jpg",
   afterImage = "/images/hero-after.jpg",
   beforeLabel = "Raw Phone Photo",
-  afterLabel = "8K Studio Revamp",
+  afterLabel = "AI Studio Revamp",
   beforeSubtitle = "Casual photo on bed",
-  afterSubtitle = "Upright 8K Studio Lighting",
+  afterSubtitle = "Upright Studio Lighting",
   className = "",
 }: BeforeAfterSliderProps) {
   const [sliderPos, setSliderPos] = useState(50);
@@ -86,7 +86,7 @@ export function BeforeAfterSlider({
         tabIndex={0}
         className="relative aspect-square sm:aspect-[4/3] lg:aspect-square w-full rounded-2xl overflow-hidden select-none cursor-ew-resize border-2 border-stone-800 bg-stone-950 shadow-2xl focus:outline-hidden focus:ring-2 focus:ring-primary/60 group"
       >
-        {/* AFTER IMAGE (Base Layer: 8K Studio) */}
+        {/* AFTER IMAGE (Base Layer: Studio) */}
         <div className="absolute inset-0 w-full h-full bg-stone-900">
           <img
             src={afterImage}

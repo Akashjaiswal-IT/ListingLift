@@ -77,7 +77,7 @@ export function GenerationProgressCard({
         {[
           isHi ? "सामान्य बैकग्राउंड क्लीनअप और संरेखण" : "Crop & Cleanse Raw Backdrop",
           isHi ? "विज़न प्रॉम्प्ट विश्लेषण" : "OpenAI Vision Prompt Enhancement",
-          isHi ? "Gemini 2.0 8K स्टूडियो रेंडरिंग" : "Gemini 2.0 8K Studio Rendering",
+          isHi ? "AI स्टूडियो रेंडरिंग" : "AI Studio Rendering",
           isHi ? "व्हाट्सएप व इंस्टाग्राम स्टोरी कार्ड कम्पोज़िंग" : "WhatsApp & Instagram Story Card Compositing",
         ].map((label, idx) => {
           const state = stepStates[idx]!;
