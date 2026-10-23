@@ -346,6 +346,9 @@ importers:
       mongoose:
         specifier: ^8.14.1
         version: 8.24.4(gcp-metadata@8.1.2)
+      pdfkit:
+        specifier: ^0.20.2
+        version: 0.20.2
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@22.15.3)
