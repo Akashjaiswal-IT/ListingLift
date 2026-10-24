@@ -122,6 +122,8 @@ export interface IListingObject extends Document {
     targetImageId?: string;
     newImageId?: string;
     errorMessage?: string;
+    /** Id of the credit charge for this re-edit; its refund is keyed on it so it can happen only once. */
+    chargeId?: string;
     updatedAt?: Date;
   };
 
@@ -266,6 +268,7 @@ const ListingObjectSchema = new Schema<IListingObject>(
       targetImageId: { type: String },
       newImageId: { type: String },
       errorMessage: { type: String },
+      chargeId: { type: String },
       updatedAt: { type: Date },
     },
 

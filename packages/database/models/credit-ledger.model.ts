@@ -16,7 +16,7 @@ import mongoose, { Schema, Document, Types, Model } from "mongoose";
  * of being loaded wholesale. This is the standard "append-only ledger" pattern.
  */
 export type CreditEntryType = "PURCHASE" | "DEBIT" | "REFUND" | "BONUS" | "TRIAL";
-export type CreditReferenceType = "payment" | "listing_object" | "re_edit";
+export type CreditReferenceType = "payment" | "listing_object" | "re_edit" | "referral";
 
 export interface ICreditLedgerEntry extends Document {
   userId: Types.ObjectId;
@@ -26,6 +26,12 @@ export interface ICreditLedgerEntry extends Document {
   description: string;
   referenceId?: string;
   referenceType?: CreditReferenceType;
+  /**
+   * Set only on entries that must exist at most once (e.g. "purchase:<paymentId>",
+   * "reedit-refund:<chargeId>", "referral:<invitedUserId>"). A unique index makes the database
+   * itself reject a second one, even under concurrent or retried requests.
+   */
+  idempotencyKey?: string;
   createdAt: Date;
 }
 
@@ -41,7 +47,8 @@ const CreditLedgerSchema = new Schema<ICreditLedgerEntry>(
     balanceAfter: { type: Number, required: true },
     description: { type: String, required: true },
     referenceId: { type: String },
-    referenceType: { type: String, enum: ["payment", "listing_object", "re_edit"] },
+    referenceType: { type: String, enum: ["payment", "listing_object", "re_edit", "referral"] },
+    idempotencyKey: { type: String },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false }
@@ -51,6 +58,12 @@ const CreditLedgerSchema = new Schema<ICreditLedgerEntry>(
 CreditLedgerSchema.index({ userId: 1, createdAt: -1 });
 // Used for idempotency checks (has this referenceId already been refunded?).
 CreditLedgerSchema.index({ userId: 1, referenceId: 1 });
+// Exactly-once guard: rows without an idempotencyKey are not indexed (partial), so existing data
+// can never conflict when the index is built.
+CreditLedgerSchema.index(
+  { idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $exists: true } } }
+);
 
 export const CreditLedger: Model<ICreditLedgerEntry> =
   (mongoose.models.CreditLedger as Model<ICreditLedgerEntry>) ||
