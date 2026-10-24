@@ -6,11 +6,13 @@ export interface IPayment extends Document {
   razorpayPaymentId?: string;
   razorpaySignature?: string;
   status: "created" | "authorized" | "captured" | "failed" | "refunded";
-  amountPaise: number;          // always in paise (₹99 = 9900 paise)
+  amountPaise: number; // always in paise (₹99 = 9900 paise)
   currency: string;
-  packId: string;               // "trial" | "starter" | "standard" | "pro" | "topup" | ...
+  packId: string; // "trial" | "starter" | "standard" | "pro" | "topup" | ...
   creditsPurchased: number;
-  topupQuantity?: number;       // only for topup pack
+  topupQuantity?: number; // only for topup pack
+  legalPolicyVersion?: string;
+  legalAcceptedAt?: Date;
   razorpayMetadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
@@ -32,9 +34,11 @@ const PaymentSchema = new Schema<IPayment>(
     packId: { type: String, required: true },
     creditsPurchased: { type: Number, required: true },
     topupQuantity: { type: Number },
+    legalPolicyVersion: { type: String },
+    legalAcceptedAt: { type: Date },
     razorpayMetadata: { type: Schema.Types.Mixed },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Payment: Model<IPayment> =

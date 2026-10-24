@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, HelpCircle } from "lucide-react";
+import { CheckCircle2, HelpCircle, ShieldCheck } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
@@ -8,11 +8,15 @@ import { trpc } from "~/trpc/client";
 import { useLanguage } from "~/providers/LanguageContext";
 import { useCheckout } from "~/hooks/useCheckout";
 import { CustomTopup } from "~/components/pricing/CustomTopup";
+import { Checkbox } from "~/components/ui/checkbox";
+import Link from "next/link";
+import { useState } from "react";
 
 export default function PricingPage() {
   const { language, t } = useLanguage();
   const isHi = language === "hi";
-  const { startCheckout, pendingKey: selectedPack } = useCheckout();
+  const [hasAcceptedPolicies, setHasAcceptedPolicies] = useState(false);
+  const { startCheckout, pendingKey: selectedPack } = useCheckout(hasAcceptedPolicies);
   const packsQuery = trpc.credits.getPacks.useQuery();
 
   const packs = packsQuery.data || [];
@@ -31,6 +35,59 @@ export default function PricingPage() {
         <p className="text-muted-foreground text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
           {t.pricingPage.subtitle}
         </p>
+      </div>
+
+      <div className="mx-auto max-w-4xl rounded-2xl border-2 border-primary/50 bg-primary/5 px-5 py-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="purchase-legal-acceptance"
+            checked={hasAcceptedPolicies}
+            onCheckedChange={(checked) => setHasAcceptedPolicies(checked === true)}
+            className="mt-1 size-6 rounded-md border-2 border-primary data-[state=checked]:bg-primary"
+          />
+          <div className="space-y-1.5">
+            <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              {isHi ? "भुगतान से पहले आवश्यक पुष्टि" : "Required before payment"}
+            </p>
+            <label
+              htmlFor="purchase-legal-acceptance"
+              className="cursor-pointer text-sm leading-relaxed text-foreground/85"
+            >
+              {isHi ? "मैं " : "I agree to the "}
+              <Link
+                href="/terms?from=pricing"
+                className="font-bold text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                {isHi ? "सेवा की शर्तें" : "Terms of Service"}
+              </Link>
+              {isHi ? ", " : ", "}
+              <Link
+                href="/privacy?from=pricing"
+                className="font-bold text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                {isHi ? "गोपनीयता नीति" : "Privacy Policy"}
+              </Link>
+              {isHi ? ", और " : ", and "}
+              <Link
+                href="/refund-policy?from=pricing"
+                className="font-bold text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                {isHi ? "रिफंड और क्रेडिट पॉलिसी" : "Refund & Credit Policy"}
+              </Link>
+              {isHi ? ", और " : ", and "}
+              <Link
+                href="/acceptable-use?from=pricing"
+                className="font-bold text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                {isHi ? "उपयोग के नियम" : "Acceptable Use Policy"}
+              </Link>
+              {isHi
+                ? ". मैं समझता/समझती हूँ कि AI परिणाम बदल सकते हैं और सफल जनरेशन के उपयोग किए गए क्रेडिट कैश रिफंड योग्य नहीं हैं।"
+                : ". I understand that AI results can vary and that credits used for a completed generation are not cash-refundable."}
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* Credit Pricing Grid (Ref Image 4) */}
@@ -60,16 +117,16 @@ export default function PricingPage() {
                     {isHi && pack.id === "trial"
                       ? "स्टूडियो किकस्टार्ट"
                       : isHi && pack.id === "starter"
-                      ? "ग्रोथ सेलर"
-                      : isHi && pack.id === "standard"
-                      ? "मर्चेंट प्रो"
-                      : isHi && pack.id === "pro"
-                      ? "ब्रांड स्टूडियो"
-                      : isHi && pack.id === "business_s"
-                      ? "बिजनेस स्टूडियो"
-                      : isHi && pack.id === "business_l"
-                      ? "एजेंसी बल्क"
-                      : pack.name}
+                        ? "ग्रोथ सेलर"
+                        : isHi && pack.id === "standard"
+                          ? "मर्चेंट प्रो"
+                          : isHi && pack.id === "pro"
+                            ? "ब्रांड स्टूडियो"
+                            : isHi && pack.id === "business_s"
+                              ? "बिजनेस स्टूडियो"
+                              : isHi && pack.id === "business_l"
+                                ? "एजेंसी बल्क"
+                                : pack.name}
                   </h3>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-black font-serif text-foreground">
@@ -92,7 +149,8 @@ export default function PricingPage() {
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                       <span>
-                        {Math.floor(pack.credits / 2)} {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
+                        {Math.floor(pack.credits / 2)}{" "}
+                        {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
                       </span>
                     </li>
                     <li className="flex items-center gap-2">
@@ -120,7 +178,9 @@ export default function PricingPage() {
                   }`}
                 >
                   {isSelected
-                    ? isHi ? "चेकआउट खुल रहा है..." : "Opening Checkout..."
+                    ? isHi
+                      ? "चेकआउट खुल रहा है..."
+                      : "Opening Checkout..."
                     : `${t.pricingPage.buyBtn} (₹${pack.priceRupees.toLocaleString("en-IN")})`}
                 </Button>
               </CardContent>
@@ -129,7 +189,7 @@ export default function PricingPage() {
         })}
       </div>
 
-      <CustomTopup />
+      <CustomTopup onCheckout={startCheckout} isOpening={selectedPack === "topup"} />
 
       {/* Frequently Asked Questions */}
       <div className="max-w-3xl mx-auto space-y-8">
@@ -137,9 +197,7 @@ export default function PricingPage() {
           <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight text-foreground">
             {t.pricingPage.faqTitle}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            {t.pricingPage.faqSubtitle}
-          </p>
+          <p className="text-sm text-muted-foreground">{t.pricingPage.faqSubtitle}</p>
         </div>
 
         <div className="space-y-4">

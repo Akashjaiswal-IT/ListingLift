@@ -12,6 +12,7 @@ import {
   TOPUP_MIN_CREDITS,
   TOPUP_MAX_CREDITS,
 } from "@repo/services";
+import { LEGAL_POLICY_VERSION } from "../../../legal";
 
 export const paymentsRouter = router({
   createOrder: protectedProcedure
@@ -29,11 +30,12 @@ export const paymentsRouter = router({
             "business_l",
           ]),
           topupQuantity: z.number().int().min(TOPUP_MIN_CREDITS).max(TOPUP_MAX_CREDITS).optional(),
+          legalPolicyVersion: z.literal(LEGAL_POLICY_VERSION),
         })
         .refine((v) => v.packId !== "topup" || v.topupQuantity !== undefined, {
           message: "Please choose how many credits to buy",
           path: ["topupQuantity"],
-        })
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       try {
@@ -41,6 +43,7 @@ export const paymentsRouter = router({
           userId: ctx.user._id,
           packId: input.packId,
           topupQuantity: input.topupQuantity,
+          legalPolicyVersion: input.legalPolicyVersion,
         });
       } catch (err: any) {
         // Validation problems (bad quantity / unknown pack) are the caller's to fix
@@ -57,7 +60,7 @@ export const paymentsRouter = router({
         razorpayOrderId: z.string(),
         razorpayPaymentId: z.string(),
         razorpaySignature: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = input;
@@ -109,7 +112,7 @@ export const paymentsRouter = router({
             razorpaySignature,
           },
         },
-        { new: true }
+        { new: true },
       );
 
       // If updatedPayment is null, the webhook already processed and credited this order
@@ -148,7 +151,7 @@ export const paymentsRouter = router({
       z.object({
         page: z.number().int().min(1).default(1),
         limit: z.number().int().min(1).max(50).default(20),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const skip = (input.page - 1) * input.limit;
@@ -204,7 +207,7 @@ export const paymentsRouter = router({
           amountPaise: payment.amountPaise,
           currency: payment.currency || "INR",
         },
-        { name: ctx.user.fullName, email: ctx.user.email }
+        { name: ctx.user.fullName, email: ctx.user.email },
       );
 
       return {

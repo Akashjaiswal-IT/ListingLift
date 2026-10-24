@@ -146,6 +146,7 @@ export async function createOrder(params: {
   userId: Types.ObjectId | string;
   packId: string;
   topupQuantity?: number;
+  legalPolicyVersion?: string;
 }): Promise<{
   razorpayOrderId: string;
   amountPaise: number;
@@ -154,7 +155,7 @@ export async function createOrder(params: {
   packId: string;
   credits: number;
 }> {
-  const { userId, packId, topupQuantity } = params;
+  const { userId, packId, topupQuantity, legalPolicyVersion } = params;
 
   let amountPaise = 0;
   let credits = 0;
@@ -168,7 +169,7 @@ export async function createOrder(params: {
       topupQuantity > TOPUP_MAX_CREDITS
     ) {
       throw new Error(
-        `Custom top-up must be a whole number of credits between ${TOPUP_MIN_CREDITS} and ${TOPUP_MAX_CREDITS}.`
+        `Custom top-up must be a whole number of credits between ${TOPUP_MIN_CREDITS} and ${TOPUP_MAX_CREDITS}.`,
       );
     }
     credits = topupQuantity;
@@ -206,6 +207,8 @@ export async function createOrder(params: {
     packId,
     creditsPurchased: credits,
     topupQuantity: packId === "topup" ? topupQuantity : undefined,
+    legalPolicyVersion,
+    legalAcceptedAt: legalPolicyVersion ? new Date() : undefined,
     razorpayMetadata: order,
   });
 

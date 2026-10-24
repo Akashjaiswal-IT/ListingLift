@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Sliders, Sparkles, ShieldCheck } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { useLanguage } from "~/providers/LanguageContext";
-import { useCheckout } from "~/hooks/useCheckout";
+import type { PurchaseRequest } from "~/hooks/useCheckout";
 import {
   getTopupPriceRupees,
   CUSTOM_SLIDER_MIN,
@@ -20,14 +21,18 @@ const SUPPORT_EMAIL = "support@peshkarai.in";
  * "Buy" orders exactly that quantity (packId "topup"), so the charge equals the quote.
  * Used on both the pricing page and the landing page.
  */
-export function CustomTopup() {
+interface CustomTopupProps {
+  onCheckout?: (request: PurchaseRequest) => Promise<void>;
+  isOpening?: boolean;
+}
+
+export function CustomTopup({ onCheckout, isOpening = false }: CustomTopupProps) {
   const { language, t } = useLanguage();
   const isHi = language === "hi";
+  const router = useRouter();
   const [credits, setCredits] = useState(220);
-  const { startCheckout, pendingKey } = useCheckout();
 
   const price = getTopupPriceRupees(credits);
-  const isOpening = pendingKey === "topup";
 
   return (
     <div className="p-6 sm:p-10 rounded-3xl border-2 border-primary/20 bg-card shadow-lg max-w-4xl mx-auto space-y-6">
@@ -76,20 +81,34 @@ export function CustomTopup() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
-          <span>{isHi ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा" : "Instant Activation • Automatic Refund Protection"}</span>
+          <span>
+            {isHi
+              ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा"
+              : "Instant Activation • Automatic Refund Protection"}
+          </span>
         </div>
         <Button
           size="lg"
           disabled={isOpening}
-          onClick={() => startCheckout({ packId: "topup", topupQuantity: credits })}
+          onClick={() => {
+            if (onCheckout) {
+              void onCheckout({ packId: "topup", topupQuantity: credits });
+              return;
+            }
+            router.push("/pricing");
+          }}
           className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-md gap-2 text-xs"
         >
           <Sparkles className="h-4 w-4" />
           {isOpening
-            ? isHi ? "चेकआउट खुल रहा है..." : "Opening Checkout..."
+            ? isHi
+              ? "चेकआउट खुल रहा है..."
+              : "Opening Checkout..."
             : isHi
-            ? `${credits} क्रेडिट्स खरीदें (₹${price.toLocaleString("en-IN")})`
-            : `Buy ${credits} credits (₹${price.toLocaleString("en-IN")})`}
+              ? `${credits} क्रेडिट्स खरीदें (₹${price.toLocaleString("en-IN")})`
+              : onCheckout
+                ? `Buy ${credits} credits (₹${price.toLocaleString("en-IN")})`
+                : "Review & purchase credits"}
         </Button>
       </div>
 

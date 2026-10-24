@@ -1,21 +1,33 @@
+import { LegalPage, type LegalSection } from "~/components/legal/LegalPage";
+const sections: LegalSection[] = [
+  {
+    title: { en: "Completed Generations", hi: "पूर्ण जनरेशन" },
+    body: {
+      en: "AI results can vary. When a generation completes and its result is available, its credits are used. We do not give a cash refund only because you dislike a result, it has a mistake, or a marketplace rejects it. Review output before publishing.",
+      hi: "AI परिणाम अलग-अलग हो सकते हैं। जब जनरेशन पूर्ण होती है और परिणाम उपलब्ध होता है, उसके क्रेडिट्स उपयोग हो जाते हैं। केवल परिणाम पसंद न आने, उसमें गलती होने या मार्केटप्लेस द्वारा अस्वीकार करने पर हम कैश रिफंड नहीं देते। प्रकाशित करने से पहले आउटपुट जांचें।",
+    },
+  },
+  {
+    title: { en: "Technical Failure", hi: "तकनीकी विफलता" },
+    body: {
+      en: "If a verified Peshkar AI technical failure delivers no completed result, we may restore credits charged for that failed generation. Restoration will not exceed credits charged for that generation.",
+      hi: "यदि Peshkar AI की सत्यापित तकनीकी विफलता में पूर्ण परिणाम डिलीवर नहीं होता, तो हम उस विफल जनरेशन के लिए लगाए गए क्रेडिट्स वापस कर सकते हैं। वापसी उस जनरेशन के लगाए गए क्रेडिट्स से अधिक नहीं होगी।",
+    },
+  },
+  {
+    title: { en: "Purchases, Cancellation, and Review", hi: "खरीद, रद्दीकरण और समीक्षा" },
+    body: {
+      en: "Credit packs are generally not redeemable for cash. Contact support@peshkarai.in for duplicate charges, incorrect charges, or a technical issue, with your account email and listing or payment order ID. Ending use does not turn unused credits into cash. This policy does not limit a remedy required by law.",
+      hi: "क्रेडिट पैक सामान्यतः नकद में रिडीम नहीं किए जा सकते। डुप्लीकेट चार्ज, गलत चार्ज या तकनीकी समस्या के लिए अपने अकाउंट ईमेल और लिस्टिंग या भुगतान ऑर्डर ID के साथ support@peshkarai.in पर संपर्क करें। सेवा का उपयोग बंद करने से अप्रयुक्त क्रेडिट्स नकद में नहीं बदलते। यह नीति कानून द्वारा आवश्यक उपाय को सीमित नहीं करती।",
+    },
+  },
+];
 export default function RefundPolicyPage() {
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-16 sm:px-6 space-y-6">
-      <h1 className="text-3xl font-black">Refund & Cancellation Policy</h1>
-      <p className="text-xs text-muted-foreground">Last updated: September 2026</p>
-      <div className="prose dark:prose-invert text-sm space-y-4 text-muted-foreground leading-relaxed">
-        <p>
-          At Peshkar AI, we stand firmly behind the quality of our service. Our automated refund system is built directly into our platform architecture.
-        </p>
-        <h3 className="text-base font-bold text-foreground">1. Automated Generation Failure Protection</h3>
-        <p>
-          If an image generation or text catalog pipeline fails due to an unexpected system or AI provider error, your credits are automatically and instantly refunded back to your account balance.
-        </p>
-        <h3 className="text-base font-bold text-foreground">2. Credit Pack Purchases</h3>
-        <p>
-          Credit packs purchased via Razorpay are generally non-refundable once credits have been partially or fully consumed. If you experience duplicate billing or technical issues, contact our support team at support@peshkarai.in for a full review and prompt resolution.
-        </p>
-      </div>
-    </div>
+    <LegalPage
+      current="/refund-policy"
+      title={{ en: "Refund & Credit Policy", hi: "रिफंड और क्रेडिट पॉलिसी" }}
+      sections={sections}
+    />
   );
 }

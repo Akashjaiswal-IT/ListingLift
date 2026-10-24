@@ -2,6 +2,8 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 
 import { type ServerRouter } from "../server";
 
+export { LEGAL_POLICY_VERSION } from "../legal";
+
 export type RouterOutputs = inferRouterOutputs<ServerRouter>;
 export type RouterInputs = inferRouterInputs<ServerRouter>;
 
