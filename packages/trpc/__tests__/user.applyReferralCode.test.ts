@@ -19,6 +19,7 @@ vi.mock("@repo/services", () => ({
   getPresignedUploadUrl: vi.fn(),
   addCredits: (...a: unknown[]) => addCredits(...a),
   REFERRAL_BONUS_CREDITS: 3,
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 30, remaining: 29, resetInSeconds: 0 }),
 }));
 
 import { userRouter } from "../server/routes/user/route";

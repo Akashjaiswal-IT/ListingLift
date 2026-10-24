@@ -18,6 +18,7 @@ vi.mock("@repo/services", () => ({
   renderSocialCards: (...args: unknown[]) => renderSocialCards(...args),
   getPresignedDownloadUrl: vi.fn(),
   deleteObjectFromR2: (...args: unknown[]) => deleteObjectFromR2(...args),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 30, remaining: 29, resetInSeconds: 0 }),
 }));
 
 import { cardRouter } from "../server/routes/card/route";

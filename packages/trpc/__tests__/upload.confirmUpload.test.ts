@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const findOne = vi.fn();
+const findOneAndUpdate = vi.fn();
+const findOneAndDelete = vi.fn();
+const findById = vi.fn();
 const find = vi.fn();
 const create = vi.fn();
-const deleteOne = vi.fn();
 const deleteObjectFromR2 = vi.fn();
 const getPresignedDownloadUrl = vi.fn();
 
 vi.mock("@repo/database", () => ({
   ListingObject: {
-    findOne: (...args: unknown[]) => findOne(...args),
+    findOneAndUpdate: (...args: unknown[]) => findOneAndUpdate(...args),
+    findOneAndDelete: (...args: unknown[]) => findOneAndDelete(...args),
+    findById: (...args: unknown[]) => findById(...args),
     find: (...args: unknown[]) => find(...args),
     create: (...args: unknown[]) => create(...args),
-    deleteOne: (...args: unknown[]) => deleteOne(...args),
   },
 }));
 
@@ -20,7 +22,7 @@ vi.mock("@repo/services", () => ({
   getPresignedUploadUrl: vi.fn(),
   getPresignedDownloadUrl: (...args: unknown[]) => getPresignedDownloadUrl(...args),
   deleteObjectFromR2: (...args: unknown[]) => deleteObjectFromR2(...args),
-  checkRateLimit: vi.fn(),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 100, remaining: 99, resetInSeconds: 0 }),
   captureServerException: vi.fn(),
 }));
 
@@ -49,7 +51,7 @@ describe("upload.confirmUpload", () => {
       originalImages: [{ s3Key: "uploads/user1/stale.jpg" }],
     };
     find.mockResolvedValue([staleDraft]);
-    deleteOne.mockResolvedValue({ deletedCount: 1 });
+    findOneAndDelete.mockResolvedValue(staleDraft);
 
     const newListing = {
       _id: "new_1",
@@ -71,7 +73,8 @@ describe("upload.confirmUpload", () => {
 
     // Verified old draft cleaned up
     expect(deleteObjectFromR2).toHaveBeenCalledWith("uploads/user1/stale.jpg");
-    expect(deleteOne).toHaveBeenCalledWith({ _id: "draft_old" });
+    // Conditional delete: a draft that generation claimed meanwhile is never deleted
+    expect(findOneAndDelete).toHaveBeenCalledWith({ _id: "draft_old", status: "uploaded" });
 
     // Verified new listing created
     expect(create).toHaveBeenCalledTimes(1);
@@ -86,9 +89,13 @@ describe("upload.confirmUpload", () => {
       originalImages: [
         { s3Key: "uploads/user1/old-photo.jpg", fileName: "old.jpg" },
       ],
-      save: vi.fn().mockResolvedValue(undefined),
     };
-    findOne.mockResolvedValue(existingListing);
+    // findOneAndUpdate returns the document as it was BEFORE the update (new: false)
+    findOneAndUpdate.mockResolvedValue(existingListing);
+    findById.mockResolvedValue({
+      ...existingListing,
+      originalImages: [{ s3Key: "uploads/user1/new-photo.jpg", fileName: "new.jpg" }],
+    });
 
     const res = await caller().confirmUpload({
       type: "listing_product",
@@ -108,10 +115,14 @@ describe("upload.confirmUpload", () => {
     // Should delete the replaced image from R2 storage
     expect(deleteObjectFromR2).toHaveBeenCalledWith("uploads/user1/old-photo.jpg");
 
-    // Should update and save the existing listing
-    expect(existingListing.save).toHaveBeenCalledTimes(1);
+    // Updated atomically, and only while the listing is still "uploaded"
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: "existing_1", userId: "user1", status: "uploaded" },
+      { $set: expect.objectContaining({ type: "listing_product" }) },
+      { new: false }
+    );
     expect(res.listingObjectId).toBe("existing_1");
-    expect(existingListing.originalImages[0].s3Key).toBe("uploads/user1/new-photo.jpg");
+    expect(res.originalImages[0].s3Key).toBe("uploads/user1/new-photo.jpg");
   });
 
   it("rejects an upload with image belonging to another user", async () => {

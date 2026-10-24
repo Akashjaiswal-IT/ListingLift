@@ -23,6 +23,7 @@ vi.mock("@repo/services", () => ({
   generateGenericMarketplaceExcel: vi.fn(),
   uploadBufferToR2: vi.fn(),
   captureServerException: vi.fn(),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 20, remaining: 19, resetInSeconds: 0 }),
 }));
 
 import { listingRouter } from "../server/routes/listing/route";
@@ -50,6 +51,7 @@ describe("listing.regenerateText rate limiting", () => {
 
   it("allows Quick Product (listing_product) up to 2 regenerations", async () => {
     const listing = {
+      status: "completed",
       _id: "list1",
       userId: "user1",
       type: "listing_product",
@@ -76,6 +78,7 @@ describe("listing.regenerateText rate limiting", () => {
 
   it("blocks Quick Product (listing_product) when it reaches the 2 limit", async () => {
     const listing = {
+      status: "completed",
       _id: "list1",
       userId: "user1",
       type: "listing_product",
@@ -95,6 +98,7 @@ describe("listing.regenerateText rate limiting", () => {
 
   it("allows Listing Kit (listing_kit) up to 5 regenerations and blocks at 5", async () => {
     const listing = {
+      status: "completed",
       _id: "list2",
       userId: "user1",
       type: "listing_kit",
@@ -117,6 +121,7 @@ describe("listing.regenerateText rate limiting", () => {
 
   it("handles legacy listings with undefined seoRegenerateCount", async () => {
     const listing = {
+      status: "completed",
       _id: "list_legacy",
       userId: "user1",
       type: "listing_product",
@@ -132,6 +137,7 @@ describe("listing.regenerateText rate limiting", () => {
 
   it("rolls back the incremented count if generateListingText fails", async () => {
     const listing = {
+      status: "completed",
       _id: "list_err",
       userId: "user1",
       type: "listing_product",

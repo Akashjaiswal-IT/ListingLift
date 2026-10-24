@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const findOne = vi.fn();
-const find = vi.fn();
-const deleteOne = vi.fn();
-const deleteMany = vi.fn();
+const findOneAndDelete = vi.fn();
+const exists = vi.fn();
 const deleteObjectFromR2 = vi.fn();
 
 vi.mock("@repo/database", () => ({
   ListingObject: {
-    findOne: (...args: unknown[]) => findOne(...args),
-    find: (...args: unknown[]) => find(...args),
-    deleteOne: (...args: unknown[]) => deleteOne(...args),
-    deleteMany: (...args: unknown[]) => deleteMany(...args),
+    findOneAndDelete: (...args: unknown[]) => findOneAndDelete(...args),
+    exists: (...args: unknown[]) => exists(...args),
   },
 }));
 
@@ -25,6 +21,7 @@ vi.mock("@repo/services", () => ({
   generateGenericMarketplaceExcel: vi.fn(),
   uploadBufferToR2: vi.fn(),
   captureServerException: vi.fn(),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 20, remaining: 19, resetInSeconds: 0 }),
 }));
 
 import { listingRouter } from "../server/routes/listing/route";
@@ -39,10 +36,8 @@ function caller() {
 
 describe("listing.delete and storage cleanup", () => {
   beforeEach(() => {
-    findOne.mockReset();
-    find.mockReset();
-    deleteOne.mockReset();
-    deleteMany.mockReset();
+    findOneAndDelete.mockReset();
+    exists.mockReset();
     deleteObjectFromR2.mockReset();
     deleteObjectFromR2.mockResolvedValue(undefined);
   });
@@ -62,8 +57,7 @@ describe("listing.delete and storage cleanup", () => {
       instagramStory: { s3Key: `cards/${listingId}/story_333.webp` },
     };
 
-    findOne.mockResolvedValue(listing);
-    deleteOne.mockResolvedValue({ acknowledged: true, deletedCount: 1 });
+    findOneAndDelete.mockResolvedValue(listing);
 
     const res = await caller().delete({ id: listingId });
     expect(res.success).toBe(true);
@@ -80,7 +74,20 @@ describe("listing.delete and storage cleanup", () => {
     expect(deleteObjectFromR2).toHaveBeenCalledWith(`exports/${listingId}/marketplace-catalog-${listingId}.xlsx`);
     expect(deleteObjectFromR2).toHaveBeenCalledWith(`bundles/${listingId}/listing-kit-${listingId}.zip`);
 
-    expect(deleteOne).toHaveBeenCalledWith({ _id: listingId });
+    // One atomic delete, scoped to the owner and refusing a listing that is still generating
+    expect(findOneAndDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: listingId, userId: "user1", $nor: expect.any(Array) })
+    );
+  });
+
+  it("refuses to delete a listing that is still generating, and touches no storage", async () => {
+    findOneAndDelete.mockResolvedValue(null);
+    exists.mockResolvedValue({ _id: "busy1" });
+    await expect(caller().delete({ id: "busy1" })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(deleteObjectFromR2).not.toHaveBeenCalled();
+
+    exists.mockResolvedValue(null);
+    await expect(caller().delete({ id: "gone" })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("cleans up Excel and ZIP bundles on bulkDelete as well", async () => {
@@ -90,11 +97,11 @@ describe("listing.delete and storage cleanup", () => {
       originalImages: [{ s3Key: "uploads/user1/photo.jpg" }],
       generatedImages: [],
     };
-    find.mockResolvedValue([l1]);
-    deleteMany.mockResolvedValue({ acknowledged: true, deletedCount: 1 });
+    findOneAndDelete.mockImplementation(async (q: { _id: string }) => (q._id === "l1" ? l1 : null));
 
-    const res = await caller().bulkDelete({ ids: ["l1"] });
+    const res = await caller().bulkDelete({ ids: ["l1", "busy2"] });
     expect(res.success).toBe(true);
+    expect(res.deletedCount).toBe(1); // busy2 is still generating, so it is skipped
 
     expect(deleteObjectFromR2).toHaveBeenCalledWith("exports/l1/marketplace-catalog-l1.xlsx");
     expect(deleteObjectFromR2).toHaveBeenCalledWith("bundles/l1/listing-kit-l1.zip");
