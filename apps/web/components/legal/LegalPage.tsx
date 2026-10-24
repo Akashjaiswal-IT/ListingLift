@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "~/providers/LanguageContext";
@@ -10,23 +10,41 @@ type LocalizedText = { en: string; hi: string };
 
 export type LegalSection = { title: LocalizedText; body: LocalizedText };
 
-export function LegalPage({
-  current,
-  title,
-  sections,
-  children,
-}: {
+type LegalPageProps = {
   current: string;
   title: LocalizedText;
   sections: LegalSection[];
   children?: ReactNode;
-}) {
-  const { language } = useLanguage();
+};
+
+/**
+ * Next.js requires useSearchParams() inside a Suspense boundary on statically rendered pages
+ * (otherwise the build fails). The fallback is the full page without the "Back" link, so the
+ * legal text is still in the prerendered HTML; the link appears once the URL is read.
+ */
+export function LegalPage(props: LegalPageProps) {
+  return (
+    <Suspense fallback={<LegalPageContent {...props} from={null} />}>
+      <LegalPageWithParams {...props} />
+    </Suspense>
+  );
+}
+
+function LegalPageWithParams(props: LegalPageProps) {
   const searchParams = useSearchParams();
+  return <LegalPageContent {...props} from={searchParams.get("from")} />;
+}
+
+function LegalPageContent({
+  current,
+  title,
+  sections,
+  children,
+  from,
+}: LegalPageProps & { from: string | null }) {
+  const { language } = useLanguage();
   const isHi = language === "hi";
   const localize = (value: LocalizedText) => (isHi ? value.hi : value.en);
-
-  const from = searchParams.get("from");
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 px-4 py-16 sm:px-6">
