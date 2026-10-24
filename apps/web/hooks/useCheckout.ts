@@ -8,17 +8,20 @@ import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
 import { useLanguage } from "~/providers/LanguageContext";
 import { trackEvent } from "~/lib/analytics";
+import { LEGAL_POLICY_VERSION } from "@repo/trpc/client";
 
-export type CheckoutRequest = Parameters<
+type CheckoutRequest = Parameters<
   ReturnType<typeof trpc.payments.createOrder.useMutation>["mutateAsync"]
 >[0];
+
+export type PurchaseRequest = Omit<CheckoutRequest, "legalPolicyVersion">;
 
 /**
  * Razorpay checkout shared by every "buy credits" button (named packs and the
  * custom top-up slider): create the order, open Razorpay, verify the payment.
  * `pendingKey` is the pack id being opened ("topup" for custom), or null.
  */
-export function useCheckout() {
+export function useCheckout(hasAcceptedPolicies: boolean) {
   const { user, isSignedIn } = useUser();
   const router = useRouter();
   const { language } = useLanguage();
@@ -30,18 +33,34 @@ export function useCheckout() {
   const createOrderMutation = trpc.payments.createOrder.useMutation();
   const verifyPaymentMutation = trpc.payments.verifyPayment.useMutation();
 
-  const startCheckout = async (request: CheckoutRequest) => {
+  const startCheckout = async (request: PurchaseRequest) => {
     const packId = request.packId;
 
     if (!isSignedIn) {
-      toast.info(isHi ? "क्रेडिट्स खरीदने के लिए कृपया लॉग इन करें।" : "Please sign in or create an account to purchase credits.");
+      toast.info(
+        isHi
+          ? "क्रेडिट्स खरीदने के लिए कृपया लॉग इन करें।"
+          : "Please sign in or create an account to purchase credits.",
+      );
       router.push("/login");
+      return;
+    }
+
+    if (!hasAcceptedPolicies) {
+      toast.error(
+        isHi
+          ? "भुगतान से पहले कृपया नियम, प्राइवेसी और रिफंड पॉलिसी स्वीकार करें।"
+          : "Please accept the Terms, Privacy Policy, and Refund & Credit Policy before payment.",
+      );
       return;
     }
 
     setPendingKey(packId);
     try {
-      const order = await createOrderMutation.mutateAsync(request);
+      const order = await createOrderMutation.mutateAsync({
+        ...request,
+        legalPolicyVersion: LEGAL_POLICY_VERSION,
+      });
 
       // Ensure Razorpay SDK is available (dynamically load if not yet ready)
       let razorpayLoaded = typeof window !== "undefined" && !!(window as any).Razorpay;
@@ -59,7 +78,7 @@ export function useCheckout() {
         toast.error(
           isHi
             ? "भुगतान गेटवे लोड नहीं हो सका। कृपया विज्ञापन अवरोधक (ad-blocker) बंद करें और पुनः प्रयास करें।"
-            : "Payment gateway failed to load. Please disable ad-blockers and try again."
+            : "Payment gateway failed to load. Please disable ad-blockers and try again.",
         );
         return;
       }
@@ -99,7 +118,11 @@ export function useCheckout() {
                 utils.user.getCreditBalance.invalidate(),
                 utils.user.getCreditHistory.invalidate(),
               ]);
-              toast.success(isHi ? `आपके खाते में ${added} क्रेडिट्स सफलतापूर्वक जोड़ दिए गए हैं!` : `Successfully added ${added} credits to your account!`);
+              toast.success(
+                isHi
+                  ? `आपके खाते में ${added} क्रेडिट्स सफलतापूर्वक जोड़ दिए गए हैं!`
+                  : `Successfully added ${added} credits to your account!`,
+              );
               router.push("/app/dashboard");
             }
           } catch (err: any) {

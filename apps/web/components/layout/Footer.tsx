@@ -19,9 +19,7 @@ export function Footer() {
                 Peshkar AI
               </span>
             </Link>
-            <p className="text-xs text-stone-400 max-w-sm leading-relaxed">
-              {t.footer.mission}
-            </p>
+            <p className="text-xs text-stone-400 max-w-sm leading-relaxed">{t.footer.mission}</p>
           </div>
 
           {/* Column 1: Product */}
@@ -42,7 +40,9 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/app/dashboard" className="hover:text-white transition-colors">
-                  {language === "hi" ? "मीशो और अमेज़ॅन ऑप्टिमाइज़ेशन" : "Meesho & Amazon Optimization"}
+                  {language === "hi"
+                    ? "मीशो और अमेज़ॅन ऑप्टिमाइज़ेशन"
+                    : "Meesho & Amazon Optimization"}
                 </Link>
               </li>
               <li>
@@ -84,6 +84,11 @@ export function Footer() {
                   {language === "hi" ? "गोपनीयता नीति (Privacy)" : "Privacy Policy"}
                 </Link>
               </li>
+              <li>
+                <Link href="/acceptable-use" className="hover:text-white transition-colors">
+                  {language === "hi" ? "उपयोग और मार्केटप्लेस नियम" : "Use & Marketplace Rules"}
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -114,9 +119,7 @@ export function Footer() {
 
         <div className="border-t border-stone-800 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500">
           <p>{t.footer.rights}</p>
-          <p className="mt-2 sm:mt-0 font-medium text-stone-400">
-            {t.footer.madeWith}
-          </p>
+          <p className="mt-2 sm:mt-0 font-medium text-stone-400">{t.footer.madeWith}</p>
         </div>
       </div>
     </footer>
