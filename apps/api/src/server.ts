@@ -12,7 +12,7 @@ import helmet from "helmet";
 import { logger } from "@repo/logger";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
-import { getRedisConnection } from "@repo/services";
+import { getRedisConnection, checkRateLimit } from "@repo/services";
 
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { generateOpenApiDocument, createOpenApiExpressMiddleware } from "trpc-to-openapi";
@@ -27,6 +27,11 @@ import { sseRouter } from "./routes/sse";
 import { validateClerkEnvironment } from "./config/clerk-security";
 
 export const app = express();
+
+// Real client IP behind the proxies (Traefik -> Caddy -> this app = 2 hops). Without this every
+// visitor looks like the proxy's IP and a per-IP limit would throttle everyone together.
+// Check with GET /ip after deploying; override with TRUST_PROXY_HOPS if the chain changes.
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 2));
 
 // Validate Clerk configuration and ensure strict environment separation (no dev/prod mix-up)
 const clerkConfig = validateClerkEnvironment(env.NODE_ENV);
@@ -119,6 +124,26 @@ if (clerkConfig.publishableKey) {
 } else if (clerkConfig.isProduction) {
   throw new Error("[SECURITY CRITICAL] Clerk middleware cannot start in production without credentials.");
 }
+
+// Per-IP limit across the API (default 600 requests/minute/IP, API_IP_RATE_LIMIT_PER_MIN).
+// Webhooks are excluded: Razorpay retries failed deliveries for 24h and then DISABLES the webhook,
+// and they are already authenticated by their signatures. Health checks are excluded too.
+// Per-user limits for expensive actions are enforced separately in the routes.
+app.use(async (req, res, next) => {
+  if (req.path === "/health" || req.path.startsWith("/webhooks")) return next();
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const result = await checkRateLimit(ip, "api_ip");
+  if (!result.allowed) {
+    res.setHeader("Retry-After", String(result.resetInSeconds));
+    return res.status(429).json({ error: "Too many requests. Please slow down and try again shortly." });
+  }
+  next();
+});
+
+// Shows the client IP the API sees (your own IP, nothing secret): used to verify trust proxy.
+app.get("/ip", (req, res) => {
+  return res.json({ ip: req.ip });
+});
 
 // Health & Root status
 app.get("/", (_req, res) => {

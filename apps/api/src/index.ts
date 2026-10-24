@@ -1,6 +1,6 @@
 import http from "node:http";
 import { logger } from "@repo/logger";
-import { connectToDatabase } from "@repo/database";
+import { connectToDatabase, assertTransactionsSupported, ensureDbGuards } from "@repo/database";
 import { app as expressApplication } from "./server";
 import { env } from "./env";
 
@@ -15,8 +15,16 @@ async function init() {
 
     // Connect to MongoDB asynchronously
     connectToDatabase()
-      .then(() => {
+      .then(async () => {
         logger.info("Connected to MongoDB successfully");
+        // Money flows need MongoDB transactions (replica set). Refuse to run without them in production.
+        try {
+          await assertTransactionsSupported();
+        } catch (err) {
+          logger.error(String((err as Error).message));
+          process.exit(1);
+        }
+        await ensureDbGuards();
       })
       .catch((err) => {
         logger.warn(

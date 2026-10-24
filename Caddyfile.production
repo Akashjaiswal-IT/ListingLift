@@ -1,11 +1,18 @@
+{
+    servers {
+        # Traefik sits in front of Caddy on the private Docker network. Trusting private ranges
+        # lets Caddy keep the real client IP that Traefik puts in X-Forwarded-For (and append its
+        # own hop) instead of replacing it with Traefik's address. The API then reads the client
+        # IP with "trust proxy" = 2 (Traefik -> Caddy).
+        trusted_proxies static private_ranges
+    }
+}
+
 :80 {
     # Reverse proxy all requests to the Peshkar AI API
     handle {
         reverse_proxy api-service:8000 {
             header_up Host {host}
-            header_up X-Real-IP {remote}
-            header_up X-Forwarded-For {remote}
-            header_up X-Forwarded-Proto {scheme}
         }
     }
 }
