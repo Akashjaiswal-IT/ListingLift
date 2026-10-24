@@ -1,53 +1,63 @@
 import { Job } from "bullmq";
 import { logger } from "@repo/logger";
-import { ListingObject, User, CreditLedger, Types } from "@repo/database";
+import { ListingObject, User, Types, runInTransaction } from "@repo/database";
 import {
   fetchBufferFromR2,
   uploadBufferToR2,
   generateThumbnail,
   reEditStudioImage,
   renderSocialCards,
-  refundCredits,
   RE_EDIT_CREDIT_COST,
   deleteObjectFromR2,
   DEFAULT_TEMPLATE_ID,
+  refundReEditCharge,
 } from "@repo/services";
 
-export async function processReEdit(
-  job: Job<{ listingObjectId: string; generatedImageId: string; newPrompt: string }>
-) {
-  const { listingObjectId, generatedImageId, newPrompt } = job.data;
+interface ReEditJobData {
+  listingObjectId: string;
+  generatedImageId: string;
+  newPrompt: string;
+  /** Id of this re-edit's credit charge (set by reEditImage); absent on jobs queued before it existed. */
+  chargeId?: string;
+}
+
+interface CardSlot {
+  s3Key: string;
+  url: string;
+  templateId: string;
+  generatedAt: Date;
+}
+
+export async function processReEdit(job: Job<ReEditJobData>) {
+  const { listingObjectId, generatedImageId, newPrompt, chargeId } = job.data;
   logger.info(`Starting re-edit job for image ${generatedImageId} on listing ${listingObjectId}`);
 
   const listing = await ListingObject.findById(listingObjectId);
   if (!listing) {
-    throw new Error(`Listing object not found: ${listingObjectId}`);
+    // Listings can't be deleted while a re-edit runs, so this is an admin/account deletion.
+    logger.warn(`Re-edit skipped: listing ${listingObjectId} no longer exists`);
+    return;
   }
 
-  const oldImage = listing.generatedImages.find(
-    (img) => String(img._id) === generatedImageId
-  );
-
-  if (!oldImage) {
-    throw new Error(`Generated image not found: ${generatedImageId}`);
-  }
-
-  // Mark re-edit as actively processing
+  // Mark re-edit as actively processing. Dotted fields keep this charge's chargeId intact.
   await ListingObject.updateOne(
     { _id: listingObjectId },
     {
       $set: {
-        reEditStatus: {
-          status: "processing",
-          jobId: job.id,
-          targetImageId: generatedImageId,
-          updatedAt: new Date(),
-        },
+        "reEditStatus.status": "processing",
+        "reEditStatus.jobId": job.id,
+        "reEditStatus.targetImageId": generatedImageId,
+        "reEditStatus.updatedAt": new Date(),
       },
     }
   );
 
   try {
+    const oldImage = listing.generatedImages.find((img) => String(img._id) === generatedImageId);
+    if (!oldImage) {
+      throw new Error(`Generated image not found: ${generatedImageId}`);
+    }
+
     // 1. Fetch old image and original image buffer
     const oldBuffer = await fetchBufferFromR2(oldImage.s3Key);
     const origBuffers: Buffer[] = [];
@@ -78,30 +88,11 @@ export async function processReEdit(
     ]);
     const thumbUpload = await uploadBufferToR2(thumbKey, thumbBuffer, "image/webp");
 
-    // 4. Mark old image as replaced
-    oldImage.isLatest = false;
-    oldImage.replacedBy = newImageId;
-
-    // 5. Append new image
-    listing.generatedImages.push({
-      _id: newImageId,
-      s3Key: imgUpload.s3Key,
-      url: imgUpload.publicUrl,
-      thumbnailUrl: thumbUpload.publicUrl,
-      variationType: editOutput.variationType,
-      promptUsed: editOutput.promptUsed,
-      interactionId: editOutput.interactionId,
-      isLatest: true,
-      createdAt: new Date(),
-    } as any);
-
-    // 6. Refresh social cards with new image
+    // 4. Refresh social cards with the new image. The edited image is what the seller paid for:
+    // if the card refresh fails, keep the old cards and still complete the re-edit.
     const user = await User.findById(listing.userId);
     const templateId = (listing as any).templateId || DEFAULT_TEMPLATE_ID;
-    // Old card keys are cleaned up from R2 only once new cards are saved
-    let oldCardKeys: string[] = [];
-    // The edited image is what the seller paid for: if the card refresh fails, keep the old cards
-    // and still complete the re-edit rather than failing (and losing) the new image.
+    let cards: { whatsappCard: CardSlot; instagramPost: CardSlot; instagramStory: CardSlot } | null = null;
     try {
       const renderedCards = await renderSocialCards({
         productImage: editOutput.buffer,
@@ -133,44 +124,75 @@ export async function processReEdit(
         uploadBufferToR2(igPostKey, renderedCards.instagramPost, "image/jpeg"),
         uploadBufferToR2(igStoryKey, renderedCards.instagramStory, "image/jpeg"),
       ]);
-
-      oldCardKeys = [
-        listing.whatsappCard?.s3Key,
-        listing.instagramPost?.s3Key,
-        listing.instagramStory?.s3Key,
-      ].filter(Boolean) as string[];
-
-      listing.whatsappCard = {
-        s3Key: waUpload.s3Key,
-        url: waUpload.publicUrl,
+      const slot = (u: { s3Key: string; publicUrl: string }): CardSlot => ({
+        s3Key: u.s3Key,
+        url: u.publicUrl,
         templateId,
         generatedAt: new Date(),
-      };
-      listing.instagramPost = {
-        s3Key: igPostUpload.s3Key,
-        url: igPostUpload.publicUrl,
-        templateId,
-        generatedAt: new Date(),
-      };
-      listing.instagramStory = {
-        s3Key: igStoryUpload.s3Key,
-        url: igStoryUpload.publicUrl,
-        templateId,
-        generatedAt: new Date(),
-      };
+      });
+      cards = { whatsappCard: slot(waUpload), instagramPost: slot(igPostUpload), instagramStory: slot(igStoryUpload) };
     } catch (cardErr) {
       logger.error(`Card refresh failed on re-edit for listing ${listingObjectId}; keeping previous cards`, { cardErr });
     }
 
-    listing.reEditStatus = {
-      status: "completed",
-      jobId: job.id,
-      targetImageId: generatedImageId,
-      newImageId: String(newImageId),
-      updatedAt: new Date(),
-    };
+    // 5. Save atomically against the CURRENT listing (never a copy loaded minutes ago, which could
+    // overwrite or conflict with other changes). One transaction: mark the old image replaced,
+    // set the cards and status, and append the new image. MongoDB can't $set an array element and
+    // $push to the same array in one update, hence two updates inside the transaction.
+    const oldCardKeys = await runInTransaction(async (session) => {
+      const current = await ListingObject.findById(listingObjectId)
+        .select("whatsappCard instagramPost instagramStory")
+        .session(session);
+      const replacedKeys = cards
+        ? ([current?.whatsappCard?.s3Key, current?.instagramPost?.s3Key, current?.instagramStory?.s3Key].filter(
+            Boolean
+          ) as string[])
+        : [];
 
-    await listing.save();
+      const marked = await ListingObject.updateOne(
+        { _id: listingObjectId, "generatedImages._id": oldImage._id },
+        {
+          $set: {
+            "generatedImages.$.isLatest": false,
+            "generatedImages.$.replacedBy": newImageId,
+            ...(cards ?? {}),
+            reEditStatus: {
+              status: "completed",
+              jobId: job.id,
+              targetImageId: generatedImageId,
+              newImageId: String(newImageId),
+              ...(chargeId ? { chargeId } : {}),
+              updatedAt: new Date(),
+            },
+          },
+        },
+        { session: session ?? undefined }
+      );
+      if (marked.matchedCount === 0) {
+        throw new Error("The listing or the image being edited no longer exists");
+      }
+
+      await ListingObject.updateOne(
+        { _id: listingObjectId },
+        {
+          $push: {
+            generatedImages: {
+              _id: newImageId,
+              s3Key: imgUpload.s3Key,
+              url: imgUpload.publicUrl,
+              thumbnailUrl: thumbUpload.publicUrl,
+              variationType: editOutput.variationType,
+              promptUsed: editOutput.promptUsed,
+              interactionId: editOutput.interactionId,
+              isLatest: true,
+              createdAt: new Date(),
+            },
+          },
+        },
+        { session: session ?? undefined }
+      );
+      return replacedKeys;
+    });
 
     // Clean up previous cards in storage now that new ones are saved
     for (const oldKey of oldCardKeys) {
@@ -191,44 +213,34 @@ export async function processReEdit(
     const retryCount = (job.attemptsMade || 0) + 1;
     const maxRetries = job.opts.attempts || 1;
 
-    // Persist failure status to listing document
-    await ListingObject.updateOne(
-      { _id: listingObjectId },
-      {
-        $set: {
-          reEditStatus: {
-            status: "failed",
-            jobId: job.id,
-            targetImageId: generatedImageId,
-            errorMessage: "Re-edit generation failed. Your 1 credit has been refunded.",
-            updatedAt: new Date(),
-          },
-        },
-      }
-    );
-
-    // Single refund guard: refund exactly once when attempts are exhausted
+    // Refund exactly once when attempts are exhausted: one transaction writes the refund (unique
+    // key per charge), the credits and reEditStatus "failed". If the refund itself errors, the
+    // status stays "processing" so the reconciler retries the refund later.
     if (retryCount >= maxRetries) {
       try {
-        const refundReferenceId = `reedit_${listingObjectId}_${job.id}`;
-        // Verify user hasn't already been refunded for this referenceId (now a
-        // ledger lookup instead of scanning an embedded array).
-        const alreadyRefunded = !!(await CreditLedger.exists({
+        const res = await refundReEditCharge({
+          listingObjectId,
           userId: listing.userId,
-          referenceId: refundReferenceId,
-        }));
-
-        if (!alreadyRefunded) {
-          await refundCredits({
-            userId: listing.userId,
-            amount: RE_EDIT_CREDIT_COST,
-            description: `Refund for failed re-edit of ${listing.userTitle || "image"}`,
-            referenceId: refundReferenceId,
-            referenceType: "re_edit",
-          });
+          credits: RE_EDIT_CREDIT_COST,
+          chargeId,
+          legacyJobId: job.id,
+          errorMessage: "Re-edit generation failed. Your 1 credit has been refunded.",
+          description: `Refund for failed re-edit of ${listing.userTitle || "image"}`,
+        });
+        if (res.refunded) {
           logger.info(`Refunded ${RE_EDIT_CREDIT_COST} credit for failed re-edit (Job ${job.id})`);
         } else {
-          logger.warn(`Skipping duplicate refund for referenceId: ${refundReferenceId}`);
+          logger.warn(`Skipping duplicate re-edit refund (Job ${job.id})`);
+          await ListingObject.updateOne(
+            { _id: listingObjectId, ...(chargeId ? { "reEditStatus.chargeId": chargeId } : {}) },
+            {
+              $set: {
+                "reEditStatus.status": "failed",
+                "reEditStatus.errorMessage": "Re-edit generation failed. Your 1 credit has been refunded.",
+                "reEditStatus.updatedAt": new Date(),
+              },
+            }
+          );
         }
       } catch (refundErr) {
         logger.error("Failed to refund credit after re-edit error:", { refundErr });

@@ -1,4 +1,4 @@
-import { Job } from "bullmq";
+import { Job, Worker } from "bullmq";
 import { logger } from "@repo/logger";
 import { ListingObject, User } from "@repo/database";
 import {
@@ -10,11 +10,18 @@ import {
   generateStudioImages,
   generateListingText,
   renderSocialCards,
-  refundCredits,
+  refundListingCharge,
   captureServerException,
   IMAGE_GENERATION_MAX_ATTEMPTS,
   DEFAULT_TEMPLATE_ID,
+  geminiCapacityWaitMs,
+  estimateGeminiCallUsd,
 } from "@repo/services";
+
+export interface ProcessorHooks {
+  /** Pause this queue for `ms` (BullMQ manual rate limit). */
+  rateLimit: (ms: number) => Promise<void>;
+}
 
 type GenerationStage = "preparing" | "enhancing_prompt" | "rendering_images" | "rendering_cards";
 
@@ -27,13 +34,24 @@ async function setStage(listingObjectId: string, stage: GenerationStage) {
   }
 }
 
-export async function processImageGeneration(job: Job<{ listingObjectId: string }>) {
+export async function processImageGeneration(job: Job<{ listingObjectId: string }>, hooks?: ProcessorHooks) {
   const { listingObjectId } = job.data;
   logger.info(`Starting image and SEO text generation for listing: ${listingObjectId} (Attempt ${job.attemptsMade + 1})`);
 
   const listing = await ListingObject.findById(listingObjectId);
   if (!listing) {
     throw new Error(`Listing object not found: ${listingObjectId}`);
+  }
+
+  // Gemini already at its shared limit? Put the job back in the queue BEFORE doing any work: it
+  // doesn't use up an attempt or trigger a refund, and it starts again once there is room.
+  if (hooks) {
+    const waitMs = await geminiCapacityWaitMs(estimateGeminiCallUsd(listing.qualityMode === "pro" ? "2K" : "1K"));
+    if (waitMs > 0) {
+      logger.info(`Gemini at capacity; delaying job ${job.id} by ${waitMs}ms`);
+      await hooks.rateLimit(waitMs);
+      throw Worker.RateLimitError();
+    }
   }
 
   // Update status to processing
@@ -256,48 +274,20 @@ async function handleJobFailure(listingObjectId: string, error: any, job: Job) {
     return;
   }
 
-  // Final attempt. Refund FIRST, then mark the listing failed, so the UI never
-  // sees "failed" before the refund exists.
-  //
-  // We "claim" the refund atomically BEFORE issuing it: findOneAndUpdate only
-  // matches when creditsRefunded is still false and flips it to true in the same
-  // operation. MongoDB guarantees that update is atomic, so if two failed
-  // attempts race here, exactly one gets a non-null `claimed` and performs the
-  // refund; the other sees null and does nothing. This prevents double refunds.
+  // Final attempt: refund and mark failed in ONE transaction (exactly once - a second call, a
+  // re-run of the job or the reconciler matches nothing), so the UI never sees "failed" without
+  // the refund and a crash can't leave the listing marked refunded without the credits.
   try {
-    const claimed = await ListingObject.findOneAndUpdate(
-      { _id: listingObjectId, creditsRefunded: false, creditsCharged: { $gt: 0 } },
-      { $set: { creditsRefunded: true } },
-      { new: true }
-    );
-
-    if (claimed) {
-      try {
-        await refundCredits({
-          userId: claimed.userId,
-          amount: claimed.creditsCharged,
-          description: `Automatic refund for failed generation of ${claimed.userTitle || "listing"}`,
-          referenceId: String(claimed._id),
-          referenceType: "listing_object",
-        });
-        logger.info(`Refunded ${claimed.creditsCharged} credits to user ${claimed.userId}`);
-      } catch (refundErr) {
-        // The refund itself failed — release the claim so it can be retried
-        // later (e.g. by a sweeper) instead of being silently lost.
-        await ListingObject.updateOne(
-          { _id: listingObjectId },
-          { $set: { creditsRefunded: false } }
-        );
-        logger.error("Failed to refund credits after job failure:", { refundErr });
-      }
-    }
-  } catch (claimErr) {
-    logger.error("Could not claim refund after job failure:", { claimErr });
+    const res = await refundListingCharge({ listingObjectId, reason: "failed", errorMessage, retryCount });
+    if (res.refunded) logger.info(`Refunded ${res.amount} credits for listing ${listingObjectId}`);
+  } catch (refundErr) {
+    // The reconciler retries refunds for failed, unrefunded listings.
+    logger.error("Failed to refund credits after job failure:", { refundErr });
   }
 
-  // Always mark failed; creditsRefunded stays false if the refund didn't happen
+  // Nothing was charged / already refunded (or the refund errored): still mark it failed.
   await ListingObject.updateOne(
-    { _id: listingObjectId },
+    { _id: listingObjectId, status: { $ne: "failed" } },
     { $set: { status: "failed", errorMessage, retryCount } }
   );
 }

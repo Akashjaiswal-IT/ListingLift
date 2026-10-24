@@ -1,11 +1,21 @@
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import { logger } from "@repo/logger";
-import { connectToDatabase, disconnectDatabase } from "@repo/database";
+import { connectToDatabase, disconnectDatabase, assertTransactionsSupported, ensureDbGuards } from "@repo/database";
 import {
   getRedisConnection,
   IMAGE_GENERATION_QUEUE_NAME,
   RE_EDIT_QUEUE_NAME,
+  reconcileStuckWork,
 } from "@repo/services";
+
+const MAINTENANCE_QUEUE_NAME = "maintenance";
+const RECONCILE_EVERY_MS = 5 * 60 * 1000;
+// Jobs at once per queue; raise only if your Gemini limits (AI Studio) allow it.
+const GENERATION_CONCURRENCY = Number(process.env.WORKER_GENERATION_CONCURRENCY) || 3;
+const RE_EDIT_CONCURRENCY = Number(process.env.WORKER_RE_EDIT_CONCURRENCY) || 3;
+// BullMQ only honours manual rate limits (worker.rateLimit) when a limiter is configured. This one
+// is deliberately loose; the real Gemini limits are enforced per call by the shared Gemini limiter.
+const QUEUE_LIMITER = { max: 30, duration: 60_000 };
 import { env } from "./env";
 import { processImageGeneration } from "./processors/image-generation.processor";
 import { processReEdit } from "./processors/re-edit.processor";
@@ -25,18 +35,30 @@ async function main() {
     process.exit(1);
   }
 
+  // Money flows need MongoDB transactions (replica set). Refuse to run without them in production.
+  try {
+    await assertTransactionsSupported();
+  } catch (err) {
+    logger.error(String((err as Error).message));
+    process.exit(1);
+  }
+  await ensureDbGuards();
+
   const redis = getRedisConnection();
 
-  // 1. Image Generation Worker (Concurrency: 3)
-  const imageGenerationWorker = new Worker(
+  // 1. Image Generation Worker
+  const imageGenerationWorker: Worker = new Worker(
     IMAGE_GENERATION_QUEUE_NAME,
     async (job) => {
-      return await processImageGeneration(job);
+      return await processImageGeneration(job, {
+        rateLimit: (ms) => imageGenerationWorker.rateLimit(ms),
+      });
     },
     {
       connection: redis,
-      concurrency: 3,
-      lockDuration: 180000, // 3 minutes
+      concurrency: GENERATION_CONCURRENCY,
+      lockDuration: 180000, // 3 minutes (renewed automatically while the job runs)
+      limiter: QUEUE_LIMITER,
     }
   );
 
@@ -50,7 +72,7 @@ async function main() {
     });
   });
 
-  // 2. Re-Edit Worker (Concurrency: 3)
+  // 2. Re-Edit Worker
   const reEditWorker = new Worker(
     RE_EDIT_QUEUE_NAME,
     async (job) => {
@@ -58,8 +80,9 @@ async function main() {
     },
     {
       connection: redis,
-      concurrency: 3,
-      lockDuration: 120000, // 2 minutes
+      concurrency: RE_EDIT_CONCURRENCY,
+      lockDuration: 120000, // 2 minutes (renewed automatically while the job runs)
+      limiter: QUEUE_LIMITER,
     }
   );
 
@@ -73,7 +96,30 @@ async function main() {
     });
   });
 
-  logger.info("All BullMQ Workers active and listening for generation jobs.");
+  // 3. Maintenance: every 5 minutes repair work a crash left half-done (stuck "queued" listings,
+  // unrefunded failures, stuck re-edits). One scheduler entry, so it runs once per interval even
+  // with several worker replicas.
+  const maintenanceQueue = new Queue(MAINTENANCE_QUEUE_NAME, { connection: redis });
+  await maintenanceQueue.upsertJobScheduler(
+    "reconcile-stuck-work",
+    { every: RECONCILE_EVERY_MS },
+    { name: "reconcile", opts: { removeOnComplete: 20, removeOnFail: 50 } }
+  );
+  const maintenanceWorker = new Worker(
+    MAINTENANCE_QUEUE_NAME,
+    async () => {
+      const summary = await reconcileStuckWork((msg) => logger.info(`[reconcile] ${msg}`));
+      return summary;
+    },
+    { connection: redis, concurrency: 1 }
+  );
+  maintenanceWorker.on("failed", (job, err) => {
+    logger.error(`Maintenance job ${job?.id} failed:`, { err: err.message });
+  });
+
+  logger.info(
+    `All BullMQ Workers active (generation x${GENERATION_CONCURRENCY}, re-edit x${RE_EDIT_CONCURRENCY}, maintenance every 5 min).`
+  );
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
@@ -81,6 +127,8 @@ async function main() {
     try {
       await imageGenerationWorker.close();
       await reEditWorker.close();
+      await maintenanceWorker.close();
+      await maintenanceQueue.close();
       await disconnectDatabase();
       logger.info("Worker process closed cleanly.");
       process.exit(0);
