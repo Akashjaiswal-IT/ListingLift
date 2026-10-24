@@ -4,8 +4,6 @@ import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
 import {
   calculateGenerationCredits,
-  deductCredits,
-  refundCredits,
   RE_EDIT_CREDIT_COST,
   enqueueImageGeneration,
   enqueueReEdit,
@@ -13,6 +11,13 @@ import {
   generateListingText,
   IMAGE_GENERATION_MAX_ATTEMPTS,
   DEFAULT_TEMPLATE_ID,
+  chargeAndClaimListing,
+  chargeAndClaimReEdit,
+  refundListingCharge,
+  refundReEditCharge,
+  isQueueOverloaded,
+  InsufficientCreditsError,
+  ListingBusyError,
 } from "@repo/services";
 
 export const generateRouter = router({
@@ -73,67 +78,85 @@ export const generateRouter = router({
         });
       }
 
-      // Calculate credit cost
-      const creditsNeeded = calculateGenerationCredits(
-        listing.type,
-        listing.originalImages.length,
-        input.qualityMode
-      );
-
-      // Deduct credits atomically
-      let newBalance = ctx.user.creditBalance;
-      try {
-        const deductResult = await deductCredits({
-          userId: ctx.user._id,
-          amount: creditsNeeded,
-          description: `Generation for ${listing.type === "listing_product" ? "Quick Product" : "Listing Kit"}: ${input.userTitle}${input.qualityMode === "pro" ? " (Pro quality)" : ""}`,
-          referenceId: String(listing._id),
-          referenceType: "listing_object",
-        });
-        newBalance = deductResult.newBalance;
-      } catch (err: any) {
+      if (await isQueueOverloaded("generation")) {
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: err.message || "Insufficient credits. Please top up your account.",
+          code: "TOO_MANY_REQUESTS",
+          message: "We're very busy right now. Please try again in a few minutes — you have not been charged.",
         });
       }
 
-      // Enqueue BullMQ worker job for image & card generation.
-      //
-      // The credits were already deducted above. If the enqueue fails, nothing
-      // will ever process this listing, so we must NOT leave the user charged
-      // with a job stuck in "queued". This is a "compensating transaction":
-      // when a later step of a multi-step operation fails, we undo the earlier
-      // step (here, refund the credits) and surface a real error.
-      //
-      // In development Redis is often offline and we still want the rest of the
-      // flow to be exercisable, so we preserve the old graceful behaviour there.
-      // Clear any stage left over from a previous run BEFORE the worker can pick
-      // the job up (a plain listing.save() below could clobber the worker's stage).
-      await ListingObject.updateOne(
-        { _id: listing._id },
-        {
-          $unset: { generationStage: 1 },
-          $set: { retryCount: 0, keepWear: input.keepWear, qualityMode: input.qualityMode },
-        }
-      );
+      // Calculate credit cost
+      const photoCount = listing.originalImages.length;
+      const creditsNeeded = calculateGenerationCredits(listing.type, photoCount, input.qualityMode);
 
+      // ONE transaction: claim the listing (only from "uploaded", or a "failed" run whose charge was
+      // already refunded) + store the inputs + deduct credits + ledger row. A double tap, a second
+      // tab or a retried request can't charge twice: only one claim matches. The photo count is part
+      // of the claim so the price charged always matches the photos generated.
+      let newBalance: number | undefined;
+      try {
+        const res = await chargeAndClaimListing({
+          listingObjectId: listing._id,
+          userId: ctx.user._id,
+          claimFilter: {
+            originalImages: { $size: photoCount },
+            $or: [
+              { status: "uploaded" },
+              { status: "failed", creditsRefunded: true },
+              { status: "failed", creditsCharged: { $in: [0, null] } },
+            ],
+          },
+          set: {
+            userTitle: input.userTitle,
+            userDescription: input.userDescription,
+            userPrompt: input.userPrompt,
+            price: input.price,
+            discountPrice: input.discountPrice,
+            sizes: input.sizes,
+            variants: input.variants,
+            ctaText: input.ctaText?.trim() || undefined,
+            templateId: input.templateId,
+            keepWear: input.keepWear,
+            qualityMode: input.qualityMode,
+            textStatus: "pending",
+            retryCount: 0,
+          },
+          credits: creditsNeeded,
+          description: `Generation for ${listing.type === "listing_product" ? "Quick Product" : "Listing Kit"}: ${input.userTitle}${input.qualityMode === "pro" ? " (Pro quality)" : ""}`,
+        });
+        newBalance = res.newBalance;
+      } catch (err: any) {
+        if (err instanceof InsufficientCreditsError) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: err.message || "Insufficient credits. Please top up your account.",
+          });
+        }
+        if (err instanceof ListingBusyError) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              listing.status === "failed"
+                ? "This generation can be retried for free — use Retry instead."
+                : err.message,
+          });
+        }
+        throw err;
+      }
+
+      // Queue the job only AFTER the charge and claim committed. If queuing fails, refund in one
+      // transaction (compensating action) so the seller is never billed for work that won't run.
+      // In development Redis is often offline; the listing then just waits in "queued".
       let jobId: string | undefined;
       try {
         jobId = await enqueueImageGeneration(String(listing._id));
       } catch (err) {
         if (process.env.NODE_ENV === "production") {
-          await refundCredits({
-            userId: ctx.user._id,
-            amount: creditsNeeded,
-            description: `Automatic refund — could not queue generation for ${input.userTitle}`,
-            referenceId: String(listing._id),
-            referenceType: "listing_object",
+          await refundListingCharge({
+            listingObjectId: listing._id,
+            reason: "not_queued",
+            errorMessage: "Could not start generation. Your credits were refunded.",
           });
-          listing.status = "failed";
-          listing.errorMessage = "Could not start generation. Your credits were refunded.";
-          listing.creditsRefunded = true;
-          await listing.save();
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Could not start generation right now. Your credits were refunded — please try again.",
@@ -142,32 +165,18 @@ export const generateRouter = router({
         console.warn("BullMQ image enqueue warning (Redis may be offline in dev):", err);
       }
 
-      // Update listing document
-      listing.userTitle = input.userTitle;
-      listing.userDescription = input.userDescription;
-      listing.userPrompt = input.userPrompt;
-      listing.price = input.price;
-      listing.discountPrice = input.discountPrice;
-      listing.sizes = input.sizes;
-      listing.variants = input.variants;
-      listing.ctaText = input.ctaText?.trim() || undefined;
-      listing.templateId = input.templateId;
-      listing.keepWear = input.keepWear;
-      listing.qualityMode = input.qualityMode;
-      listing.creditsCharged = creditsNeeded;
-      listing.creditsRefunded = false;
-      listing.status = "queued";
-      listing.textStatus = "pending";
-      if (jobId) listing.bullmqJobId = jobId;
-
-      await listing.save();
+      // Only the job id is written here (never a stale copy of the listing), so it can't
+      // overwrite anything the worker has already recorded.
+      if (jobId) {
+        await ListingObject.updateOne({ _id: listing._id }, { $set: { bullmqJobId: jobId } });
+      }
 
       return {
         success: true,
         listingObjectId: String(listing._id),
         creditsCharged: creditsNeeded,
         newBalance,
-        status: listing.status,
+        status: "queued" as const,
         textStreamUrl: `/api/generate/${listing._id}/text-stream`,
       };
     }),
@@ -287,43 +296,59 @@ export const generateRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Generated image not found" });
       }
 
-      // Deduct 1 credit for re-edit
-      let newBalance = ctx.user.creditBalance;
-      try {
-        const deductResult = await deductCredits({
-          userId: ctx.user._id,
-          amount: RE_EDIT_CREDIT_COST,
-          description: `Photo re-edit: ${input.newPrompt}`,
-          referenceId: String(listing._id),
-          referenceType: "re_edit",
-        });
-        newBalance = deductResult.newBalance;
-      } catch (err: any) {
+      if (await isQueueOverloaded("re_edit")) {
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: err.message || "Insufficient credits for re-editing. (1 credit required)",
+          code: "TOO_MANY_REQUESTS",
+          message: "We're very busy right now. Please try again in a few minutes — you have not been charged.",
         });
       }
 
-      // Enqueue BullMQ re-edit job
+      // ONE transaction: claim the listing's re-edit slot (only if no re-edit is running) +
+      // deduct 1 credit + ledger row. A second tap is rejected instead of charged twice.
+      let newBalance: number;
+      let chargeId: string;
+      try {
+        const res = await chargeAndClaimReEdit({
+          listingObjectId: listing._id,
+          userId: ctx.user._id,
+          generatedImageId: input.generatedImageId,
+          credits: RE_EDIT_CREDIT_COST,
+          description: `Photo re-edit: ${input.newPrompt}`,
+        });
+        newBalance = res.newBalance;
+        chargeId = res.chargeId;
+      } catch (err: any) {
+        if (err instanceof InsufficientCreditsError) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: err.message || "Insufficient credits for re-editing. (1 credit required)",
+          });
+        }
+        if (err instanceof ListingBusyError) {
+          throw new TRPCError({ code: "CONFLICT", message: err.message });
+        }
+        throw err;
+      }
+
+      // Queue only after the charge committed; refund (one transaction) if queuing fails.
       let jobId: string | undefined;
       try {
         jobId = await enqueueReEdit({
           listingObjectId: String(listing._id),
           generatedImageId: input.generatedImageId,
           newPrompt: input.newPrompt,
+          chargeId,
         });
       } catch (err) {
-        // Same compensating-transaction guard as startGeneration: if we charged
-        // for the re-edit but could not queue it, refund so the user is not
-        // billed for work that will never run. Dev (no Redis) stays graceful.
+        // Dev (no Redis) stays graceful.
         if (process.env.NODE_ENV === "production") {
-          await refundCredits({
+          await refundReEditCharge({
+            listingObjectId: listing._id,
             userId: ctx.user._id,
-            amount: RE_EDIT_CREDIT_COST,
+            credits: RE_EDIT_CREDIT_COST,
+            chargeId,
+            errorMessage: "Could not start the re-edit. Your credit was refunded.",
             description: "Automatic refund — could not queue photo re-edit",
-            referenceId: String(listing._id),
-            referenceType: "re_edit",
           });
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -333,14 +358,13 @@ export const generateRouter = router({
         console.warn("Re-edit enqueue warning (Redis offline in dev):", err);
       }
 
-      // Mark listing reEditStatus as processing
-      listing.reEditStatus = {
-        status: "processing",
-        jobId,
-        targetImageId: input.generatedImageId,
-        updatedAt: new Date(),
-      };
-      await listing.save();
+      // Record the job id on THIS charge only (never a stale save of the whole listing).
+      if (jobId) {
+        await ListingObject.updateOne(
+          { _id: listing._id, "reEditStatus.chargeId": chargeId },
+          { $set: { "reEditStatus.jobId": jobId } }
+        );
+      }
 
       return {
         success: true,
@@ -451,67 +475,71 @@ export const generateRouter = router({
         });
       }
 
-      // When a generation fails and exhausts its retries, the worker
-      // automatically refunds the credits (see handleJobFailure). So a failed
-      // listing has usually ALREADY been refunded. If we simply re-queued it we
-      // would be giving away a free generation. Re-charge in that case; only a
-      // failure that was never refunded can be retried for free.
-      const creditsNeeded = calculateGenerationCredits(
-        listing.type,
-        listing.originalImages.length,
-        listing.qualityMode === "pro" ? "pro" : "standard"
-      );
+      // When a generation fails and exhausts its retries, the worker automatically refunds the
+      // credits. Retrying a refunded failure charges again; a failure that was never refunded
+      // (its credits are still held) retries for free. Either way the claim and any charge are ONE
+      // transaction, and the claim re-checks that refund state, so two taps can't double-charge.
+      const needsCharge = listing.creditsRefunded === true;
+      const creditsNeeded = needsCharge
+        ? calculateGenerationCredits(
+            listing.type,
+            listing.originalImages.length,
+            listing.qualityMode === "pro" ? "pro" : "standard"
+          )
+        : 0;
 
-      if (listing.creditsRefunded && creditsNeeded > 0) {
-        try {
-          await deductCredits({
-            userId: ctx.user._id,
-            amount: creditsNeeded,
-            description: `Retry generation: ${listing.userTitle || "listing"}`,
-            referenceId: String(listing._id),
-            referenceType: "listing_object",
-          });
-        } catch (err: any) {
+      if (await isQueueOverloaded("generation")) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "We're very busy right now. Please try again in a few minutes — you have not been charged.",
+        });
+      }
+
+      try {
+        await chargeAndClaimListing({
+          listingObjectId: listing._id,
+          userId: ctx.user._id,
+          claimFilter: needsCharge
+            ? { status: "failed", creditsRefunded: true, originalImages: { $size: listing.originalImages.length } }
+            : { status: "failed", creditsRefunded: { $ne: true } },
+          set: { retryCount: 0 },
+          credits: creditsNeeded,
+          description: `Retry generation: ${listing.userTitle || "listing"}`,
+        });
+      } catch (err: any) {
+        if (err instanceof InsufficientCreditsError) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message: err.message || "Insufficient credits to retry. Please top up your account.",
           });
         }
-        listing.creditsCharged = creditsNeeded;
-        listing.creditsRefunded = false;
+        if (err instanceof ListingBusyError) {
+          throw new TRPCError({ code: "CONFLICT", message: err.message });
+        }
+        throw err;
       }
-
-      listing.status = "queued";
-      listing.errorMessage = undefined;
-      listing.generationStage = undefined;
-      listing.retryCount = 0;
-      await listing.save();
 
       let jobId: string | undefined;
       try {
         jobId = await enqueueImageGeneration(String(listing._id));
       } catch (err) {
-        // Could not re-queue: undo any re-charge so the user isn't billed.
-        if (listing.creditsRefunded === false && creditsNeeded > 0) {
-          await refundCredits({
-            userId: ctx.user._id,
-            amount: creditsNeeded,
-            description: `Automatic refund — could not re-queue retry for ${listing.userTitle || "listing"}`,
-            referenceId: String(listing._id),
-            referenceType: "listing_object",
+        // Could not re-queue: refund any re-charge (one transaction) and mark it failed again.
+        if (creditsNeeded > 0) {
+          await refundListingCharge({
+            listingObjectId: listing._id,
+            reason: "not_queued",
+            errorMessage: "Could not restart generation. Any charge was refunded.",
           });
-          listing.creditsRefunded = true;
+        } else {
+          await ListingObject.updateOne({ _id: listing._id, status: "queued" }, { $set: { status: "failed" } });
         }
-        listing.status = "failed";
-        await listing.save();
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Could not restart generation right now. Any charge was refunded — please try again.",
         });
       }
-      listing.bullmqJobId = jobId;
-      await listing.save();
+      await ListingObject.updateOne({ _id: listing._id }, { $set: { bullmqJobId: jobId } });
 
-      return { success: true, status: listing.status, jobId };
+      return { success: true, status: "queued" as const, jobId };
     }),
 });

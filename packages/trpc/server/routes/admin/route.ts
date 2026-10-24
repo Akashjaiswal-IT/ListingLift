@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, adminProcedure } from "../../trpc";
-import { User, ListingObject, Payment, CreditLedger } from "@repo/database";
+import { User, ListingObject, Payment, CreditLedger, runInTransaction } from "@repo/database";
 import { enqueueImageGeneration } from "@repo/services";
 
 // Estimates from Google's official per-image prices at ~₹95/$ (Oct 2026); replace with logged token costs.
@@ -128,26 +128,40 @@ export const adminRouter = router({
         incFields.lifetimeCreditsEarned = input.amount;
       }
 
-      const user = await User.findOneAndUpdate(
-        { _id: input.userId },
-        { $inc: incFields },
-        { new: true }
-      );
+      // ONE transaction: balance change + ledger row. A deduction can't take the balance below 0.
+      const newBalance = await runInTransaction(async (session) => {
+        const user = await User.findOneAndUpdate(
+          { _id: input.userId, ...(input.amount < 0 ? { creditBalance: { $gte: -input.amount } } : {}) },
+          { $inc: incFields },
+          { new: true, session }
+        );
 
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
+        if (!user) {
+          const exists = await User.exists({ _id: input.userId }).session(session);
+          throw new TRPCError(
+            exists
+              ? { code: "BAD_REQUEST", message: "That would take the balance below 0" }
+              : { code: "NOT_FOUND", message: "User not found" }
+          );
+        }
 
-      await CreditLedger.create({
-        userId: user._id,
-        type: input.amount >= 0 ? "BONUS" : "DEBIT",
-        amount: input.amount,
-        balanceAfter: user.creditBalance,
-        description: `Admin adjustment: ${input.reason}`,
-        createdAt: new Date(),
+        await CreditLedger.create(
+          [
+            {
+              userId: user._id,
+              type: input.amount >= 0 ? "BONUS" : "DEBIT",
+              amount: input.amount,
+              balanceAfter: user.creditBalance,
+              description: `Admin adjustment: ${input.reason}`,
+              createdAt: new Date(),
+            },
+          ],
+          { session }
+        );
+        return user.creditBalance;
       });
 
-      return { success: true, newBalance: user.creditBalance };
+      return { success: true, newBalance };
     }),
 
   getJobs: adminProcedure
