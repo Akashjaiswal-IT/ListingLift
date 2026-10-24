@@ -26,6 +26,14 @@ vi.mock("../image/listing-export.service", () => ({
   checkShotQuality: mocks.checkShotQuality,
 }));
 vi.mock("../ai/ai-observability", () => ({ trackAIGeneration: mocks.trackAIGeneration }));
+// The shared Gemini limiter lives in Redis; these tests exercise the slot logic only.
+vi.mock("../ai/gemini-rate-limiter", () => ({
+  acquireGeminiCapacity: async () => {},
+  estimateGeminiCallUsd: () => 0.07,
+  GEMINI_CALL_TIMEOUT_MS: 150_000,
+  isGeminiRateLimitError: () => false,
+  noteGeminiRateLimited: async () => {},
+}));
 vi.mock("../ai/product-inventory", () => ({
   inventoryToPromptBlock: mocks.inventoryToPromptBlock,
   SMALL_PRINT_NOTE: "SMALL_PRINT_NOTE_MARKER",

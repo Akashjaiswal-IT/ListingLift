@@ -16,6 +16,13 @@ import {
   type ShotProblem,
   type WhiteShotResult,
 } from "../image/listing-export.service";
+import {
+  acquireGeminiCapacity,
+  estimateGeminiCallUsd,
+  GEMINI_CALL_TIMEOUT_MS,
+  isGeminiRateLimitError,
+  noteGeminiRateLimited,
+} from "./gemini-rate-limiter";
 
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 
@@ -293,6 +300,22 @@ function buildReferencePayload(prompt: string, ctx: SlotContext): any[] {
   return payload;
 }
 
+/**
+ * Every Gemini image call goes through here: it waits for room under the shared project limits
+ * (requests/minute and the rolling 10-minute spend cap), applies a per-attempt timeout (the SDK
+ * default is none), and after a 429 pauses all callers. The SDK itself already retries 429/5xx
+ * a few times with backoff before giving up.
+ */
+async function createInteraction(ai: unknown, params: Record<string, unknown>, imageSize: "1K" | "2K"): Promise<any> {
+  await acquireGeminiCapacity(estimateGeminiCallUsd(imageSize));
+  try {
+    return await (ai as any).interactions.create(params, { timeout_ms: GEMINI_CALL_TIMEOUT_MS });
+  } catch (err) {
+    if (isGeminiRateLimitError(err)) await noteGeminiRateLimited();
+    throw err;
+  }
+}
+
 async function callGemini(
   ctx: SlotContext,
   request: Record<string, unknown>,
@@ -301,11 +324,11 @@ async function callGemini(
   kind: "fresh" | "fix"
 ): Promise<GeminiCallResult> {
   const start = Date.now();
-  const interaction: any = await (ctx.ai as any).interactions.create({
-    model: GEMINI_IMAGE_MODEL,
-    ...request,
-    ...slotRequestOptions(ctx),
-  });
+  const interaction: any = await createInteraction(
+    ctx.ai,
+    { model: GEMINI_IMAGE_MODEL, ...request, ...slotRequestOptions(ctx) },
+    ctx.pro ? "2K" : "1K"
+  );
   const latencySeconds = (Date.now() - start) / 1000;
 
   const imageBase64 = interaction?.output_image?.data;
@@ -674,7 +697,7 @@ export async function reEditStudioImage(params: {
   if (!ai) throw new Error("Re-edit is unavailable: the image model is not configured");
 
   // Multi-turn editing with previous_interaction_id continues the original generation
-  const interaction: any = await (ai as any).interactions.create({
+  const interaction: any = await createInteraction(ai, {
     model: GEMINI_IMAGE_MODEL,
     input: `${buildProductLock(keepWear)} Apply the user's requested change to the scene. Only change the product itself if the user explicitly asks to change the product. User request: ${newPrompt}`,
     previous_interaction_id: interactionId,
@@ -683,7 +706,7 @@ export async function reEditStudioImage(params: {
       mime_type: "image/jpeg",
       aspect_ratio: "1:1",
     },
-  });
+  }, "1K");
 
   const imageBase64 = interaction?.output_image?.data;
   if (!imageBase64) throw new Error("Re-edit failed: the image model returned no image");
