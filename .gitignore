@@ -40,3 +40,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# MongoDB replica-set keyfile (secret, generated on the server)
+mongo-keyfile
