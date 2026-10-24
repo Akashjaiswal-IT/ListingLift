@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
-import { ListingObject, Types } from "@repo/database";
+import { ListingObject } from "@repo/database";
 import {
   fetchBufferFromR2,
   uploadBufferToR2,
@@ -9,6 +9,8 @@ import {
   getPresignedDownloadUrl,
   deleteObjectFromR2,
 } from "@repo/services";
+import { assertOwnsStorageKey } from "../../storage-access";
+import { enforceRateLimit } from "../../rate-limit";
 
 export const cardRouter = router({
   regenerateCards: protectedProcedure
@@ -22,6 +24,8 @@ export const cardRouter = router({
       if (!listing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
+
+      await enforceRateLimit(ctx.user._id, "regenerate_cards", "card regeneration");
 
       if (input.templateId) {
         listing.templateId = input.templateId;
@@ -119,17 +123,7 @@ export const cardRouter = router({
     .input(z.object({ s3Key: z.string() }))
     .query(async ({ ctx, input }) => {
       // Only sign keys the caller owns: their own uploads, or images/cards of their own listing.
-      const [prefix, owner] = input.s3Key.split("/");
-      const userId = String(ctx.user._id);
-      let allowed = false;
-      if (prefix === "uploads") {
-        allowed = owner === userId;
-      } else if ((prefix === "generated" || prefix === "cards") && owner && Types.ObjectId.isValid(owner)) {
-        allowed = !!(await ListingObject.exists({ _id: owner, userId: ctx.user._id }));
-      }
-      if (!allowed || input.s3Key.includes("..")) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this file" });
-      }
+      await assertOwnsStorageKey(input.s3Key, ctx.user._id);
 
       const url = await getPresignedDownloadUrl(input.s3Key, 3600);
       return { downloadUrl: url };

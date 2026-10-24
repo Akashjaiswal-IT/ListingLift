@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { User, CreditLedger, DEFAULT_CARD_SETTINGS, type IUser } from "@repo/database";
 import { getPresignedUploadUrl, REFERRAL_BONUS_CREDITS } from "@repo/services";
+import { enforceRateLimit } from "../../rate-limit";
 
 const cardSettingsInput = z.object({
   language: z.enum(["en", "hi"]).optional(),
@@ -150,6 +151,7 @@ export const userRouter = router({
   applyReferralCode: protectedProcedure
     .input(z.object({ code: z.string().trim().toUpperCase() }))
     .mutation(async ({ ctx, input }) => {
+      await enforceRateLimit(ctx.user._id, "apply_referral", "referral code");
       const user = await User.findById(ctx.user._id);
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
 

@@ -8,6 +8,7 @@ import {
   deleteObjectFromR2,
   checkRateLimit,
 } from "@repo/services";
+import { enforceRateLimit } from "../../rate-limit";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -103,16 +104,18 @@ export const uploadRouter = router({
 
       // If an existing unstarted uploaded listing was specified, update it and
       // clean up any obsolete images from R2 storage instead of leaving an orphan.
+      // Atomic and conditional on "uploaded": once generation has claimed (and charged for) the
+      // listing, its photos can no longer change underneath the price that was charged.
       if (input.listingObjectId) {
-        const existingListing = await ListingObject.findOne({
-          _id: input.listingObjectId,
-          userId: ctx.user._id,
-          status: "uploaded",
-        });
+        const previous = await ListingObject.findOneAndUpdate(
+          { _id: input.listingObjectId, userId: ctx.user._id, status: "uploaded" },
+          { $set: { type: input.type, originalImages: safeOriginals } },
+          { new: false }
+        );
 
-        if (existingListing) {
+        if (previous) {
           const newKeys = new Set(safeOriginals.map((img) => img.s3Key));
-          for (const oldImg of existingListing.originalImages || []) {
+          for (const oldImg of previous.originalImages || []) {
             if (oldImg.s3Key && !newKeys.has(oldImg.s3Key)) {
               try {
                 await deleteObjectFromR2(oldImg.s3Key);
@@ -120,32 +123,34 @@ export const uploadRouter = router({
             }
           }
 
-          existingListing.type = input.type;
-          existingListing.originalImages = safeOriginals;
-          await existingListing.save();
-
+          const updated = await ListingObject.findById(previous._id);
           return {
-            listingObjectId: String(existingListing._id),
-            type: existingListing.type,
-            originalImages: existingListing.originalImages,
+            listingObjectId: String(previous._id),
+            type: updated?.type ?? input.type,
+            originalImages: updated?.originalImages ?? safeOriginals,
           };
         }
       }
 
-      // Clean up any stale unstarted orphan drafts for this user so they don't linger
+      await enforceRateLimit(ctx.user._id, "create_listing", "new listing");
+
+      // Clean up any stale unstarted orphan drafts for this user so they don't linger.
+      // Each delete is conditional on still being "uploaded", so a draft that generation is
+      // claiming at this very moment is never deleted; its images are removed only if it was.
       const staleDrafts = await ListingObject.find({
         userId: ctx.user._id,
         status: "uploaded",
       });
       for (const draft of staleDrafts) {
-        for (const img of draft.originalImages || []) {
+        const deleted = await ListingObject.findOneAndDelete({ _id: draft._id, status: "uploaded" });
+        if (!deleted) continue;
+        for (const img of deleted.originalImages || []) {
           if (img.s3Key) {
             try {
               await deleteObjectFromR2(img.s3Key);
             } catch {}
           }
         }
-        await ListingObject.deleteOne({ _id: draft._id });
       }
 
       const listingObject = await ListingObject.create({

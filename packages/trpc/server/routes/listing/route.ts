@@ -12,6 +12,23 @@ import {
   generateGenericMarketplaceExcel,
   uploadBufferToR2,
 } from "@repo/services";
+import { enforceRateLimit } from "../../rate-limit";
+
+// A listing whose generation or re-edit is still running can't be deleted: the worker would keep
+// spending AI credit on it and upload files for a listing that no longer exists. A re-edit slot
+// left "processing" for over 15 minutes is stale (crashed job) and doesn't block.
+function notBusyFilter() {
+  return {
+    $nor: [
+      { status: { $in: ["queued", "processing"] } },
+      {
+        "reEditStatus.status": "processing",
+        "reEditStatus.updatedAt": { $gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+    ],
+  };
+}
+
 
 async function ensureFreshSignedUrls(listing: any): Promise<boolean> {
   let modified = false;
@@ -283,16 +300,25 @@ export const listingRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const listing = await ListingObject.findOne({
+      // Atomic: delete only if it is the caller's and not still generating.
+      const listing = await ListingObject.findOneAndDelete({
         _id: input.id,
         userId: ctx.user._id,
+        ...notBusyFilter(),
       });
 
       if (!listing) {
+        const exists = await ListingObject.exists({ _id: input.id, userId: ctx.user._id });
+        if (exists) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "This listing is still being generated. You can delete it once it finishes.",
+          });
+        }
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
 
-      // Cleanup all images, cards, Excel exports, and ZIP bundles in R2
+      // Cleanup all images, cards, Excel exports, and ZIP bundles in R2 (only after the delete succeeded)
       const keysToDelete = collectListingStorageKeys(listing);
 
       for (const key of keysToDelete) {
@@ -301,23 +327,23 @@ export const listingRouter = router({
         } catch {}
       }
 
-      await ListingObject.deleteOne({ _id: listing._id });
       return { success: true };
     }),
 
   bulkDelete: protectedProcedure
     .input(z.object({ ids: z.array(z.string()).min(1).max(50) }))
     .mutation(async ({ ctx, input }) => {
-      // Scope strictly to the caller's own listings — an attacker can't delete
-      // someone else's by passing their ids.
-      const listings = await ListingObject.find({
-        _id: { $in: input.ids },
-        userId: ctx.user._id,
-      });
-
+      // One atomic delete per listing, scoped strictly to the caller's own listings (an attacker
+      // can't delete someone else's by passing their ids) and skipping any still generating.
+      // Storage is cleaned only for listings that were actually deleted.
       const keysToDelete: string[] = [];
-      for (const listing of listings) {
-        keysToDelete.push(...collectListingStorageKeys(listing));
+      let deletedCount = 0;
+      for (const id of Array.from(new Set(input.ids))) {
+        const deleted = await ListingObject.findOneAndDelete({ _id: id, userId: ctx.user._id, ...notBusyFilter() });
+        if (deleted) {
+          deletedCount++;
+          keysToDelete.push(...collectListingStorageKeys(deleted));
+        }
       }
 
       // Best-effort R2 cleanup; never let a storage hiccup block the DB delete.
@@ -327,12 +353,7 @@ export const listingRouter = router({
         } catch {}
       }
 
-      const result = await ListingObject.deleteMany({
-        _id: { $in: listings.map((l) => l._id) },
-        userId: ctx.user._id,
-      });
-
-      return { success: true, deletedCount: result.deletedCount ?? 0 };
+      return { success: true, deletedCount };
     }),
 
   regenerateText: protectedProcedure
@@ -346,6 +367,16 @@ export const listingRouter = router({
       if (!listing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
+
+      // Copy can only be regenerated for a finished listing (otherwise new, never-generated
+      // listings could be used for free AI text), and each seller has an hourly cap.
+      if (listing.status !== "completed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Listing copy can be regenerated once the listing has finished generating.",
+        });
+      }
+      await enforceRateLimit(ctx.user._id, "regenerate_text", "copy regeneration");
 
       // Enforce per-listing SEO regeneration rate limits based on type:
       // Quick Product (listing_product): 2 max
@@ -441,6 +472,7 @@ export const listingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found" });
       }
 
+      await enforceRateLimit(ctx.user._id, "export", "export");
       const excelBuffer = await generateGenericMarketplaceExcel(listing);
       const s3Key = `exports/${listing._id}/marketplace-catalog-${listing._id}.xlsx`;
       await uploadBufferToR2(

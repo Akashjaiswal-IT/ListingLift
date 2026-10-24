@@ -75,6 +75,8 @@ export async function enqueueReEdit(params: {
   listingObjectId: string;
   generatedImageId: string;
   newPrompt: string;
+  /** Id of this re-edit's credit charge; the worker refunds it (exactly once) if the edit fails. */
+  chargeId?: string;
 }): Promise<string> {
   const queue = getReEditQueue();
   const job = await queue.add(
@@ -83,4 +85,23 @@ export async function enqueueReEdit(params: {
     { jobId: `reedit_${params.generatedImageId}_${Date.now()}` }
   );
   return job.id || `reedit_${params.generatedImageId}`;
+}
+
+// When this many generation jobs are already waiting, new requests are turned away BEFORE any
+// charge ("busy, try again in a few minutes") so a flood can't pile up unbounded work.
+export const MAX_WAITING_JOBS = Number(process.env.MAX_WAITING_JOBS) || 50;
+
+/** True when the queue is too full to accept more work. Fails open if Redis can't be read. */
+export async function isQueueOverloaded(kind: "generation" | "re_edit"): Promise<boolean> {
+  try {
+    const queue = kind === "generation" ? getImageGenerationQueue() : getReEditQueue();
+    // The Redis client waits forever while disconnected, so bound this check.
+    const waiting = await Promise.race([
+      queue.getWaitingCount(),
+      new Promise<number>((resolve) => setTimeout(() => resolve(0), 2000)),
+    ]);
+    return waiting >= MAX_WAITING_JOBS;
+  } catch {
+    return false;
+  }
 }
