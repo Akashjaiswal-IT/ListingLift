@@ -1,6 +1,6 @@
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { User, IUser, CreditLedger, connectToDatabase } from "@repo/database";
+import { User, IUser, CreditLedger, connectToDatabase, runInTransaction, isDuplicateKeyError } from "@repo/database";
 import { TRIAL_CREDITS } from "@repo/services";
 
 export interface Context {
@@ -34,65 +34,7 @@ export async function createContext(
 
       // Just-In-Time Provisioning: If user logged in but webhook has not created them yet
       if (!user) {
-        const trialCredits = TRIAL_CREDITS;
-        const newReferralCode = `PESH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-        try {
-          const clerkUser = await clerkClient.users.getUser(clerkUserId);
-          const primaryEmail =
-            clerkUser.emailAddresses?.[0]?.emailAddress || "";
-          const fullName =
-            [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
-            primaryEmail.split("@")[0] ||
-            "Seller";
-
-          user = await User.create({
-            clerkId: clerkUserId,
-            fullName,
-            email: primaryEmail,
-            profileImageUrl: clerkUser.imageUrl,
-            creditBalance: trialCredits,
-            lifetimeCreditsEarned: trialCredits,
-            lifetimeCreditsSpent: 0,
-            referralCode: newReferralCode,
-            role: "user",
-          });
-          await CreditLedger.create({
-            userId: user._id,
-            type: "TRIAL",
-            amount: trialCredits,
-            balanceAfter: trialCredits,
-            description: "Welcome bonus trial credits",
-            createdAt: new Date(),
-          });
-        } catch (fetchErr) {
-          if (process.env.NODE_ENV === "production") {
-            // In production, never create placeholder accounts with fake email addresses
-            // Leave user null so protectedProcedure safely requests re-authentication
-            console.error(
-              "[SECURITY] Failed to fetch Clerk user details during production JIT provisioning:",
-              fetchErr
-            );
-          } else {
-            // Local dev fallback only
-            user = await User.create({
-              clerkId: clerkUserId,
-              fullName: "Seller",
-              email: `${clerkUserId}@example.com`,
-              creditBalance: trialCredits,
-              lifetimeCreditsEarned: trialCredits,
-              lifetimeCreditsSpent: 0,
-              role: "user",
-            });
-            await CreditLedger.create({
-              userId: user._id,
-              type: "TRIAL",
-              amount: trialCredits,
-              balanceAfter: trialCredits,
-              description: "Welcome bonus trial credits (Dev Fallback)",
-              createdAt: new Date(),
-            });
-          }
-        }
+        user = await provisionUser(clerkUserId);
       }
     }
   } catch {
@@ -106,4 +48,78 @@ export async function createContext(
     clerkUserId,
     user,
   };
+}
+
+/**
+ * Creates the account and its trial-credit ledger row in ONE transaction. If the Clerk webhook
+ * created the same user a moment earlier, the unique clerkId index rejects this insert and the
+ * existing account is returned instead (no duplicate account, no second trial).
+ */
+async function createUserWithTrial(doc: Record<string, unknown>, ledgerDescription: string): Promise<IUser | null> {
+  try {
+    return await runInTransaction(async (session) => {
+      const [created] = await User.create([{ ...doc, creditBalance: TRIAL_CREDITS, lifetimeCreditsEarned: TRIAL_CREDITS, lifetimeCreditsSpent: 0, role: "user" }], { session });
+      await CreditLedger.create(
+        [
+          {
+            userId: created!._id,
+            type: "TRIAL",
+            amount: TRIAL_CREDITS,
+            balanceAfter: TRIAL_CREDITS,
+            description: ledgerDescription,
+            createdAt: new Date(),
+          },
+        ],
+        { session }
+      );
+      return created as IUser;
+    });
+  } catch (err) {
+    if (isDuplicateKeyError(err)) return User.findOne({ clerkId: doc.clerkId });
+    throw err;
+  }
+}
+
+async function provisionUser(clerkUserId: string): Promise<IUser | null> {
+  const newReferralCode = `PESH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  let clerkUser;
+  try {
+    clerkUser = await clerkClient.users.getUser(clerkUserId);
+  } catch (fetchErr) {
+    if (process.env.NODE_ENV === "production") {
+      // In production, never create placeholder accounts with fake email addresses
+      // Leave user null so protectedProcedure safely requests re-authentication
+      console.error(
+        "[SECURITY] Failed to fetch Clerk user details during production JIT provisioning:",
+        fetchErr
+      );
+      return null;
+    }
+    // Local dev fallback only
+    return createUserWithTrial(
+      { clerkId: clerkUserId, fullName: "Seller", email: `${clerkUserId}@example.com` },
+      "Welcome bonus trial credits (Dev Fallback)"
+    );
+  }
+
+  const primaryEmail = clerkUser.emailAddresses?.[0]?.emailAddress || "";
+  const fullName =
+    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+    primaryEmail.split("@")[0] ||
+    "Seller";
+  try {
+    return await createUserWithTrial(
+      {
+        clerkId: clerkUserId,
+        fullName,
+        email: primaryEmail,
+        profileImageUrl: clerkUser.imageUrl,
+        referralCode: newReferralCode,
+      },
+      "Welcome bonus trial credits"
+    );
+  } catch (createErr) {
+    console.error("JIT provisioning failed:", createErr);
+    return null;
+  }
 }

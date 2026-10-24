@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { Webhook } from "svix";
 import crypto from "crypto";
-import { User, Payment, ListingObject, CreditLedger, connectToDatabase } from "@repo/database";
-import { addCredits, deleteObjectFromR2, grantReferralRewardOnFirstPurchase, getPackDisplayName, TRIAL_CREDITS } from "@repo/services";
+import { User, Payment, ListingObject, CreditLedger, connectToDatabase, runInTransaction, isDuplicateKeyError } from "@repo/database";
+import { deleteObjectFromR2, capturePaymentAndGrantCredits, TRIAL_CREDITS } from "@repo/services";
 import { logger } from "@repo/logger";
 
 export const webhookRouter = Router();
@@ -64,27 +64,45 @@ webhookRouter.post("/clerk", async (req: Request, res: Response) => {
 
       const existingUser = await User.findOne({ clerkId: id });
       if (!existingUser) {
-        const createdUser = await User.create({
-          clerkId: id,
-          fullName,
-          email: primaryEmail,
-          phone,
-          profileImageUrl: image_url,
-          creditBalance: trialCredits,
-          lifetimeCreditsEarned: trialCredits,
-          lifetimeCreditsSpent: 0,
-          role: "user",
-        });
-        // Record the trial grant in the append-only ledger.
-        await CreditLedger.create({
-          userId: createdUser._id,
-          type: "TRIAL",
-          amount: trialCredits,
-          balanceAfter: trialCredits,
-          description: "Welcome bonus trial credits",
-          createdAt: new Date(),
-        });
-        logger.info(`User created and seeded with ${trialCredits} trial credits: ${id}`);
+        try {
+          // One transaction: the account and its trial-credit ledger row exist together or not at all.
+          await runInTransaction(async (session) => {
+            const [createdUser] = await User.create(
+              [
+                {
+                  clerkId: id,
+                  fullName,
+                  email: primaryEmail,
+                  phone,
+                  profileImageUrl: image_url,
+                  creditBalance: trialCredits,
+                  lifetimeCreditsEarned: trialCredits,
+                  lifetimeCreditsSpent: 0,
+                  role: "user",
+                },
+              ],
+              { session }
+            );
+            await CreditLedger.create(
+              [
+                {
+                  userId: createdUser!._id,
+                  type: "TRIAL",
+                  amount: trialCredits,
+                  balanceAfter: trialCredits,
+                  description: "Welcome bonus trial credits",
+                  createdAt: new Date(),
+                },
+              ],
+              { session }
+            );
+          });
+          logger.info(`User created and seeded with ${trialCredits} trial credits: ${id}`);
+        } catch (createErr) {
+          // The first sign-in (JIT provisioning) created this user a moment earlier: nothing to do.
+          if (!isDuplicateKeyError(createErr)) throw createErr;
+          logger.info(`User ${id} already provisioned at sign-in; skipping webhook creation`);
+        }
       }
     } else if (eventType === "user.updated") {
       const { id, email_addresses, first_name, last_name, image_url, phone_numbers } = evt.data;
@@ -191,50 +209,24 @@ webhookRouter.post("/razorpay", async (req: Request, res: Response) => {
         return res.status(400).json({ error: "Missing order ID in payload" });
       }
 
-      const payment = await Payment.findOne({ razorpayOrderId });
-      if (!payment) {
+      // One transaction: payment captured + credits + ledger (+ referral reward), exactly once.
+      // If it fails we return 500, Razorpay retries, and the retry credits it (never skipped).
+      const result = await capturePaymentAndGrantCredits({
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpayMetadata: req.body,
+      });
+
+      if (result.outcome === "not_found") {
         logger.warn(`Payment record not found for order: ${razorpayOrderId}`);
         return res.status(200).json({ received: true });
       }
-
-      // Atomic transition: only transition if not already captured (prevents race conditions with client verify)
-      const updatedPayment = await Payment.findOneAndUpdate(
-        {
-          _id: payment._id,
-          status: { $ne: "captured" },
-        },
-        {
-          $set: {
-            status: "captured",
-            razorpayPaymentId,
-            razorpayMetadata: req.body,
-          },
-        },
-        { new: true }
-      );
-
-      if (!updatedPayment) {
+      if (result.outcome === "already_captured") {
         logger.info(`Payment already captured for order: ${razorpayOrderId} (idempotent ignore)`);
         return res.status(200).json({ received: true, alreadyCaptured: true });
       }
 
-      // Add credits via unified ledger service with accurate balanceAfter
-      await addCredits({
-        userId: payment.userId,
-        amount: payment.creditsPurchased,
-        type: "PURCHASE",
-        description: `Purchased ${getPackDisplayName(payment.packId, payment.creditsPurchased)}`,
-        referenceId: String(payment._id),
-        referenceType: "payment",
-      });
-
-      logger.info(
-        `Successfully credited ${payment.creditsPurchased} credits to user ${payment.userId}`
-      );
-
-      // Pay the referrer (if any) now that this buyer has made a purchase.
-      // Idempotent and non-blocking so it never jeopardises the webhook 200.
-      grantReferralRewardOnFirstPurchase(payment.userId).catch(() => {});
+      logger.info(`Successfully credited ${result.creditsAdded} credits to user ${result.userId}`);
     }
 
     return res.status(200).json({ received: true });

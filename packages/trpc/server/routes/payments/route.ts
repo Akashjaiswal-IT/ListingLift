@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
-import { Payment, User } from "@repo/database";
+import { Payment } from "@repo/database";
 import {
   createOrder,
   verifyPaymentSignature,
-  addCredits,
-  grantReferralRewardOnFirstPurchase,
+  capturePaymentAndGrantCredits,
+  getCreditBalance,
   generateReceiptPdf,
-  getPackDisplayName,
   TOPUP_MIN_CREDITS,
   TOPUP_MAX_CREDITS,
 } from "@repo/services";
+import { enforceRateLimit } from "../../rate-limit";
 
 export const paymentsRouter = router({
   createOrder: protectedProcedure
@@ -36,6 +36,7 @@ export const paymentsRouter = router({
         })
     )
     .mutation(async ({ ctx, input }) => {
+      await enforceRateLimit(ctx.user._id, "create_order", "checkout");
       try {
         return await createOrder({
           userId: ctx.user._id,
@@ -60,86 +61,39 @@ export const paymentsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await enforceRateLimit(ctx.user._id, "verify_payment", "payment verification");
       const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = input;
 
-      const payment = await Payment.findOne({
-        razorpayOrderId,
-        userId: ctx.user._id,
-      });
-
+      const payment = await Payment.findOne({ razorpayOrderId, userId: ctx.user._id });
       if (!payment) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Order record not found" });
       }
 
-      // Fast-path idempotency check: if already captured, return success immediately
-      if (payment.status === "captured") {
-        const user = await User.findById(ctx.user._id);
-        return {
-          success: true,
-          newBalance: user?.creditBalance ?? 0,
-          creditsAdded: payment.creditsPurchased,
-        };
+      if (payment.status !== "captured") {
+        const isValid = verifyPaymentSignature({ razorpayOrderId, razorpayPaymentId, razorpaySignature });
+        if (!isValid) {
+          // Conditional: never overwrite a payment the webhook has already captured.
+          await Payment.updateOne({ _id: payment._id, status: "created" }, { $set: { status: "failed" } });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Payment signature verification failed" });
+        }
       }
 
-      const isValid = verifyPaymentSignature({
+      // One transaction: payment captured + credits + ledger (+ referral reward). Idempotent with
+      // the webhook, and it also credits a payment that was captured earlier but never credited.
+      const result = await capturePaymentAndGrantCredits({
         razorpayOrderId,
         razorpayPaymentId,
         razorpaySignature,
-      });
-
-      if (!isValid) {
-        payment.status = "failed";
-        await payment.save();
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Payment signature verification failed",
-        });
-      }
-
-      // Atomic transition: only transition if not already captured (prevents race conditions with webhook)
-      const updatedPayment = await Payment.findOneAndUpdate(
-        {
-          _id: payment._id,
-          status: { $ne: "captured" },
-        },
-        {
-          $set: {
-            status: "captured",
-            razorpayPaymentId,
-            razorpaySignature,
-          },
-        },
-        { new: true }
-      );
-
-      // If updatedPayment is null, the webhook already processed and credited this order
-      if (!updatedPayment) {
-        const user = await User.findById(ctx.user._id);
-        return {
-          success: true,
-          newBalance: user?.creditBalance ?? 0,
-          creditsAdded: payment.creditsPurchased,
-        };
-      }
-
-      // Add credits via unified ledger service with accurate balanceAfter
-      const newBalance = await addCredits({
         userId: ctx.user._id,
-        amount: payment.creditsPurchased,
-        type: "PURCHASE",
-        description: `Purchased ${getPackDisplayName(payment.packId, payment.creditsPurchased)}`,
-        referenceId: String(payment._id),
-        referenceType: "payment",
       });
-
-      // If this buyer was invited by someone, pay that referrer now (once).
-      // Non-blocking: a referral hiccup must never fail a real payment.
-      grantReferralRewardOnFirstPurchase(ctx.user._id).catch(() => {});
+      if (result.outcome === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order record not found" });
+      }
 
       return {
         success: true,
-        newBalance,
-        creditsAdded: payment.creditsPurchased,
+        newBalance: result.newBalance ?? (await getCreditBalance(ctx.user._id)),
+        creditsAdded: result.creditsAdded,
       };
     }),
 
