@@ -1,5 +1,5 @@
 import { User, CreditLedger } from "@repo/database";
-import { Types } from "mongoose";
+import type { Types, ClientSession } from "mongoose";
 
 export class InsufficientCreditsError extends Error {
   constructor(message = "Insufficient credit balance") {
@@ -42,11 +42,12 @@ export function calculateGenerationCredits(
 
 export const RE_EDIT_CREDIT_COST = 1;
 
+type ReferenceType = "payment" | "listing_object" | "re_edit" | "referral";
+
 /**
  * Insert one immutable ledger row. Called AFTER the user's balance has been
  * updated atomically, with the post-update balance passed in as `balanceAfter`.
- * Because each row is its own document, there is no second save() on the user
- * and no race on a running-balance field.
+ * Pass the same `session` as the balance update so both commit together (or neither does).
  */
 async function recordLedgerEntry(params: {
   userId: Types.ObjectId | string;
@@ -55,31 +56,45 @@ async function recordLedgerEntry(params: {
   balanceAfter: number;
   description: string;
   referenceId?: string;
-  referenceType?: "payment" | "listing_object" | "re_edit";
+  referenceType?: ReferenceType;
+  idempotencyKey?: string;
+  session?: ClientSession | null;
 }): Promise<void> {
-  await CreditLedger.create({
-    userId: params.userId,
-    type: params.type,
-    amount: params.amount,
-    balanceAfter: params.balanceAfter,
-    description: params.description,
-    referenceId: params.referenceId,
-    referenceType: params.referenceType,
-    createdAt: new Date(),
-  });
+  await CreditLedger.create(
+    [
+      {
+        userId: params.userId,
+        type: params.type,
+        amount: params.amount,
+        balanceAfter: params.balanceAfter,
+        description: params.description,
+        referenceId: params.referenceId,
+        referenceType: params.referenceType,
+        ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+        createdAt: new Date(),
+      },
+    ],
+    { session: params.session ?? null }
+  );
 }
 
-export async function deductCredits(params: {
+interface CreditOpParams {
   userId: Types.ObjectId | string;
   amount: number;
   description: string;
   referenceId?: string;
-  referenceType?: "payment" | "listing_object" | "re_edit";
-}): Promise<{ success: boolean; newBalance: number }> {
-  const { userId, amount, description, referenceId, referenceType } = params;
+  referenceType?: ReferenceType;
+  /** Makes the ledger row exactly-once: a second write with the same key is rejected by a unique index. */
+  idempotencyKey?: string;
+  /** Run inside this transaction (see runInTransaction). */
+  session?: ClientSession | null;
+}
+
+export async function deductCredits(params: CreditOpParams): Promise<{ success: boolean; newBalance: number }> {
+  const { userId, amount, description, referenceId, referenceType, idempotencyKey, session = null } = params;
 
   if (amount <= 0) {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).session(session);
     return { success: true, newBalance: user?.creditBalance ?? 0 };
   }
 
@@ -88,7 +103,7 @@ export async function deductCredits(params: {
   const updatedUser = await User.findOneAndUpdate(
     { _id: userId, creditBalance: { $gte: amount } },
     { $inc: { creditBalance: -amount, lifetimeCreditsSpent: amount } },
-    { new: true }
+    { new: true, session }
   );
 
   if (!updatedUser) {
@@ -105,29 +120,25 @@ export async function deductCredits(params: {
     description,
     referenceId,
     referenceType,
+    idempotencyKey,
+    session,
   });
 
   return { success: true, newBalance: updatedUser.creditBalance };
 }
 
-export async function refundCredits(params: {
-  userId: Types.ObjectId | string;
-  amount: number;
-  description: string;
-  referenceId?: string;
-  referenceType?: "payment" | "listing_object" | "re_edit";
-}): Promise<{ success: boolean; newBalance: number }> {
-  const { userId, amount, description, referenceId, referenceType } = params;
+export async function refundCredits(params: CreditOpParams): Promise<{ success: boolean; newBalance: number }> {
+  const { userId, amount, description, referenceId, referenceType, idempotencyKey, session = null } = params;
 
   if (amount <= 0) {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).session(session);
     return { success: true, newBalance: user?.creditBalance ?? 0 };
   }
 
   const user = await User.findOneAndUpdate(
     { _id: userId },
     { $inc: { creditBalance: amount, lifetimeCreditsSpent: -amount } },
-    { new: true }
+    { new: true, session }
   );
 
   if (!user) throw new Error("User not found for refund");
@@ -140,25 +151,22 @@ export async function refundCredits(params: {
     description,
     referenceId,
     referenceType,
+    idempotencyKey,
+    session,
   });
 
   return { success: true, newBalance: user.creditBalance };
 }
 
-export async function addCredits(params: {
-  userId: Types.ObjectId | string;
-  amount: number;
-  type: "PURCHASE" | "BONUS" | "TRIAL";
-  description: string;
-  referenceId?: string;
-  referenceType?: "payment" | "listing_object" | "re_edit";
-}): Promise<number> {
-  const { userId, amount, type, description, referenceId, referenceType } = params;
+export async function addCredits(
+  params: CreditOpParams & { type: "PURCHASE" | "BONUS" | "TRIAL" }
+): Promise<number> {
+  const { userId, amount, type, description, referenceId, referenceType, idempotencyKey, session = null } = params;
 
   const user = await User.findOneAndUpdate(
     { _id: userId },
     { $inc: { creditBalance: amount, lifetimeCreditsEarned: amount } },
-    { new: true }
+    { new: true, session }
   );
 
   if (!user) throw new Error("User not found to add credits");
@@ -171,6 +179,8 @@ export async function addCredits(params: {
     description,
     referenceId,
     referenceType,
+    idempotencyKey,
+    session,
   });
 
   return user.creditBalance;
