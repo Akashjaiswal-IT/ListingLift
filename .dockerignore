@@ -1,17 +1,40 @@
+# Only what the api/worker Dockerfiles need goes into the build context.
+# Secrets never do: no .env files (not even .env.production - compose reads it from the host at
+# runtime via env_file), no mongo-keyfile, no certificates.
 node_modules
+**/node_modules
 .next
+**/.next
 .turbo
+**/.turbo
+dist
+**/dist
+coverage
+**/coverage
+**/__tests__
 .git
 .github
 .agent
+.agents
+.claude
 .impeccable
+.playwright-mcp
 .vscode
 *.md
 .env
 .env.*
-!.env.production
-dist
-coverage
-.DS_Store
+**/.env
+**/.env.*
 *.pem
+mongo-keyfile
+.DS_Store
 npm-debug.log*
+
+# Not part of the server images (the web app is deployed on Vercel; assets-worker on Cloudflare)
+apps/web
+apps/assets-worker
+docs
+ops
+scripts
+Caddyfile*
+docker-compose*.yml

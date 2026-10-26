@@ -27,18 +27,6 @@ importers:
       '@clerk/express':
         specifier: ^2.1.72
         version: 2.1.72(express@5.2.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@repo/database':
-        specifier: workspace:^
-        version: link:../../packages/database
-      '@repo/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@repo/services':
-        specifier: workspace:^
-        version: link:../../packages/services
-      '@repo/trpc':
-        specifier: workspace:*
-        version: link:../../packages/trpc
       '@scalar/express-api-reference':
         specifier: ^0.8.30
         version: 0.8.30
@@ -82,9 +70,21 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5
     devDependencies:
+      '@repo/database':
+        specifier: workspace:^
+        version: link:../../packages/database
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@repo/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@repo/services':
+        specifier: workspace:^
+        version: link:../../packages/services
+      '@repo/trpc':
+        specifier: workspace:*
+        version: link:../../packages/trpc
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -325,15 +325,6 @@ importers:
 
   apps/worker:
     dependencies:
-      '@repo/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-      '@repo/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@repo/services':
-        specifier: workspace:*
-        version: link:../../packages/services
       bullmq:
         specifier: ^6.3.9
         version: 6.3.9(ioredis@6.0.0)
@@ -356,9 +347,18 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5
     devDependencies:
+      '@repo/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@repo/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@repo/services':
+        specifier: workspace:*
+        version: link:../../packages/services
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config

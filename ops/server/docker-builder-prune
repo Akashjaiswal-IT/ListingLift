@@ -1,0 +1,6 @@
+#!/bin/sh
+# Weekly safety net for the Docker build cache (images are built on this server).
+# Install: cp ops/server/docker-builder-prune /etc/cron.weekly/docker-builder-prune
+#          chmod 755 /etc/cron.weekly/docker-builder-prune
+# Removes only BUILD CACHE older than 3 days. Never touches images, containers or volumes.
+docker builder prune -af --filter until=72h >/dev/null 2>&1 || true

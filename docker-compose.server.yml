@@ -1,5 +1,12 @@
 name: peshkar-server
 
+# Rotate every container's log (json-file): at most 3 x 10 MB per container, never fills the disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ─────────────────────────────────────────────
   # API Server (Express + tRPC)
@@ -9,11 +16,20 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     env_file: .env.production
+    environment:
+      # Cap the JS heap below the container limit (sharp's image memory lives outside the heap)
+      NODE_OPTIONS: "--max-old-space-size=320"
+      # One libvips thread per image: the server has a single vCPU
+      VIPS_CONCURRENCY: "1"
+    init: true
+    logging: *default-logging
     deploy:
       replicas: 1
       resources:
         limits:
           memory: 512M
+        reservations:
+          memory: 128M
     networks:
       - internal
     depends_on:
@@ -24,10 +40,11 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 40s
+      start_interval: 5s
 
   # ─────────────────────────────────────────────
   # Background Worker (BullMQ)
@@ -37,11 +54,22 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     env_file: .env.production
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=512"
+      VIPS_CONCURRENCY: "1"
+      # Generation stays at 3 (mostly waiting on Gemini); re-edits 2 to bound peak memory/CPU
+      WORKER_RE_EDIT_CONCURRENCY: "2"
+    init: true
+    # Let in-flight jobs finish on deploy/restart instead of being killed after 10 s
+    stop_grace_period: 90s
+    logging: *default-logging
     deploy:
       replicas: 1
       resources:
         limits:
           memory: 1G
+        reservations:
+          memory: 256M
     networks:
       - internal
     depends_on:
@@ -61,19 +89,36 @@ services:
     # Single-node replica set: required for multi-document transactions (credits, payments).
     # The keyfile is needed because auth is enabled. Create it and run rs.initiate() once with
     # scripts/enable-mongo-replica-set.sh (see docs/runbooks/mongo-replica-set.md).
-    command: ["--replSet", "rs0", "--keyFile", "/etc/mongo/keyfile", "--bind_ip_all"]
+    # --wiredTigerCacheSizeGB: without it Mongo may grow its cache to ~1.4 GB on this 4 GB server.
+    # --quiet: stops logging every connection (the log was growing ~60 MB/day).
+    command:
+      [
+        "--replSet", "rs0",
+        "--keyFile", "/etc/mongo/keyfile",
+        "--bind_ip_all",
+        "--wiredTigerCacheSizeGB", "0.25",
+        "--quiet",
+      ]
     volumes:
       - peshkar_mongo_data:/data/db
       - peshkar_mongo_config:/data/configdb
       - ./mongo-keyfile:/etc/mongo/keyfile:ro
     networks:
       - internal
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 768M
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 15s
+      # mongosh costs ~0.7 CPU-seconds per run: every 15 s that was ~5% of the CPU at idle.
+      # start_interval keeps startup fast (checks every 5 s until healthy).
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 60s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
+      start_interval: 5s
     restart: unless-stopped
     # No ports exposed to host — only accessible within internal network
 
@@ -88,11 +133,18 @@ services:
       - peshkar_redis_data:/data
     networks:
       - internal
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 320M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
+      start_interval: 2s
     restart: unless-stopped
     # No ports exposed to host — only accessible within internal network
 
@@ -100,7 +152,7 @@ services:
   # Caddy (Reverse Proxy → API, exposed via Traefik)
   # ─────────────────────────────────────────────
   caddy:
-    image: caddy:latest
+    image: caddy:2.11.4
     container_name: peshkar-caddy
     volumes:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
@@ -115,6 +167,11 @@ services:
     networks:
       - peshkar-network
       - internal
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     depends_on:
       api-service:
         condition: service_healthy

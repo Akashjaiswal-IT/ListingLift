@@ -10,7 +10,11 @@
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
+    "@repo/database": "workspace:^",
     "@repo/eslint-config": "workspace:*",
+    "@repo/logger": "workspace:*",
+    "@repo/services": "workspace:^",
+    "@repo/trpc": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@swc/core": "^1.15.8",
     "@types/cors": "^2.8.19",
@@ -23,10 +27,6 @@
   },
   "dependencies": {
     "@clerk/express": "^2.1.72",
-    "@repo/database": "workspace:^",
-    "@repo/logger": "workspace:*",
-    "@repo/services": "workspace:^",
-    "@repo/trpc": "workspace:*",
     "@scalar/express-api-reference": "^0.8.30",
     "@trpc/server": "^11.8.1",
     "bullmq": "^6.3.9",
