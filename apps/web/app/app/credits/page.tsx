@@ -10,6 +10,26 @@ import { useCreditStore } from "~/stores/useCreditStore";
 import { useEffect, useState } from "react";
 import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
+import { formatDateTime } from "~/lib/format-date";
+import { packDisplayName } from "~/lib/pack-names";
+
+// Ledger entry types as stored by the server (credit-ledger.model.ts), plus the
+// legacy lowercase names older rows may still carry.
+const LEDGER_TYPE_LABELS: Record<string, { en: string; hi: string }> = {
+  PURCHASE: { en: "Purchase", hi: "खरीद" },
+  DEBIT: { en: "Used", hi: "उपयोग" },
+  REFUND: { en: "Refund", hi: "रिफंड" },
+  BONUS: { en: "Bonus", hi: "बोनस" },
+  TRIAL: { en: "Free trial", hi: "मुफ़्त ट्रायल" },
+  credit_purchase: { en: "Purchase", hi: "खरीद" },
+  deduction: { en: "Used", hi: "उपयोग" },
+  refund: { en: "Refund", hi: "रिफंड" },
+};
+
+function ledgerTypeLabel(type: string, isHi: boolean): string {
+  const label = LEDGER_TYPE_LABELS[type];
+  return label ? (isHi ? label.hi : label.en) : type;
+}
 
 export default function CreditsPage() {
   const { language } = useLanguage();
@@ -67,7 +87,7 @@ export default function CreditsPage() {
         </div>
 
         <Link href="/pricing">
-          <Button className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 rounded-xl shadow-md transition-all active:scale-[0.98]">
+          <Button className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-2 rounded-xl shadow-md transition-all active:scale-[0.98]">
             <Sparkles className="h-4 w-4" /> {isHi ? "और क्रेडिट्स खरीदें" : "Buy More Credits"}
           </Button>
         </Link>
@@ -156,8 +176,8 @@ export default function CreditsPage() {
                     <div
                       className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
                         isPositive
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive dark:text-rose-400"
                       }`}
                     >
                       {isPositive ? (
@@ -169,19 +189,13 @@ export default function CreditsPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{tx.description}</span>
-                        <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                          {tx.type === "credit_purchase"
-                            ? isHi ? "खरीद" : "Purchase"
-                            : tx.type === "deduction"
-                            ? isHi ? "उपयोग" : "Deduction"
-                            : tx.type === "refund"
-                            ? isHi ? "रिफंड" : "Refund"
-                            : tx.type}
+                        <Badge variant="outline" className="text-xs uppercase font-bold">
+                          {ledgerTypeLabel(String(tx.type), isHi)}
                         </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {new Date(tx.createdAt).toLocaleString()}
+                        {formatDateTime(tx.createdAt, isHi)}
                       </span>
                     </div>
                   </div>
@@ -189,12 +203,12 @@ export default function CreditsPage() {
                   <div className="text-right">
                     <span
                       className={`font-black text-base block ${
-                        isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
+                        isPositive ? "text-success" : "text-foreground"
                       }`}
                     >
                       {isPositive ? `+${tx.amount}` : tx.amount}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {isHi ? "बैलेंस:" : "Balance:"} {tx.balanceAfter}
                     </span>
                   </div>
@@ -218,16 +232,16 @@ export default function CreditsPage() {
                 className="p-4 flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
               >
                 <div>
-                  <span className="font-semibold text-sm capitalize">
+                  <span className="font-semibold text-sm">
                     {p.packId === "topup"
                       ? isHi
                         ? `कस्टम टॉप-अप (${p.creditsPurchased} क्रेडिट्स)`
                         : `Custom top-up (${p.creditsPurchased} credits)`
-                      : `${p.packId} ${isHi ? "पैक" : "pack"} · ${p.creditsPurchased} ${isHi ? "क्रेडिट्स" : "credits"}`}
+                      : `${packDisplayName(p.packId, isHi)} · ${p.creditsPurchased} ${isHi ? "क्रेडिट्स" : "credits"}`}
                   </span>
                   <span className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {new Date(p.createdAt).toLocaleString()}
+                    {formatDateTime(p.createdAt, isHi)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">

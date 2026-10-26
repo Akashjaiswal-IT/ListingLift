@@ -96,7 +96,7 @@ export function OnboardingTour() {
         {/* Top Header Card */}
         <div className="relative p-6 sm:p-8 bg-gradient-to-br from-primary via-primary/95 to-amber-600 text-white">
           <div className="flex items-center justify-between mb-4">
-            <Badge className="bg-white/20 text-white border-white/30 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
+            <Badge className="bg-white/20 text-white border-white/30 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
               {step.tag} / 4
             </Badge>
             <button
@@ -143,7 +143,7 @@ export function OnboardingTour() {
                 {step.highlight}
               </span>
             </div>
-            <Badge variant="outline" className="text-[10px] font-semibold border-primary/30 text-primary">
+            <Badge variant="outline" className="text-xs font-semibold border-primary/30 text-primary">
               {step.previewBadge}
             </Badge>
           </div>

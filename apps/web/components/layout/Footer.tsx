@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useLanguage } from "~/providers/LanguageContext";
 import { IrisMark } from "~/components/brand/PeshkarLogo";
 
 export function Footer() {
   const { language, t } = useLanguage();
+  const pathname = usePathname();
+
+  // The signed-in app has its own navigation; the marketing footer is noise there.
+  if (pathname?.startsWith("/app")) return null;
 
   return (
     <footer className="border-t border-border/60 bg-[#161311] text-[#FAF7F2] py-14">

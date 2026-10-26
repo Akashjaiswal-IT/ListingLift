@@ -80,7 +80,7 @@ export function CustomTopup({ onCheckout, isOpening = false }: CustomTopupProps)
 
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+          <ShieldCheck className="h-4 w-4 text-success shrink-0" />
           <span>
             {isHi
               ? "तत्काल सक्रियण • स्वचालित रिफंड सुरक्षा"
@@ -97,7 +97,7 @@ export function CustomTopup({ onCheckout, isOpening = false }: CustomTopupProps)
             }
             router.push("/pricing");
           }}
-          className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-md gap-2 text-xs"
+          className="w-full sm:w-auto h-11 px-8 font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md gap-2 text-xs"
         >
           <Sparkles className="h-4 w-4" />
           {isOpening
@@ -112,7 +112,7 @@ export function CustomTopup({ onCheckout, isOpening = false }: CustomTopupProps)
         </Button>
       </div>
 
-      <p className="text-[11px] text-muted-foreground text-center">
+      <p className="text-xs text-muted-foreground text-center">
         {isHi ? "1,000 से ज़्यादा क्रेडिट्स चाहिए? " : "Need more than 1,000 credits? "}
         <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary font-semibold hover:underline">
           {isHi ? "हमसे संपर्क करें" : "Contact us"}

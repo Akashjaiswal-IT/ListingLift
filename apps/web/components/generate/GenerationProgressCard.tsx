@@ -53,40 +53,44 @@ export function GenerationProgressCard({
         </div>
         <Badge
           variant={status === "failed" ? "destructive" : "secondary"}
-          className={`capitalize text-[10px] ${
+          className={`capitalize text-xs ${
             status === "completed"
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+              ? "bg-success/10 text-success border-success/30"
               : ""
           }`}
         >
-          {isHi
-            ? status === "completed" ? "पूर्ण" : status === "failed" ? "असफल" : "प्रगति पर"
-            : status}
+          {status === "completed"
+            ? isHi ? "पूर्ण" : "Done"
+            : status === "failed"
+            ? isHi ? "असफल" : "Failed"
+            : status === "queued"
+            ? isHi ? "कतार में" : "In queue"
+            : isHi ? "प्रगति पर" : "In progress"}
         </Badge>
       </div>
 
       {status === "queued" && !!info?.retryCount && info.retryCount > 0 && (
-        <p className="text-[11px] text-muted-foreground -mt-2">
+        <p className="text-xs text-muted-foreground -mt-2">
           {isHi
             ? `फिर से कोशिश हो रही है (प्रयास ${info.retryCount + 1}/${info.maxAttempts})…`
             : `Retrying (attempt ${info.retryCount + 1} of ${info.maxAttempts})…`}
         </p>
       )}
 
-      <div className="space-y-4 text-xs" aria-live="polite">
+      <div className="space-y-4 text-sm" aria-live="polite">
         {[
-          isHi ? "सामान्य बैकग्राउंड क्लीनअप और संरेखण" : "Crop & Cleanse Raw Backdrop",
-          isHi ? "विज़न प्रॉम्प्ट विश्लेषण" : "OpenAI Vision Prompt Enhancement",
-          isHi ? "AI स्टूडियो रेंडरिंग" : "AI Studio Rendering",
-          isHi ? "व्हाट्सएप व इंस्टाग्राम स्टोरी कार्ड कम्पोज़िंग" : "WhatsApp & Instagram Story Card Compositing",
+          isHi ? "फ़ोटो साफ़ करना और सीधा करना" : "Cleaning up your photo",
+          isHi ? "प्रोडक्ट को समझना" : "Understanding your product",
+          isHi ? "स्टूडियो फ़ोटो बनाना" : "Creating studio photos",
+          isHi ? "व्हाट्सएप और इंस्टाग्राम कार्ड बनाना" : "Making WhatsApp & Instagram cards",
         ].map((label, idx) => {
           const state = stepStates[idx]!;
           return (
             <div key={idx} className="flex items-center justify-between">
-              <span className={state === "failed" ? "text-destructive font-medium" : "text-muted-foreground"}>
+              <span className={state === "failed" ? "text-destructive font-medium" : state === "active" ? "text-foreground font-semibold" : "text-muted-foreground"}>
                 {label}
               </span>
-              {state === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />}
+              {state === "done" && <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />}
               {state === "active" && <Loader2 className="h-4 w-4 text-primary animate-spin" aria-hidden="true" />}
               {state === "failed" && <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />}
               {state === "pending" && <Circle className="h-4 w-4 text-muted-foreground/40" aria-hidden="true" />}
@@ -105,18 +109,12 @@ export function GenerationProgressCard({
       </div>
 
       {status === "failed" && (
-        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3 text-xs">
-          <div className="space-y-1">
-            <p className="font-semibold text-destructive">
-              {isHi ? "स्टूडियो इमेज जनरेट नहीं हो सकीं।" : "Studio images couldn't be generated."}
-            </p>
-            {info?.errorMessage && (
-              <p className="text-[11px] text-muted-foreground break-words">
-                {shortError(info.errorMessage)}
-              </p>
-            )}
-          </div>
-          <p className="text-muted-foreground">
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3 text-sm">
+          <p className="font-semibold text-destructive">
+            {isHi ? "स्टूडियो फ़ोटो नहीं बन सकीं।" : "Studio photos couldn't be created."}
+          </p>
+          {/* Money first: say clearly what happened to the credits */}
+          <p className="font-semibold text-foreground">
             {info?.creditsRefunded
               ? isHi
                 ? `${info.creditsCharged} क्रेडिट्स आपके बैलेंस में वापस कर दिए गए हैं।`
@@ -125,6 +123,14 @@ export function GenerationProgressCard({
               ? "हम आपका रिफंड प्रोसेस कर रहे हैं — अगर वह न दिखे तो सपोर्ट से संपर्क करें।"
               : "We're processing your refund — contact support if it doesn't appear."}
           </p>
+          {info?.errorMessage && (
+            <details className="text-muted-foreground">
+              <summary className="cursor-pointer select-none">
+                {isHi ? "तकनीकी जानकारी" : "Technical details"}
+              </summary>
+              <p className="mt-1 break-words">{shortError(info.errorMessage)}</p>
+            </details>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={onRetry} disabled={isRetrying}>
               {isRetrying

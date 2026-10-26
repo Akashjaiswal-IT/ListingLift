@@ -3,18 +3,9 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import {
-  Sparkles,
   ArrowLeft,
   Download,
-  Copy,
-  RotateCw,
-  ShoppingBag,
-  MessageCircle,
-  Instagram,
-  CheckCircle2,
   RefreshCw,
-  Search,
-  Tag,
   FileSpreadsheet,
   AlertCircle,
 } from "lucide-react";
@@ -27,6 +18,9 @@ import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
 import { trackEvent } from "~/lib/analytics";
 import { adaptiveStatusInterval } from "~/lib/polling";
+import { formatDate } from "~/lib/format-date";
+import { ShareButton } from "~/components/common/ShareButton";
+import { ErrorState } from "~/components/common/ErrorState";
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -74,13 +68,6 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const copyText = (txt?: string, label?: string) => {
-    if (!txt) return;
-    navigator.clipboard.writeText(txt);
-    trackEvent("listing_copied", { label: label || "text", listingId });
-    toast.success(`Copied ${label || "text"} to clipboard!`);
-  };
-
   const handleDownloadBundle = async () => {
     try {
       toast.info(isHi ? "ZIP पैकेज तैयार किया जा रहा है..." : "Preparing ZIP package...");
@@ -98,7 +85,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const handleRegenerateText = async () => {
     setIsRegenerating(true);
     try {
-      toast.info(isHi ? "AI के साथ कॉपी फिर से लिखी जा रही है..." : "Regenerating SEO copy with OpenAI...");
+      toast.info(isHi ? "लिस्टिंग टेक्स्ट फिर से लिखा जा रहा है..." : "Rewriting your listing text...");
       trackEvent("listing_text_regenerated", { listingId });
       await regenerateTextMutation.mutateAsync({ id: listingId });
       await Promise.allSettled([
@@ -121,6 +108,14 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         <p className="text-muted-foreground text-sm font-medium">
           {isHi ? "कैटलॉग परिणाम लोड हो रहे हैं..." : "Loading listing deliverables..."}
         </p>
+      </div>
+    );
+  }
+
+  if (!listing && listingQuery.isError && listingQuery.error?.data?.code !== "NOT_FOUND") {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-20">
+        <ErrorState onRetry={() => listingQuery.refetch()} />
       </div>
     );
   }
@@ -153,13 +148,13 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="capitalize text-[10px]">
+            <Badge variant="secondary" className="capitalize text-xs">
               {listing.type === "listing_product"
                 ? isHi ? "क्विक स्टूडियो" : "Quick Product"
                 : isHi ? "फुल लिस्टिंग किट" : "Listing Kit"}
             </Badge>
             <span className="text-xs text-muted-foreground">
-              {isHi ? "बनाया गया" : "Created"} {new Date(listing.createdAt).toLocaleDateString()}
+              {isHi ? "बनाया गया" : "Created"} {formatDate(listing.createdAt, isHi)}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight mt-1 text-foreground">
@@ -167,7 +162,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center [&>button]:h-auto [&>button]:min-h-10 [&>button]:whitespace-normal sm:[&>button]:whitespace-nowrap">
           <Button
             variant="outline"
             size="sm"
@@ -198,32 +193,27 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                   : `Regenerate SEO Copy (${regenerationsRemaining}/${maxRegenerations})`}
           </Button>
 
-          {text?.whatsappCaption && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                copyText(text.whatsappCaption, isHi ? "व्हाट्सएप कॉपी" : "WhatsApp Caption");
-                window.open(
-                  `https://api.whatsapp.com/send?text=${encodeURIComponent(text.whatsappCaption)}`,
-                  "_blank"
-                );
-              }}
-              className="gap-1.5 font-bold text-xs h-9 rounded-xl text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 shadow-xs"
-            >
-              <MessageCircle className="h-4 w-4 text-emerald-600" />
-              {isHi ? "व्हाट्सएप ब्रॉडकास्ट" : "Share to WhatsApp"}
-            </Button>
-          )}
+          {/* Share the studio photos + WhatsApp caption through the phone's share sheet */}
+          <ShareButton
+            imageUrls={(listing.generatedImages || [])
+              .filter((img: any) => img.isLatest !== false && img.url)
+              .map((img: any) => img.url)}
+            caption={text?.whatsappCaption}
+            fileBaseName={listing.userTitle}
+            isHi={isHi}
+            onShared={() => trackEvent("listing_copied", { label: "share_header", listingId })}
+            className="order-first sm:order-none rounded-xl text-xs bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90 shadow-xs"
+            label={isHi ? "व्हाट्सएप पर शेयर करें" : "Share to WhatsApp"}
+          />
 
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportExcel}
             disabled={isExportingExcel}
-            className="gap-1.5 font-bold text-xs h-9 rounded-xl text-emerald-700 border-emerald-600/30 hover:bg-emerald-600/10 shadow-xs"
+            className="gap-1.5 font-bold text-xs h-9 rounded-xl text-success border-success/30 hover:bg-success/10 shadow-xs"
           >
-            <FileSpreadsheet className={`h-4 w-4 ${isExportingExcel ? "animate-spin text-emerald-600" : "text-emerald-600"}`} />
+            <FileSpreadsheet className={`h-4 w-4 ${isExportingExcel ? "animate-spin text-success" : "text-success"}`} />
             {isExportingExcel
               ? isHi ? "एक्सेल तैयार हो रहा है..." : "Exporting..."
               : isHi ? "मीशो एक्सेल (.xlsx)" : "Export Excel (.xlsx)"}
@@ -231,7 +221,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
           <Button
             onClick={handleDownloadBundle}
-            className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 shadow-md rounded-xl text-xs h-9"
+            className="order-[-1] sm:order-none font-bold gap-2 shadow-md rounded-xl text-xs h-9"
           >
             <Download className="h-4 w-4" /> {isHi ? "पूरा ZIP डाउनलोड करें" : "Download Complete ZIP"}
           </Button>
@@ -249,7 +239,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             <span className="text-xs text-muted-foreground">
               {isHi
                 ? "आपका संशोधित स्टूडियो इमेज प्रोसेस हो रहा है। पूरा होते ही यह पेज अपने आप अपडेट हो जाएगा।"
-                : "A refined studio image is currently generating on the worker. This page will update automatically once it is finished."}
+                : "Your edited studio photo is being created. This page updates automatically when it is ready."}
             </span>
           </div>
         </div>

@@ -16,12 +16,24 @@ type CheckoutRequest = Parameters<
 
 export type PurchaseRequest = Omit<CheckoutRequest, "legalPolicyVersion">;
 
+export interface CheckoutOptions {
+  /** Called (before the toast) when Buy is pressed without accepting the policies. */
+  onConsentMissing?: () => void;
+  /**
+   * Where to go after a successful purchase. Defaults to the dashboard; pass
+   * null to stay on the current page (e.g. the in-flow "buy credits" dialog).
+   */
+  successRedirect?: string | null;
+  /** Called after a verified purchase, once the balance has been refreshed. */
+  onSuccess?: (creditsAdded: number) => void;
+}
+
 /**
  * Razorpay checkout shared by every "buy credits" button (named packs and the
  * custom top-up slider): create the order, open Razorpay, verify the payment.
  * `pendingKey` is the pack id being opened ("topup" for custom), or null.
  */
-export function useCheckout(hasAcceptedPolicies: boolean) {
+export function useCheckout(hasAcceptedPolicies: boolean, opts: CheckoutOptions = {}) {
   const { user, isSignedIn } = useUser();
   const router = useRouter();
   const { language } = useLanguage();
@@ -42,11 +54,15 @@ export function useCheckout(hasAcceptedPolicies: boolean) {
           ? "क्रेडिट्स खरीदने के लिए कृपया लॉग इन करें।"
           : "Please sign in or create an account to purchase credits.",
       );
-      router.push("/login");
+      // Come back to this page after signing in instead of landing on the dashboard.
+      // (Same-origin absolute URL, the format Clerk itself uses for redirect_url.)
+      const back = typeof window !== "undefined" ? window.location.href : "/pricing";
+      router.push(`/login?redirect_url=${encodeURIComponent(back)}`);
       return;
     }
 
     if (!hasAcceptedPolicies) {
+      opts.onConsentMissing?.();
       toast.error(
         isHi
           ? "भुगतान से पहले कृपया नियम, प्राइवेसी और रिफंड पॉलिसी स्वीकार करें।"
@@ -123,7 +139,9 @@ export function useCheckout(hasAcceptedPolicies: boolean) {
                   ? `आपके खाते में ${added} क्रेडिट्स सफलतापूर्वक जोड़ दिए गए हैं!`
                   : `Successfully added ${added} credits to your account!`,
               );
-              router.push("/app/dashboard");
+              opts.onSuccess?.(added);
+              const successRedirect = opts.successRedirect === undefined ? "/app/dashboard" : opts.successRedirect;
+              if (successRedirect) router.push(successRedirect);
             }
           } catch (err: any) {
             trackEvent("checkout_failed", {
@@ -131,7 +149,12 @@ export function useCheckout(hasAcceptedPolicies: boolean) {
               orderId: response.razorpay_order_id,
               error: err.message,
             });
-            toast.error(err.message || "Payment verification failed");
+            toast.error(
+              err.message ||
+                (isHi
+                  ? "भुगतान की पुष्टि नहीं हो सकी। अगर पैसे कटे हैं तो सपोर्ट से संपर्क करें।"
+                  : "Payment verification failed. If money was deducted, please contact support."),
+            );
           }
         },
         theme: {
@@ -153,7 +176,7 @@ export function useCheckout(hasAcceptedPolicies: boolean) {
         packId,
         error: err.message,
       });
-      toast.error(err.message || "Failed to initiate payment");
+      toast.error(err.message || (isHi ? "भुगतान शुरू नहीं हो सका" : "Failed to initiate payment"));
     } finally {
       setPendingKey(null);
     }

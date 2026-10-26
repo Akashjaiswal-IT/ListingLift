@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoBroken, setLogoBroken] = useState(false);
   const [defaultCtaText, setDefaultCtaText] = useState(isHi ? "व्हाट्सएप पर ऑर्डर करें" : "Order Now via WhatsApp");
   const [cardLanguage, setCardLanguage] = useState<CardLanguage>("en");
   const [trustBadges, setTrustBadges] = useState<Record<TrustBadgeKey, boolean>>(NO_TRUST_BADGES);
@@ -104,15 +105,16 @@ export default function ProfilePage() {
       <Card className="border-border/60 bg-card shadow-sm">
         <CardContent className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <label htmlFor="profile-store" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5 text-primary" /> {isHi ? "स्टोर / ब्रांड का नाम" : "Store / Brand Name"}
             </label>
             <Input
               placeholder={isHi ? "उदा. रॉयल हेरिटेज साड़ीज़" : "e.g. Royal Heritage Sarees"}
+              id="profile-store"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
             />
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {isHi
                 ? "जनरेट किए गए व्हाट्सएप कैटलॉग कार्ड्स और इंस्टाग्राम ओवरले पर प्रदर्शित होता है।"
                 : "Displayed on generated WhatsApp catalog cards and Instagram overlays."}
@@ -120,15 +122,19 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <MessageCircle className="h-3.5 w-3.5 text-emerald-500" /> {isHi ? "व्हाट्सएप बिज़नेस नंबर" : "WhatsApp Business Number"}
+            <label htmlFor="profile-whatsapp" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5 text-success" /> {isHi ? "व्हाट्सएप बिज़नेस नंबर" : "WhatsApp Business Number"}
             </label>
             <Input
+              id="profile-whatsapp"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               placeholder="e.g. +91 98765 43210"
               value={whatsappNumber}
               onChange={(e) => setWhatsappNumber(e.target.value)}
             />
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {isHi
                 ? "कैटलॉग में सीधे क्लिक-टू-चैट ऑर्डर लिंक बनाने के लिए उपयोग किया जाता है।"
                 : "Used to generate instant click-to-chat order links in copy deliverables."}
@@ -136,10 +142,13 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <label htmlFor="profile-instagram" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Instagram className="h-3.5 w-3.5 text-pink-500" /> {isHi ? "इंस्टाग्राम हैंडल" : "Instagram Handle"}
             </label>
             <Input
+              id="profile-instagram"
+              autoCapitalize="none"
+              autoCorrect="off"
               placeholder="e.g. @royal_heritage_sarees"
               value={instagramHandle}
               onChange={(e) => setInstagramHandle(e.target.value)}
@@ -147,22 +156,49 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <ImageIcon className="h-3.5 w-3.5 text-amber-500" /> {isHi ? "स्टोर लोगो URL (वैकल्पिक)" : "Store Logo URL (Optional)"}
+            <label htmlFor="profile-logo" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ImageIcon className="h-3.5 w-3.5 text-credit" /> {isHi ? "स्टोर लोगो URL (वैकल्पिक)" : "Store Logo URL (Optional)"}
             </label>
             <Input
+              id="profile-logo"
+              type="url"
+              inputMode="url"
               placeholder="https://..."
               value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
+              onChange={(e) => {
+                setLogoUrl(e.target.value);
+                setLogoBroken(false);
+              }}
             />
+            {/* Preview, so a wrong link is obvious before it ends up on every card */}
+            {logoUrl.trim() && (
+              <div className="flex items-center gap-3 pt-1">
+                {logoBroken ? (
+                  <span className="text-sm text-destructive">
+                    {isHi ? "इस लिंक से लोगो नहीं खुला — लिंक जांचें।" : "Couldn't load a logo from this link — please check it."}
+                  </span>
+                ) : (
+                  <>
+                    <img
+                      src={logoUrl.trim()}
+                      alt={isHi ? "लोगो प्रीव्यू" : "Logo preview"}
+                      className="h-12 w-12 rounded-lg border border-border bg-white object-contain"
+                      onError={() => setLogoBroken(true)}
+                    />
+                    <span className="text-xs text-muted-foreground">{isHi ? "लोगो प्रीव्यू" : "Logo preview"}</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor="profile-cta" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               {isHi ? "डिफ़ॉल्ट कॉल-टू-एक्शन (CTA) टेक्स्ट" : "Default Call-to-Action (CTA) Text"}
             </label>
             <Input
               placeholder={isHi ? "उदा. व्हाट्सएप पर ऑर्डर करें" : "e.g. Order Now via WhatsApp"}
+              id="profile-cta"
               value={defaultCtaText}
               onChange={(e) => setDefaultCtaText(e.target.value)}
             />
@@ -173,7 +209,7 @@ export default function ProfilePage() {
               <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                 <BadgeCheck className="h-4 w-4 text-primary" /> {isHi ? "कार्ड सेटिंग्स" : "Card settings"}
               </h2>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {isHi
                   ? "इन्हें तभी चालू करें जब ये आपकी दुकान के लिए सच हों — ये आपके कार्ड पर छपेंगे।"
                   : "Only switch these on if they are true for your shop — they are printed on your cards."}
@@ -226,7 +262,7 @@ export default function ProfilePage() {
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-primary hover:bg-primary/90 text-white font-bold gap-2 px-6 rounded-xl shadow-sm text-xs"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-2 px-6 rounded-xl shadow-sm text-xs"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isHi ? "प्रोफ़ाइल सेटिंग्स सेव करें" : "Save Profile Settings"}

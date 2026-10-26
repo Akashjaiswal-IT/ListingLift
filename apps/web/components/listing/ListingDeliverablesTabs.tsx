@@ -34,6 +34,10 @@ import {
 } from "~/lib/card-templates";
 import { useLanguage } from "~/providers/LanguageContext";
 import { downloadFile } from "~/lib/download";
+import { copyToClipboard } from "~/lib/clipboard";
+import { variationLabel } from "~/lib/variation-labels";
+import { CopyButton } from "~/components/common/CopyButton";
+import { ShareButton } from "~/components/common/ShareButton";
 import { trackEvent } from "~/lib/analytics";
 import { trpc } from "~/trpc/client";
 import { Loader2 } from "lucide-react";
@@ -102,7 +106,6 @@ export function ListingDeliverablesTabs({
   };
 
   const handleDownload = useCallback((url: string, filename: string) => {
-    toast.info(isHi ? "डाउनलोड शुरू हो रहा है…" : "Starting download…");
     trackEvent("listing_downloaded", { filename, listingId });
     downloadFile(url, filename)
       .then(() => {
@@ -113,38 +116,67 @@ export function ListingDeliverablesTabs({
       });
   }, [isHi, listingId]);
 
-  const copyText = (txt?: string, label?: string) => {
+  const copyText = async (txt?: string, label?: string) => {
     if (!txt) return;
-    navigator.clipboard.writeText(txt);
+    const ok = await copyToClipboard(txt);
+    if (!ok) {
+      toast.error(isHi ? "कॉपी नहीं हो सका — टेक्स्ट को दबाकर चुनें" : "Couldn't copy — press and hold the text to select it");
+      return;
+    }
     trackEvent("listing_copied", { label: label || "text", listingId });
-    toast.success(isHi ? `${label || "टेक्स्ट"} कॉपी हो गया!` : `Copied ${label || "text"} to clipboard!`);
+    toast.success(isHi ? `${label || "टेक्स्ट"} कॉपी हो गया!` : `Copied ${label || "text"}!`);
   };
+
+  // Latest studio images, in order: what a seller shares to WhatsApp / Instagram.
+  const studioImageUrls: string[] = (listing.generatedImages || [])
+    .filter((img: any) => img.isLatest !== false && img.url)
+    .map((img: any) => img.url);
 
   return (
     <Tabs defaultValue={defaultTab} className="space-y-6">
-      <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 max-w-3xl">
-        <TabsTrigger value="photos" className="gap-1.5 text-xs font-bold">
+      {/* One scrollable row on phones instead of three rows of tabs */}
+      <TabsList className="flex w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-6 md:max-w-3xl">
+        <TabsTrigger value="photos" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <Sparkles className="h-3.5 w-3.5" /> {isHi ? "फ़ोटो" : "Photos"}
         </TabsTrigger>
-        <TabsTrigger value="catalog" className="gap-1.5 text-xs font-bold">
+        <TabsTrigger value="catalog" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <ShoppingBag className="h-3.5 w-3.5" /> {isHi ? "कैटलॉग" : "Catalog"}
         </TabsTrigger>
-        <TabsTrigger value="seo" className="gap-1.5 text-xs font-bold">
+        <TabsTrigger value="seo" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <Search className="h-3.5 w-3.5" /> {isHi ? "एसईओ बुलेट्स" : "SEO & Bullets"}
         </TabsTrigger>
-        <TabsTrigger value="whatsapp" className="gap-1.5 text-xs font-bold">
+        <TabsTrigger value="whatsapp" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <MessageCircle className="h-3.5 w-3.5" /> {isHi ? "व्हाट्सएप" : "WhatsApp"}
         </TabsTrigger>
-        <TabsTrigger value="instagram" className="gap-1.5 text-xs font-bold">
+        <TabsTrigger value="instagram" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <Instagram className="h-3.5 w-3.5" /> {isHi ? "इंस्टाग्राम" : "Instagram"}
         </TabsTrigger>
-        <TabsTrigger value="cards" className="gap-1.5 text-xs font-bold">
+        <TabsTrigger value="cards" className="shrink-0 px-3 gap-1.5 text-xs font-bold">
           <Tag className="h-3.5 w-3.5" /> {isHi ? "कार्ड्स" : "Cards"}
         </TabsTrigger>
       </TabsList>
 
       {/* 1. PHOTOS TAB */}
       <TabsContent value="photos" className="space-y-6">
+        {studioImageUrls.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border border-whatsapp/30 bg-whatsapp/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              {isHi
+                ? "स्टूडियो फ़ोटो सीधे व्हाट्सएप, इंस्टाग्राम या मीशो ऐप में भेजें।"
+                : "Send the studio photos straight to WhatsApp, Instagram or the Meesho app."}
+            </p>
+            <ShareButton
+              imageUrls={studioImageUrls}
+              caption={text?.whatsappCaption}
+              fileBaseName={listing.userTitle}
+              isHi={isHi}
+              size="default"
+              onShared={() => trackEvent("listing_copied", { label: "share_photos", listingId })}
+              className="h-11 shrink-0 bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90"
+              label={isHi ? "फ़ोटो शेयर करें" : "Share photos"}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {/* Original Uploaded Images */}
           {listing.originalImages?.map((orig: any, idx: number) => (
@@ -152,7 +184,7 @@ export function ListingDeliverablesTabs({
               <div className="relative aspect-square bg-muted">
                 <img src={orig.url} alt={`Original Photo ${idx + 1}`} className="w-full h-full object-cover" />
                 <div className="absolute top-2 left-2">
-                  <Badge variant="outline" className="bg-background/80 text-[10px] backdrop-blur-sm font-semibold">
+                  <Badge variant="outline" className="bg-background/80 text-xs backdrop-blur-sm font-semibold">
                     {isHi ? "मूल अपलोड फ़ोटो" : "Original Upload"}
                   </Badge>
                 </div>
@@ -180,14 +212,8 @@ export function ListingDeliverablesTabs({
               <div className="relative aspect-square bg-muted">
                 <img src={img.url} alt={`Studio variation ${idx + 1}`} className="w-full h-full object-cover" />
                 <div className="absolute top-2 left-2">
-                  <Badge variant="secondary" className="capitalize text-[10px]">
-                    {img.variationType === "studio_white"
-                      ? isHi ? "प्योर व्हाइट स्टूडियो" : "Pure White Studio"
-                      : img.variationType === "studio_premium"
-                      ? isHi ? "प्रीमियम पोडियम" : "Premium Podium"
-                      : img.variationType === "lifestyle"
-                      ? isHi ? "लाइफ़स्टाइल" : "Lifestyle"
-                      : (img.variationType?.replace("_", " ") || "Studio")}
+                  <Badge variant="secondary" className="capitalize text-xs">
+                    {variationLabel(img.variationType, isHi)}
                   </Badge>
                 </div>
               </div>
@@ -370,7 +396,7 @@ export function ListingDeliverablesTabs({
             <div className="space-y-2">
               {text?.keyFeatures?.map((feature: string, i: number) => (
                 <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border/30 text-xs">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
                   <span>{feature}</span>
                 </div>
               )) || <div className="text-xs text-muted-foreground">{isHi ? "फ़ीचर्स..." : "Features..."}</div>}
@@ -397,33 +423,32 @@ export function ListingDeliverablesTabs({
       {/* 4. WHATSAPP TAB */}
       <TabsContent value="whatsapp" className="space-y-6 max-w-2xl">
         <Card className="border-border/60 p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               {isHi ? "व्हाट्सएप ब्रॉडकास्ट कॉपी" : "WhatsApp Broadcast Copy"}
             </span>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 text-xs font-semibold gap-1 text-primary hover:text-primary/90 hover:bg-primary/10"
-                onClick={() => copyText(text?.whatsappCaption, isHi ? "व्हाट्सएप कॉपी" : "WhatsApp Caption")}
+            <div className="flex flex-wrap items-center gap-2">
+              <CopyButton
+                text={text?.whatsappCaption}
+                label={isHi ? "व्हाट्सएप कैप्शन" : "WhatsApp caption"}
+                isHi={isHi}
+                onCopied={() => trackEvent("listing_copied", { label: "WhatsApp Caption", listingId })}
+                className="text-primary hover:text-primary/90 hover:bg-primary/10"
               >
-                <Copy className="h-3 w-3" /> {isHi ? "टेक्स्ट कॉपी करें" : "Copy Text"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-8 text-xs font-semibold text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                onClick={() => {
-                  copyText(text?.whatsappCaption, isHi ? "व्हाट्सएप कॉपी" : "WhatsApp Caption");
-                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text?.whatsappCaption || "")}`, "_blank");
-                }}
-              >
-                <MessageCircle className="h-3.5 w-3.5" /> {isHi ? "व्हाट्सएप पर शेयर करें" : "Share to WhatsApp"}
-              </Button>
+                {isHi ? "टेक्स्ट कॉपी करें" : "Copy text"}
+              </CopyButton>
+              <ShareButton
+                imageUrls={studioImageUrls}
+                caption={text?.whatsappCaption}
+                fileBaseName={listing.userTitle}
+                isHi={isHi}
+                onShared={() => trackEvent("listing_copied", { label: "share_whatsapp", listingId })}
+                className="h-9 text-xs bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90"
+                label={isHi ? "फ़ोटो + टेक्स्ट शेयर करें" : "Share photos + text"}
+              />
             </div>
           </div>
-          <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs font-medium whitespace-pre-wrap leading-relaxed">
+          <div className="p-4 rounded-lg bg-success/5 border border-success/20 text-sm font-medium whitespace-pre-wrap leading-relaxed select-text">
             {text?.whatsappCaption || (isHi ? "व्हाट्सएप कैप्शन..." : "WhatsApp caption...")}
           </div>
         </Card>
@@ -492,7 +517,7 @@ export function ListingDeliverablesTabs({
                 </span>
               </div>
             </div>
-            <Badge variant="outline" className="text-[10px] w-fit border-primary/30 text-primary font-semibold">
+            <Badge variant="outline" className="text-xs w-fit border-primary/30 text-primary font-semibold">
               {isHi ? "1:1 · 4:5 · 9:16 फ़ॉर्मैट्स" : "1:1 · 4:5 · 9:16 Formats"}
             </Badge>
           </div>
@@ -591,7 +616,7 @@ export function ListingDeliverablesTabs({
                         className="w-full aspect-square object-cover bg-muted"
                       />
                       {isCurrent && (
-                        <span className="absolute top-1.5 left-1.5 text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-xs">
+                        <span className="absolute top-1.5 left-1.5 text-xs font-black bg-success text-success-foreground px-1.5 py-0.5 rounded shadow-xs">
                           {isHi ? "सक्रिय" : "ACTIVE"}
                         </span>
                       )}
@@ -607,7 +632,7 @@ export function ListingDeliverablesTabs({
                         variant={isExactCurrent ? "secondary" : "outline"}
                         disabled={isRendering || isExactCurrent || regenerateCardsMutation.isPending}
                         onClick={() => handleApplyTemplate(tpl.id)}
-                        className={`w-full h-7 text-[11px] font-bold gap-1 ${
+                        className={`w-full h-7 text-xs font-bold gap-1 ${
                           isExactCurrent
                             ? "bg-muted text-muted-foreground"
                             : "border-primary/30 text-primary hover:bg-primary hover:text-white"
@@ -680,7 +705,7 @@ function FidelityStatus({
       <div className="px-3.5 pt-3">
         <Badge
           variant="outline"
-          className="gap-1 text-[10px] font-semibold border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+          className="gap-1 text-xs font-semibold border-success/30 bg-success/10 text-success"
         >
           <ShieldCheck className="h-3 w-3" />
           {isHi ? "उत्पाद सत्यापित" : "Product verified"}
@@ -702,9 +727,9 @@ function FidelityStatus({
       >
         <Badge
           variant="outline"
-          className={`gap-1 text-[10px] font-semibold cursor-pointer ${
+          className={`gap-1 text-xs font-semibold cursor-pointer ${
             isIssues
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              ? "border-credit/40 bg-credit/10 text-credit"
               : "border-border bg-muted/50 text-muted-foreground"
           }`}
         >
@@ -717,7 +742,7 @@ function FidelityStatus({
       {expanded && (
         <div
           className={`rounded-lg border p-2.5 space-y-2 text-xs ${
-            isIssues ? "border-amber-500/30 bg-amber-500/5" : "border-border/60 bg-muted/30"
+            isIssues ? "border-credit/30 bg-credit/5" : "border-border/60 bg-muted/30"
           }`}
         >
           {isIssues ? (
@@ -738,7 +763,7 @@ function FidelityStatus({
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-[11px] gap-1"
+            className="h-7 text-xs gap-1"
             onClick={() => setCompareOpen(true)}
           >
             <Columns2 className="h-3 w-3" /> {isHi ? "मूल फ़ोटो से तुलना करें" : "Compare with original"}

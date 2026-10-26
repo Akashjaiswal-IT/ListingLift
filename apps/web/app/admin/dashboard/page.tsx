@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-between border-b border-border/40 pb-6">
         <div>
           <div className="flex items-center gap-2">
-            <Badge className="bg-rose-600 text-white font-bold text-[10px]">Restricted Area</Badge>
+            <Badge className="bg-rose-600 text-white font-bold text-xs">Restricted Area</Badge>
           </div>
           <h1 className="text-3xl font-black tracking-tight mt-1 flex items-center gap-2">
             <Shield className="h-6 w-6 text-indigo-400" />
@@ -146,7 +146,7 @@ export default function AdminDashboardPage() {
 
           <div className="rounded-xl border border-border/60 overflow-hidden">
             <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold text-[10px] border-b border-border/40">
+              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold text-xs border-b border-border/40">
                 <tr>
                   <th className="p-3">User</th>
                   <th className="p-3">Store Name</th>
@@ -161,12 +161,12 @@ export default function AdminDashboardPage() {
                   <tr key={u._id} className="hover:bg-muted/20">
                     <td className="p-3 font-semibold">
                       <div>{u.fullName}</div>
-                      <div className="text-[11px] text-muted-foreground font-normal">{u.email}</div>
+                      <div className="text-xs text-muted-foreground font-normal">{u.email}</div>
                     </td>
                     <td className="p-3 text-muted-foreground">{u.storeName || "—"}</td>
                     <td className="p-3 font-bold text-amber-400">{u.creditBalance}</td>
                     <td className="p-3">
-                      <Badge variant={u.role === "admin" ? "default" : "outline"} className="capitalize text-[10px]">
+                      <Badge variant={u.role === "admin" ? "default" : "outline"} className="capitalize text-xs">
                         {u.role}
                       </Badge>
                     </td>
@@ -197,7 +197,7 @@ export default function AdminDashboardPage() {
         <TabsContent value="jobs" className="space-y-4">
           <div className="rounded-xl border border-border/60 overflow-hidden">
             <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold text-[10px] border-b border-border/40">
+              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold text-xs border-b border-border/40">
                 <tr>
                   <th className="p-3">Product Title</th>
                   <th className="p-3">Type</th>
@@ -225,7 +225,7 @@ export default function AdminDashboardPage() {
                             ? "destructive"
                             : "secondary"
                         }
-                        className="capitalize text-[10px]"
+                        className="capitalize text-xs"
                       >
                         {job.status}
                       </Badge>

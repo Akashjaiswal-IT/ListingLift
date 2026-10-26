@@ -48,11 +48,18 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { adaptiveStatusInterval } from "~/lib/polling";
 import { GenerationProgressCard } from "~/components/generate/GenerationProgressCard";
 import { compressImage, putWithProgress } from "~/lib/upload-image";
+import { InsufficientCreditsDialog } from "~/components/credits/InsufficientCreditsDialog";
+
+// Matches the dropzone copy ("up to 10MB") so oversized photos are caught
+// before a slow mobile upload instead of failing afterwards.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 export default function GeneratePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const { balance, deductLocal } = useCreditStore();
   const { language } = useLanguage();
@@ -73,7 +80,12 @@ export default function GeneratePage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [mrp, setMrp] = useState<string>("");
   const [sellingPrice, setSellingPrice] = useState<string>("");
-  const [sizes, setSizes] = useState<string>("S, M, L, XL");
+  // Empty by default: most products (bags, watches, decor…) have no sizes, and
+  // whatever is typed here is printed on the cards.
+  const [sizes, setSizes] = useState<string>("");
+  const [titleError, setTitleError] = useState(false);
+  // In-page "buy credits" dialog (keeps the uploaded photos and typed details)
+  const [buyCreditsNeeded, setBuyCreditsNeeded] = useState<number | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>(DEFAULT_TEMPLATE_ID);
   const [keepWear, setKeepWear] = useState(false);
   const [qualityMode, setQualityMode] = useState<"standard" | "pro">("standard");
@@ -144,6 +156,9 @@ export default function GeneratePage() {
     if (resumeId && !activeListingId) {
       setActiveListingId(resumeId);
       setStep(3);
+    } else if (!resumeId && searchParams.get("sample") === "1") {
+      // "Try with a sample photo" links: preload the bundled sample.
+      void handleUseSample();
     }
     // Run once on mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,11 +166,15 @@ export default function GeneratePage() {
 
   // Shared helper to add valid image files
   const addFiles = (files: File[]) => {
-    const validFiles = files.filter(
-      (f) =>
-        ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"].includes(f.type) ||
-        /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)
-    );
+    const isImage = (f: File) => ALLOWED_TYPES.includes(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+    const validFiles = files.filter((f) => isImage(f) && f.size <= MAX_UPLOAD_BYTES);
+    if (validFiles.length < files.length) {
+      toast.error(
+        isHi
+          ? "कुछ फ़ाइलें छोड़ दी गईं: सिर्फ़ JPG, PNG, WEBP या HEIC फ़ोटो, अधिकतम 10MB।"
+          : "Some files were skipped: only JPG, PNG, WEBP or HEIC photos up to 10MB."
+      );
+    }
     if (!validFiles.length) return;
     const newItems = validFiles.map((f) => ({
       file: f,
@@ -165,7 +184,12 @@ export default function GeneratePage() {
     if (selectedType === "listing_product") {
       setSelectedFiles([newItems[0]!]);
     } else {
-      setSelectedFiles((prev) => [...prev, ...newItems].slice(0, 5));
+      setSelectedFiles((prev) => {
+        if (prev.length + newItems.length > 5) {
+          toast.info(isHi ? "एक किट में ज़्यादा से ज़्यादा 5 फ़ोटो रखी गई हैं।" : "A kit takes up to 5 photos; the first 5 were kept.");
+        }
+        return [...prev, ...newItems].slice(0, 5);
+      });
     }
   };
 
@@ -232,7 +256,7 @@ export default function GeneratePage() {
   // Upload to R2 and transition to Step 2
   const handleProceedToDetails = async () => {
     if (selectedFiles.length === 0) {
-      toast.error("Please upload at least one product photo");
+      toast.error(isHi ? "कम से कम एक प्रोडक्ट फ़ोटो डालें" : "Please add at least one product photo");
       return;
     }
 
@@ -282,9 +306,9 @@ export default function GeneratePage() {
         type: selectedType,
       });
       setStep(2);
-      toast.success("Photos uploaded successfully!");
+      toast.success(isHi ? "फ़ोटो अपलोड हो गईं!" : "Photos uploaded!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload photos");
+      toast.error(err.message || (isHi ? "फ़ोटो अपलोड नहीं हो सकीं" : "Failed to upload photos"));
       captureError(err, { where: "handleProceedToDetails", type: selectedType });
     } finally {
       setIsUploading(false);
@@ -295,7 +319,9 @@ export default function GeneratePage() {
   const handleStartGeneration = async () => {
     if (!activeListingId) return;
     if (!title.trim()) {
-      toast.error("Please enter a product title");
+      setTitleError(true);
+      document.getElementById("gen-title")?.focus();
+      toast.error(isHi ? "प्रोडक्ट का नाम डालें" : "Please enter a product title");
       return;
     }
     if (sellingExceedsMrp) {
@@ -306,8 +332,8 @@ export default function GeneratePage() {
     // creditsNeeded comes from the shared pricing helper (see lib/pricing.ts) so
     // the quote here always matches what the server actually charges.
     if (balance < creditsNeeded) {
-      toast.error(`You need at least ${creditsNeeded} credits. Current balance: ${balance}`);
-      router.push("/pricing");
+      // Buy in place instead of leaving the page (which would lose the form).
+      setBuyCreditsNeeded(creditsNeeded);
       return;
     }
 
@@ -343,7 +369,11 @@ export default function GeneratePage() {
       utils.credits.getBalance.invalidate();
       utils.user.getCreditBalance.invalidate();
 
-      toast.info(`Generation started! Charged ${genRes.creditsCharged} credits.`);
+      toast.info(
+        isHi
+          ? `जेनरेशन शुरू हो गया! ${genRes.creditsCharged} क्रेडिट लगे।`
+          : `Generation started! ${genRes.creditsCharged} credits used.`
+      );
     } catch (err: any) {
       trackEvent("listing_generation_failed", {
         listingId: activeListingId,
@@ -351,7 +381,7 @@ export default function GeneratePage() {
       });
       // Clean up URL so refresh cannot get stuck in progress for a job that never started
       router.replace("/app/generate");
-      toast.error(err.message || "Failed to start generation");
+      toast.error(err.message || (isHi ? "जेनरेशन शुरू नहीं हो सका" : "Failed to start generation"));
       setStep(2);
       utils.user.getCreditBalance.invalidate();
     }
@@ -372,7 +402,7 @@ export default function GeneratePage() {
           listingId: activeListingId,
           type: selectedType,
         });
-        toast.success("Studio images and SEO deliverables ready!");
+        toast.success(isHi ? "स्टूडियो फ़ोटो और लिस्टिंग तैयार हैं!" : "Studio photos and listing are ready!");
         if (aiGeneratedText) {
           setStreamedText(aiGeneratedText);
         }
@@ -398,8 +428,12 @@ export default function GeneratePage() {
         ]);
         toast.error(
           getStatusQuery.data.creditsRefunded
-            ? `Generation failed: ${errorMessage || "Unknown error"}. Your credits were refunded.`
-            : `Generation failed: ${errorMessage || "Unknown error"}. We're processing your refund.`
+            ? isHi
+              ? "जेनरेशन असफल रहा। आपके क्रेडिट वापस कर दिए गए हैं।"
+              : "Generation failed. Your credits were refunded."
+            : isHi
+              ? "जेनरेशन असफल रहा। आपका रिफंड प्रोसेस हो रहा है।"
+              : "Generation failed. We're processing your refund."
         );
       } else if (status === "uploaded") {
         // Generation was never started on the server; escape the endless progress loop
@@ -463,7 +497,7 @@ export default function GeneratePage() {
   const handleDownloadBundle = async () => {
     if (!activeListingId) return;
     try {
-      toast.info("Generating high-compression ZIP package...");
+      toast.info(isHi ? "ZIP पैकेज तैयार हो रहा है..." : "Preparing ZIP package...");
       const res = await downloadBundleMutation.mutateAsync({
         listingObjectId: activeListingId,
       });
@@ -472,9 +506,9 @@ export default function GeneratePage() {
         type: "zip_bundle",
       });
       await downloadFile(res.downloadUrl, "listing-bundle.zip");
-      toast.success("Download complete!");
+      toast.success(isHi ? "डाउनलोड पूरा हुआ!" : "Download complete!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to create bundle");
+      toast.error(err.message || (isHi ? "ZIP नहीं बन सका" : "Failed to create bundle"));
     }
   };
 
@@ -482,8 +516,7 @@ export default function GeneratePage() {
   const handleExecuteReEdit = async () => {
     if (!reEditTarget || !reEditPrompt.trim() || !activeListingId) return;
     if (balance < 1) {
-      toast.error("1 credit required for re-editing. Please buy more credits.");
-      router.push("/pricing");
+      setBuyCreditsNeeded(1);
       return;
     }
 
@@ -495,28 +528,40 @@ export default function GeneratePage() {
         newPrompt: reEditPrompt,
       });
       deductLocal(1);
-      toast.success("Re-edit job enqueued! Your image is updating in background.");
+      toast.success(isHi ? "री-एडिट शुरू हुआ! फ़ोटो पीछे अपडेट हो रही है।" : "Re-edit started! Your image is updating in the background.");
       setReEditTarget(null);
       setReEditPrompt("");
       // Refetch result
       getResultQuery.refetch();
     } catch (err: any) {
-      toast.error(err.message || "Failed to re-edit image");
+      toast.error(err.message || (isHi ? "री-एडिट नहीं हो सका" : "Failed to re-edit image"));
     } finally {
       setIsReEditing(false);
     }
   };
 
   // Helper copy to clipboard
-  const copyText = (txt: string, label: string) => {
-    navigator.clipboard.writeText(txt);
-    toast.success(`Copied ${label} to clipboard!`);
+  const copyText = async (txt: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(txt);
+      toast.success(isHi ? `${label} कॉपी हो गया!` : `Copied ${label}!`);
+    } catch {
+      toast.error(isHi ? "कॉपी नहीं हो सका" : "Couldn't copy");
+    }
   };
 
   const genInfo = getStatusQuery.data;
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
+      <InsufficientCreditsDialog
+        open={buyCreditsNeeded !== null}
+        onOpenChange={(open) => {
+          if (!open) setBuyCreditsNeeded(null);
+        }}
+        needed={buyCreditsNeeded ?? creditsNeeded}
+        balance={balance}
+      />
       {/* Progress Steps Header */}
       <div className="border-b border-border/40 pb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -543,9 +588,9 @@ export default function GeneratePage() {
                 <div
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                     step === s.num
-                      ? "bg-primary text-white shadow-md shadow-primary/20"
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                       : step > s.num
-                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                      ? "bg-success/20 text-success border border-success/30"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -602,7 +647,7 @@ export default function GeneratePage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-base">{isHi ? "क्विक स्टूडियो" : "Quick Generate"}</h3>
-                    <Badge className="bg-primary text-white text-[10px]">
+                    <Badge className="bg-primary text-primary-foreground text-xs">
                       {isHi ? "2 क्रेडिट्स" : "2 Credits"}
                     </Badge>
                   </div>
@@ -634,20 +679,22 @@ export default function GeneratePage() {
               }`}
             >
               <CardContent className="p-5 flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-credit/10 flex items-center justify-center text-credit shrink-0">
                   <Layers className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-base">{isHi ? "फुल लिस्टिंग किट" : "Full Listing Kit"}</h3>
-                    <Badge variant="secondary" className="text-[10px] font-bold">
-                      {isHi ? "5-7 क्रेडिट्स" : "5-7 Credits"}
+                    <Badge variant="secondary" className="text-xs font-bold">
+                      {isHi
+                        ? `${calculateGenerationCredits("listing_kit", 1)}–${calculateGenerationCredits("listing_kit", 5)} क्रेडिट्स`
+                        : `${calculateGenerationCredits("listing_kit", 1)}–${calculateGenerationCredits("listing_kit", 5)} Credits`}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {isHi
-                      ? "3 से 5 फ़ोटो (विभिन्न कोण, क्लोज़-अप, फैब्रिक) अपलोड करें। अमेज़ॅन और फ्लिपकार्ट व्हाइट बैकग्राउंड के साथ पूरा किट बनाएं।"
-                      : "Upload 3 to 5 photos (angles, close-ups, fabric). Generates complete catalog suite with pure white Amazon/Flipkart outputs."}
+                      ? "1 से 5 फ़ोटो (3+ बेहतर: अलग कोण, क्लोज़-अप, फैब्रिक) डालें। अमेज़ॅन और फ्लिपकार्ट व्हाइट बैकग्राउंड के साथ पूरा किट बनाएं।"
+                      : "Add 1 to 5 photos (3+ works best: angles, close-ups, fabric). Generates a complete catalog suite with pure white Amazon/Flipkart outputs."}
                   </p>
                 </div>
               </CardContent>
@@ -691,8 +738,17 @@ export default function GeneratePage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               multiple={selectedType === "listing_kit"}
+              onChange={handleFilesSelected}
+              className="hidden"
+            />
+            {/* Opens the phone camera directly (rear camera) */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
               onChange={handleFilesSelected}
               className="hidden"
             />
@@ -713,13 +769,31 @@ export default function GeneratePage() {
             </div>
           </div>
 
+          {/* Phones: take the photo right now */}
+          <div className="sm:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 gap-2 rounded-xl text-base font-semibold"
+              onClick={() => {
+                if (cameraInputRef.current) {
+                  cameraInputRef.current.value = "";
+                  cameraInputRef.current.click();
+                }
+              }}
+            >
+              <Camera className="h-5 w-5" aria-hidden="true" />
+              {isHi ? "कैमरा से फ़ोटो खींचें" : "Take a photo"}
+            </Button>
+          </div>
+
           {/* Onboarding: try a sample photo (only before anything is selected) */}
           {selectedFiles.length === 0 && (
             <div className="text-center">
               <button
                 type="button"
                 onClick={handleUseSample}
-                className="text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                className="text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded py-2"
               >
                 {isHi ? "फ़ोटो नहीं है? एक सैंपल आज़माएँ →" : "No photo handy? Try a sample →"}
               </button>
@@ -738,18 +812,20 @@ export default function GeneratePage() {
                     key={index}
                     className="relative aspect-square rounded-xl overflow-hidden border border-border group bg-muted"
                   >
-                    <img src={item.preview} alt="Upload preview" className="w-full h-full object-cover" />
+                    <img src={item.preview} alt={isHi ? `चुनी गई फ़ोटो ${index + 1}` : `Selected photo ${index + 1}`} className="w-full h-full object-cover" />
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         removeFile(index);
                       }}
-                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label={isHi ? `फ़ोटो ${index + 1} हटाएँ` : `Remove photo ${index + 1}`}
+                      className="absolute top-1.5 right-1.5 h-8 w-8 rounded-full bg-black/70 text-white flex items-center justify-center transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                     <div className="absolute bottom-1.5 left-1.5">
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0">
                         #{index + 1}
                       </Badge>
                     </div>
@@ -776,7 +852,7 @@ export default function GeneratePage() {
               size="lg"
               disabled={selectedFiles.length === 0 || isUploading}
               onClick={handleProceedToDetails}
-              className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
+              className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
             >
               {isUploading ? (
                 <>
@@ -820,24 +896,40 @@ export default function GeneratePage() {
 
           <div className="space-y-4 rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isHi ? "उत्पाद का नाम" : "Product Title"} <span className="text-rose-500">*</span>
+              <label htmlFor="gen-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {isHi ? "उत्पाद का नाम" : "Product Title"} <span className="text-destructive" aria-hidden="true">*</span>
               </label>
               <Input
+                id="gen-title"
+                required
+                aria-required="true"
+                aria-invalid={titleError && !title.trim() ? true : undefined}
+                aria-describedby={titleError && !title.trim() ? "gen-title-error" : undefined}
                 placeholder={isHi ? "उदा. प्योर कॉटन फ्लोरल प्रिंटेड अनारकली कुर्ती दुपट्टे के साथ" : "e.g. Pure Cotton Floral Printed Anarkali Kurti with Dupatta"}
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (e.target.value.trim()) setTitleError(false);
+                }}
                 className="text-base font-medium"
               />
+              {titleError && !title.trim() && (
+                <p id="gen-title-error" className="text-sm font-medium text-destructive">
+                  {isHi ? "प्रोडक्ट का नाम ज़रूरी है" : "Product title is required"}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <label htmlFor="gen-selling-price" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   {isHi ? "बिक्री मूल्य (₹)" : "Selling Price (₹)"}
                 </label>
                 <Input
+                  id="gen-selling-price"
                   type="number"
+                  inputMode="decimal"
+                  min={0}
                   placeholder="e.g. 599"
                   value={sellingPrice}
                   onChange={(e) => setSellingPrice(e.target.value)}
@@ -845,11 +937,14 @@ export default function GeneratePage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {isHi ? "मूल / MRP मूल्य (₹)" : "Original / MRP Price (₹)"} <span className="text-muted-foreground text-[10px]">({isHi ? "डिस्काउंट टैग के लिए वैकल्पिक" : "Optional for discount tag"})</span>
+                <label htmlFor="gen-mrp" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {isHi ? "मूल / MRP मूल्य (₹)" : "Original / MRP Price (₹)"} <span className="text-muted-foreground text-xs">({isHi ? "डिस्काउंट टैग के लिए वैकल्पिक" : "Optional for discount tag"})</span>
                 </label>
                 <Input
+                  id="gen-mrp"
                   type="number"
+                  inputMode="decimal"
+                  min={0}
                   placeholder="e.g. 999"
                   value={mrp}
                   onChange={(e) => setMrp(e.target.value)}
@@ -857,15 +952,17 @@ export default function GeneratePage() {
               </div>
             </div>
             {sellingExceedsMrp && (
-              <p className="text-xs font-medium text-destructive">{priceErrorMessage}</p>
+              <p role="alert" className="text-sm font-medium text-destructive">{priceErrorMessage}</p>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {isHi ? "उपलब्ध साइज़" : "Sizes Available"}
+                <label htmlFor="gen-sizes" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {isHi ? "उपलब्ध साइज़" : "Sizes Available"}{" "}
+                  <span className="font-normal normal-case">({isHi ? "वैकल्पिक" : "Optional"})</span>
                 </label>
                 <Input
+                  id="gen-sizes"
                   placeholder={isHi ? "उदा. S, M, L, XL, XXL या फ्री साइज़" : "e.g. S, M, L, XL, XXL or Free Size"}
                   value={sizes}
                   onChange={(e) => setSizes(e.target.value)}
@@ -873,15 +970,16 @@ export default function GeneratePage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <label htmlFor="gen-cta" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span>{isHi ? "कॉल टू एक्शन (CTA) बटन" : "Call To Action (CTA) Button"}</span>
                   {userProfile?.defaultCta?.text && (
-                    <span className="text-[10px] text-muted-foreground font-normal">
+                    <span className="text-xs text-muted-foreground font-normal">
                       {isHi ? "(प्रोफ़ाइल डिफ़ॉल्ट)" : "(from profile)"}
                     </span>
                   )}
                 </label>
                 <Input
+                  id="gen-cta"
                   placeholder={
                     userProfile?.defaultCta?.text ||
                     (isHi ? "उदा. व्हाट्सएप पर ऑर्डर करें" : "e.g. Order Now via WhatsApp")
@@ -896,10 +994,11 @@ export default function GeneratePage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <label htmlFor="gen-prompt" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                 <span>{isHi ? "कस्टम स्टूडियो आर्ट डायरेक्शन / प्रॉम्प्ट" : "Custom Studio Art Direction / Prompt"} <span className="text-primary font-normal">({isHi ? "वैकल्पिक" : "Optional"})</span></span>
               </label>
               <Input
+                id="gen-prompt"
                 placeholder={isHi ? "उदा. क्लीन व्हाइट मार्बल पोडियम, सॉफ्ट सुबह की धूप, लक्ज़री स्टाइल" : "e.g. Clean white marble podium, soft morning sunlight, luxury aesthetic"}
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
@@ -907,10 +1006,11 @@ export default function GeneratePage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <label htmlFor="gen-notes" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 {isHi ? "उत्पाद सामग्री / कपड़ा / नोट्स" : "Product Fabric / Material / Notes"} <span className="text-muted-foreground font-normal">({isHi ? "वैकल्पिक" : "Optional"})</span>
               </label>
               <Textarea
+                id="gen-notes"
                 placeholder={isHi ? "उदा. 100% रेयान कॉटन, आरामदायक कपड़ा, फेस्टिव वियर..." : "e.g. 100% Rayon Cotton, breathy fabric, flared hemline, festive wear..."}
                 rows={3}
                 value={description}
@@ -988,17 +1088,29 @@ export default function GeneratePage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <Button variant="ghost" onClick={() => setStep(1)} className="rounded-xl">
               {isHi ? "← वापस फ़ोटो पर" : "← Back to Photos"}
             </Button>
-            <Button
-              size="lg"
-              onClick={handleStartGeneration}
-              className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
-            >
-              <Sparkles className="h-4 w-4" /> {isHi ? "स्टूडियो जेनरेशन शुरू करें" : "Start Studio Generation"}
-            </Button>
+            <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+              <Button
+                size="lg"
+                onClick={handleStartGeneration}
+                className="h-12 font-bold gap-2 px-8 rounded-xl shadow-md transition-all active:scale-[0.98]"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                {isHi ? `जेनरेट करें · ${creditsNeeded} क्रेडिट` : `Generate · ${creditsNeeded} credits`}
+              </Button>
+              <span className="text-center text-xs text-muted-foreground sm:text-right">
+                {balance >= creditsNeeded
+                  ? isHi
+                    ? `इसके बाद बचेंगे: ${balance - creditsNeeded} क्रेडिट`
+                    : `Balance after: ${balance - creditsNeeded} credits`
+                  : isHi
+                    ? `आपके पास ${balance} क्रेडिट हैं — ${creditsNeeded - balance} और चाहिए`
+                    : `You have ${balance} credits — ${creditsNeeded - balance} more needed`}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -1007,7 +1119,7 @@ export default function GeneratePage() {
       {step === 3 && (
         <div className="space-y-8 max-w-4xl mx-auto py-8">
           <div className="text-center space-y-3">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary animate-bounce">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary motion-safe:animate-pulse">
               <Sparkles className="h-7 w-7" />
             </div>
             <h2 className="text-2xl font-serif font-black text-foreground">
@@ -1015,9 +1127,35 @@ export default function GeneratePage() {
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
               {isHi
-                ? "हमारे मॉडल्स सामान्य बैकग्राउंड हटा रहे हैं, स्टूडियो लाइटिंग रेंडर कर रहे हैं और रियल-टाइम में आपकी लिस्टिंग कॉपी जनरेट कर रहे हैं।"
-                : "Our models are removing raw backgrounds, rendering studio lighting, and generating your marketplace copy in real time."}
+                ? "आपकी फ़ोटो से बैकग्राउंड हटाया जा रहा है, स्टूडियो लाइटिंग दी जा रही है और लिस्टिंग टेक्स्ट लिखा जा रहा है।"
+                : "We're cleaning up the background, adding studio lighting and writing your listing text."}
             </p>
+            {imageGenStatus !== "failed" && (
+              <div className="mx-auto max-w-md rounded-xl border border-border/60 bg-card px-4 py-3 text-sm text-foreground space-y-1">
+                <p className="font-semibold">
+                  {isHi ? "आमतौर पर 1–3 मिनट लगते हैं।" : "Usually takes 1–3 minutes."}
+                </p>
+                <p className="text-muted-foreground">
+                  {isHi ? (
+                    <>
+                      आप यह पेज छोड़ सकते हैं — काम चलता रहेगा और तैयार होने पर यह{" "}
+                      <Link href="/app/history" className="font-semibold text-primary underline underline-offset-2">
+                        मेरे उत्पाद
+                      </Link>{" "}
+                      में दिखेगा।
+                    </>
+                  ) : (
+                    <>
+                      You can leave this page — we&apos;ll keep working, and it will appear in{" "}
+                      <Link href="/app/history" className="font-semibold text-primary underline underline-offset-2">
+                        My Products
+                      </Link>
+                      .
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1031,7 +1169,7 @@ export default function GeneratePage() {
                   </span>
                 </div>
                 {imageGenStatus !== "failed" && (
-                  <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse">
+                  <Badge variant="outline" className="text-xs text-success border-success/30 animate-pulse">
                     {isHi ? "लाइव" : "Live"}
                   </Badge>
                 )}
@@ -1039,7 +1177,7 @@ export default function GeneratePage() {
 
               <div className="space-y-3 text-xs">
                 <div>
-                  <span className="font-bold text-muted-foreground block text-[10px] uppercase">
+                  <span className="font-bold text-muted-foreground block text-xs uppercase">
                     {isHi ? "टाइटल" : "Title"}
                   </span>
                   <p className="font-semibold text-foreground mt-0.5">
@@ -1050,20 +1188,20 @@ export default function GeneratePage() {
                   </p>
                 </div>
                 <div>
-                  <span className="font-bold text-muted-foreground block text-[10px] uppercase">
+                  <span className="font-bold text-muted-foreground block text-xs uppercase">
                     {isHi ? "मुख्य फ़ीचर्स" : "Features"}
                   </span>
                   <ul className="space-y-1 text-muted-foreground mt-1">
                     {streamedText?.keyFeatures?.map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-1.5">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+                        <CheckCircle2 className="h-3 w-3 text-success shrink-0 mt-0.5" />
                         <span>{f}</span>
                       </li>
                     )) || (
                       <li>
                         {imageGenStatus === "failed"
                           ? isHi ? "जनरेट नहीं हुआ" : "Not generated"
-                          : isHi ? "उत्पाद विवरण का विश्लेषण हो रहा है..." : "Analyzing product geometry and fabric..."}
+                          : isHi ? "प्रोडक्ट को समझा जा रहा है..." : "Understanding your product..."}
                       </li>
                     )}
                   </ul>
@@ -1091,7 +1229,7 @@ export default function GeneratePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/40 pb-6">
             <div>
               <div className="flex items-center gap-2">
-                <Badge className="bg-emerald-600 text-white font-bold text-[10px]">
+                <Badge className="bg-success text-success-foreground font-bold text-xs">
                   {isHi ? "पब्लिश के लिए तैयार" : "Ready to Publish"}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
@@ -1115,7 +1253,7 @@ export default function GeneratePage() {
               )}
               <Button
                 onClick={handleDownloadBundle}
-                className="font-bold bg-primary hover:bg-primary/90 text-white gap-2 shadow-md rounded-xl text-xs h-9"
+                className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-md rounded-xl text-xs h-9"
               >
                 <Download className="h-4 w-4" /> {isHi ? "पूरा ZIP डाउनलोड करें" : "Download Complete ZIP"}
               </Button>
@@ -1180,17 +1318,17 @@ export default function GeneratePage() {
                     key={preset}
                     type="button"
                     onClick={() => setReEditPrompt(preset)}
-                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {preset}
                   </button>
                 ))}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {isHi
-                ? "Gemini आपके प्रॉम्प्ट के अनुसार फ़ोटो को संशोधित करेगा। नया संशोधित फ़ोटो इस वर्ज़न को रिप्लेस कर देगा।"
-                : "Gemini will continue the photo session with your prompt guidance. The newly edited photo will replace this version."}
+                ? "AI आपके निर्देश के अनुसार फ़ोटो बदलेगा। नई फ़ोटो इस वर्ज़न की जगह ले लेगी।"
+                : "AI will edit the photo following your instructions. The new photo will replace this version."}
             </p>
           </div>
           <DialogFooter>
@@ -1200,7 +1338,7 @@ export default function GeneratePage() {
             <Button
               onClick={handleExecuteReEdit}
               disabled={isReEditing || !reEditPrompt.trim()}
-              className="bg-primary hover:bg-primary/90 text-white font-bold"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
             >
               {isReEditing ? <Loader2 className="h-4 w-4 animate-spin" /> : isHi ? "पुनः जनरेट करें (1 क्रेडिट)" : "Regenerate (1 Credit)"}
             </Button>

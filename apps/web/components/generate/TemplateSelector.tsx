@@ -63,7 +63,7 @@ export function TemplateSelector({ selectedTemplateId, onSelectTemplate }: Templ
             </span>
           )}
         </div>
-        <Badge variant="outline" className="text-[10px] w-fit border-primary/30 text-primary font-medium">
+        <Badge variant="outline" className="text-xs w-fit border-primary/30 text-primary font-medium">
           {isHi ? "व्हाट्सएप, IG पोस्ट और स्टोरी पर लागू" : "Applies to WhatsApp, IG post & story"}
         </Badge>
       </div>
@@ -80,7 +80,7 @@ export function TemplateSelector({ selectedTemplateId, onSelectTemplate }: Templ
               onClick={() => setGroup(g.id)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 isActive
-                  ? "bg-primary text-white shadow-xs"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
@@ -118,7 +118,7 @@ export function TemplateSelector({ selectedTemplateId, onSelectTemplate }: Templ
               }`}
             >
               {isSelected && (
-                <span className="absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow-md">
+                <span className="absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
                   <Check className="h-3.5 w-3.5 stroke-[3]" />
                 </span>
               )}

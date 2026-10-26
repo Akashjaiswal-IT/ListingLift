@@ -11,7 +11,6 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -19,6 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~
 import { trpc } from "~/trpc/client";
 import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
+import { normalizePricing, formatINR } from "~/lib/price-display";
+import { formatDate } from "~/lib/format-date";
+import { StatusBadge } from "~/components/listing/StatusBadge";
 
 export default function HistoryPage() {
   const { language } = useLanguage();
@@ -97,7 +99,7 @@ export default function HistoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchInput}
@@ -107,7 +109,8 @@ export default function HistoryPage() {
               }}
               onBlur={applySearch}
               placeholder={isHi ? "शीर्षक से खोजें..." : "Search by title..."}
-              className="h-9 w-[180px] rounded-xl pl-8 text-xs"
+              aria-label={isHi ? "शीर्षक से खोजें" : "Search by title"}
+              className="h-10 w-full sm:w-[200px] rounded-xl pl-8"
             />
           </div>
 
@@ -135,7 +138,7 @@ export default function HistoryPage() {
           </Select>
 
           <Link href="/app/generate">
-            <Button size="sm" className="h-9 font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-sm">
+            <Button size="sm" className="h-9 font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-sm">
               {isHi ? "+ नया बनाएं" : "+ New"}
             </Button>
           </Link>
@@ -191,7 +194,7 @@ export default function HistoryPage() {
             </p>
           </div>
           <Link href="/app/generate">
-            <Button size="sm" className="font-bold bg-primary hover:bg-primary/90 text-white rounded-xl shadow-sm">
+            <Button size="sm" className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-sm">
               {isHi ? "नया कैटलॉग बनाएं" : "Generate New Listing"}
             </Button>
           </Link>
@@ -236,24 +239,7 @@ export default function HistoryPage() {
                     </div>
                   )}
                   <div className="absolute top-2 right-2">
-                    <Badge
-                      variant={
-                        item.status === "completed"
-                          ? "default"
-                          : item.status === "failed"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                      className="capitalize text-[10px] font-semibold"
-                    >
-                      {isHi
-                        ? item.status === "completed"
-                          ? "पूर्ण"
-                          : item.status === "failed"
-                          ? "असफल"
-                          : "प्रक्रिया जारी"
-                        : item.status}
-                    </Badge>
+                    <StatusBadge status={item.status} isHi={isHi} />
                   </div>
                 </div>
 
@@ -262,7 +248,13 @@ export default function HistoryPage() {
                     {item.userTitle || (isHi ? "अनाम उत्पाद" : "Untitled Product")}
                   </h4>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{item.price ? `₹${item.price}` : (isHi ? "कीमत नहीं" : "No price")}</span>
+                    <span>
+                      {(() => {
+                        // price = MRP, discountPrice = selling price: show what the customer pays
+                        const selling = normalizePricing(item.price, item.discountPrice).selling;
+                        return selling ? formatINR(selling) : isHi ? "कीमत नहीं" : "No price";
+                      })()}
+                    </span>
                     <span>
                       {item.type === "listing_product"
                         ? isHi ? "क्विक" : "Quick"
@@ -270,8 +262,8 @@ export default function HistoryPage() {
                     </span>
                   </div>
                   <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleDateString()}
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(item.createdAt, isHi)}
                     </span>
                     <Link href={`/app/listing/${item._id}`}>
                       <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 font-semibold text-primary hover:text-primary/90 hover:bg-primary/10">

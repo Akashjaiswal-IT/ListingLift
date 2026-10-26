@@ -10,6 +10,7 @@ import { createTRPCHttpBatchClientClient } from "~/trpc/create-client";
 
 import { LanguageProvider } from "./LanguageContext";
 import { ReferralLinkHandler } from "~/components/referral/ReferralLinkHandler";
+import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
 
 export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [queryClient] = useState(
@@ -41,6 +42,9 @@ export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ child
           <trpc.Provider queryClient={queryClient} client={trpcClient}>
             {children}
             <ReferralLinkHandler />
+            {/* Mounted once for the whole site so the first-run tour and the
+                navbar "?" button work on every page, not just the landing page. */}
+            <OnboardingTour />
             <Toaster />
           </trpc.Provider>
         </LanguageProvider>

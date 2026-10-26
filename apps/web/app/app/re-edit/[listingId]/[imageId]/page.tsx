@@ -20,6 +20,8 @@ import { Textarea } from "~/components/ui/textarea";
 import { trpc } from "~/trpc/client";
 import { useCreditStore } from "~/stores/useCreditStore";
 import { toast } from "sonner";
+import { InsufficientCreditsDialog } from "~/components/credits/InsufficientCreditsDialog";
+import { variationLabel } from "~/lib/variation-labels";
 import { useLanguage } from "~/providers/LanguageContext";
 
 export default function ReEditPage({
@@ -38,6 +40,7 @@ export default function ReEditPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [failureError, setFailureError] = useState<string | null>(null);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
 
   const utils = trpc.useUtils();
   const listingQuery = trpc.listing.getById.useQuery({ id: listingId });
@@ -72,7 +75,7 @@ export default function ReEditPage({
     }
 
     if (balance < 1) {
-      toast.error(isHi ? "अपर्याप्त क्रेडिट्स। री-एडिट के लिए क्रेडिट खरीदें।" : "Insufficient credits. Please top up to re-edit.");
+      setShowBuyCredits(true);
       return;
     }
 
@@ -176,6 +179,12 @@ export default function ReEditPage({
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6 space-y-8">
+      <InsufficientCreditsDialog
+        open={showBuyCredits}
+        onOpenChange={setShowBuyCredits}
+        needed={1}
+        balance={balance}
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>
@@ -185,12 +194,12 @@ export default function ReEditPage({
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="capitalize text-[10px]">
+            <Badge variant="secondary" className="capitalize text-xs">
               {isHi ? "AI फ़ोटो री-एडिट" : "AI Photo Re-Edit"}
             </Badge>
             {currentImage.variationType && (
-              <Badge variant="outline" className="capitalize text-[10px] text-muted-foreground">
-                {currentImage.variationType.replace(/_/g, " ")}
+              <Badge variant="outline" className="capitalize text-xs text-muted-foreground">
+                {variationLabel(currentImage.variationType, isHi)}
               </Badge>
             )}
           </div>
@@ -201,10 +210,10 @@ export default function ReEditPage({
 
         {/* Credit cost badge */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-600 dark:text-amber-400">
-            <Coins className="h-4 w-4 text-amber-500" />
+          <div className="flex items-center gap-2 rounded-xl border border-credit/30 bg-credit/10 px-4 py-2 text-sm font-semibold text-credit">
+            <Coins className="h-4 w-4 text-credit" />
             <span>{isHi ? "लागत: 1 क्रेडिट" : "Cost: 1 Credit"}</span>
-            <span className="text-xs opacity-60 font-normal">({balance} {isHi ? "उपलब्ध" : "available"})</span>
+            <span className="text-xs font-normal">({balance} {isHi ? "उपलब्ध" : "available"})</span>
           </div>
         </div>
       </div>
@@ -245,8 +254,8 @@ export default function ReEditPage({
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5" /> {isHi ? "वर्तमान स्टूडियो शॉट" : "Current Studio Shot"}
                   </span>
-                  <Badge variant="outline" className="text-[10px] uppercase font-mono border-primary/30 text-primary">
-                    {currentImage.variationType}
+                  <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                    {variationLabel(currentImage.variationType, isHi)}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -268,12 +277,12 @@ export default function ReEditPage({
                       </p>
                       <p className="text-xs text-muted-foreground mt-1.5 max-w-[240px] leading-relaxed">
                         {isHi
-                          ? "Gemini आपके निर्देशों के आधार पर इमेज तैयार कर रहा है।"
-                          : "Gemini & Prompt Enhancer are synthesizing your changes."}
+                          ? "AI आपके निर्देशों के अनुसार फ़ोटो बना रहा है।"
+                          : "AI is applying your changes to the photo."}
                       </p>
-                      <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-[11px] text-primary font-medium">
+                      <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
                         <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                        {isHi ? "वर्कर की प्रतीक्षा..." : "Waiting for worker completion..."}
+                        {isHi ? "लगभग तैयार..." : "Almost there..."}
                       </div>
                     </div>
                   )}
@@ -287,7 +296,7 @@ export default function ReEditPage({
             <span className="font-semibold text-muted-foreground">
               {isHi ? "इस शॉट के लिए इस्तेमाल किया गया प्रॉम्प्ट:" : "Prompt used for this shot:"}
             </span>
-            <p className="text-foreground/80 font-mono text-[11px] leading-relaxed">
+            <p className="text-foreground/80 font-mono text-xs leading-relaxed">
               {currentImage.promptUsed || (isHi ? "यथार्थवादी शैडो के साथ मानक स्टूडियो रोशनी" : "Standard studio illumination with realistic shadows")}
             </p>
           </div>
@@ -330,7 +339,7 @@ export default function ReEditPage({
 
               {/* Quick Preset Ideas */}
               <div className="space-y-2">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {isHi ? "त्वरित सुझाव प्रॉम्प्ट्स" : "Quick Inspiration Presets"}
                 </label>
                 <div className="flex flex-col gap-1.5">
@@ -349,7 +358,7 @@ export default function ReEditPage({
               </div>
 
               {/* Notice */}
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-credit/10 border border-credit/20 text-credit text-xs">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
                   {isHi ? (
@@ -365,10 +374,20 @@ export default function ReEditPage({
               </div>
 
               {/* Action Button */}
+              {balance < 1 && !isSubmitting && !isPolling && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                  <span className="text-foreground">
+                    {isHi ? "री-एडिट के लिए 1 क्रेडिट चाहिए।" : "You need 1 credit to re-edit."}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setShowBuyCredits(true)}>
+                    {isHi ? "क्रेडिट खरीदें" : "Buy credits"}
+                  </Button>
+                </div>
+              )}
               <Button
                 onClick={handleReEdit}
                 disabled={isSubmitting || isPolling || !prompt.trim() || balance < 1}
-                className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-md gap-2"
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl shadow-md gap-2"
               >
                 {isSubmitting || isPolling ? (
                   <>

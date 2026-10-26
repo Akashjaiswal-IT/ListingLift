@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
+import { Plus_Jakarta_Sans, Playfair_Display, Noto_Sans_Devanagari } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { GlobalProviders } from "~/providers/global";
@@ -11,6 +11,15 @@ import { ClerkProvider } from "@clerk/nextjs";
 const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+// Hindi glyphs: Plus Jakarta Sans and Playfair have no Devanagari, so the font
+// stacks in globals.css fall back to this per character.
+const deva = Noto_Sans_Devanagari({
+  subsets: ["devanagari"],
+  weight: ["400", "600", "700"],
+  variable: "--font-deva",
   display: "swap",
 });
 
@@ -70,7 +79,7 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${sans.variable} ${serif.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
+          className={`${sans.variable} ${serif.variable} ${deva.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
         >
           <PostHogProvider>
             <GlobalProviders>

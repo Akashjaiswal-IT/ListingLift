@@ -476,6 +476,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Keep <html lang> in sync so screen readers pronounce the text correctly and
+  // the Hindi typography rules in globals.css apply.
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {

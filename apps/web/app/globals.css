@@ -29,8 +29,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-serif: var(--font-serif), Georgia, serif;
-  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --color-brand: var(--brand);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-credit: var(--credit);
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-foreground: var(--whatsapp-foreground);
+  /* Devanagari falls back per glyph to Noto Sans Devanagari, so Hindi text is
+     never left to whatever system font the phone happens to have. */
+  --font-serif: var(--font-serif), var(--font-deva), Georgia, serif;
+  --font-sans: var(--font-sans), var(--font-deva), system-ui, sans-serif;
 }
 
 :root {
@@ -42,19 +51,30 @@
   --card-foreground: #191614;
   --popover: #FFFFFF;
   --popover-foreground: #191614;
-  /* Warm Terracotta / Burnt Orange Brand Color */
-  --primary: #E05822;
+  /* Brand terracotta. --brand is the pure logo colour (#E05822) for large
+     decorative use; --primary is a slightly deeper shade so white button text
+     and orange link text meet WCAG AA (4.96:1 and 4.64:1). */
+  --brand: #E05822;
+  --primary: #C4461A;
   --primary-foreground: #FFFFFF;
   --secondary: #F3ECE2;
   --secondary-foreground: #191614;
   --muted: #F3ECE2;
-  --muted-foreground: #78716C;
+  --muted-foreground: #6B645E;
   --accent: #FDF2EC;
   --accent-foreground: #C2410C;
   --destructive: #DC2626;
   --border: #E8E1D7;
-  --input: #E8E1D7;
-  --ring: #E05822;
+  /* Form-control borders need 3:1 against the surface (WCAG 1.4.11). */
+  --input: #948A7E;
+  --ring: #C4461A;
+  /* Status colours (all >= 4.5:1 on white and on --background) */
+  --success: #047857;
+  --success-foreground: #FFFFFF;
+  --warning: #B45309;
+  --credit: #B45309;
+  --whatsapp: #047857;
+  --whatsapp-foreground: #FFFFFF;
 }
 
 .dark {
@@ -64,8 +84,11 @@
   --card-foreground: #FAF7F2;
   --popover: #1D1A17;
   --popover-foreground: #FAF7F2;
+  --brand: #E05822;
+  /* On dark surfaces the bright terracotta reads well as text (4.97:1), and
+     filled buttons use near-black text on it (5.6:1) instead of white (3.76:1). */
   --primary: #E05822;
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: #1C1410;
   --secondary: #26221E;
   --secondary-foreground: #FAF7F2;
   --muted: #26221E;
@@ -74,8 +97,28 @@
   --accent-foreground: #FB923C;
   --destructive: #EF4444;
   --border: rgba(255, 255, 255, 0.12);
-  --input: rgba(255, 255, 255, 0.15);
+  --input: rgba(255, 255, 255, 0.32);
   --ring: #E05822;
+  --success: #34D399;
+  --success-foreground: #062B1F;
+  --warning: #FBBF24;
+  --credit: #FBBF24;
+  --whatsapp: #047857;
+  --whatsapp-foreground: #FFFFFF;
+}
+
+/* The landing hero is kept exactly as designed: it keeps the original brand
+   values even though the rest of the app uses the contrast-safe tokens. */
+.hero-brand-scope {
+  --primary: #E05822;
+  --primary-foreground: #FFFFFF;
+  --ring: #E05822;
+  --muted-foreground: #78716C;
+  /* the default line-height, so the Hindi body rule below doesn't reach it */
+  line-height: 1.5;
+}
+.dark .hero-brand-scope {
+  --muted-foreground: #A8A29E;
 }
 
 @layer base {
@@ -85,6 +128,25 @@
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    /* Keep focused elements clear of the sticky header (WCAG 2.4.11). */
+    scroll-padding-top: 5rem;
+  }
+}
+
+/* Hindi: letter-spacing and all-caps break the Devanagari headline bar
+   (shirorekha), and matras need more vertical room than Latin text. */
+html[lang="hi"] .uppercase:not(.hero-brand-scope *) {
+  text-transform: none;
+}
+html[lang="hi"] [class*="tracking-"]:not(.hero-brand-scope *) {
+  letter-spacing: 0;
+}
+html[lang="hi"] body {
+  line-height: 1.65;
+}
+html[lang="hi"] :is(h1, h2, h3, h4):not(.hero-brand-scope *) {
+  line-height: 1.3;
 }
 
 /* Landing hero: "Processing…" dots */
