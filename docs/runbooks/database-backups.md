@@ -1,10 +1,201 @@
 # Database backups (MongoDB): runbook
 
-This page explains, in plain English, how Peshkar AI's database is backed up, how to set it up once,
-how to restore, and what to do when an alert email arrives. Every command is meant to be copied
-exactly. Lines starting with `$` are not used; just run the commands as shown.
+How Peshkar AI's database is protected **today**, how to take and restore a backup, and what to do
+in an emergency. Every command is meant to be copied exactly, one at a time.
 
-## 1. What you get
+- 🖥️ **VM** = run in your SSH window (`ssh root@93.127.167.18`). `~` is root's home folder.
+- 💻 **LOCAL** = run in PowerShell on your laptop.
+- 🌐 **hPanel** = the Hostinger website.
+
+## 1. Current setup (decided 2026-10-26)
+
+MongoDB runs in Docker on the VM as a single-node replica set (`rs0`, see `mongo-replica-set.md`),
+with its data in the Docker volume of the `peshkar-mongodb` container. There is **no automated
+off-site backup service**: R2 / Atlas were rejected to keep costs at ₹0 and avoid adding a card.
+
+Protection comes from three free layers:
+
+| Layer | When | Kept where | Kept how long | Protects against |
+|---|---|---|---|---|
+| **Manual `mongodump` before every deploy** (section 3) | every release + before risky one-off changes | server `~/backups` and your PC `Documents\peshkar-db-backups` | last 5 on server, 5-10 on PC | a bad deploy, a wrong command, deleted or damaged data |
+| **Hostinger auto-backups** (section 4) | weekly, automatic (about every 8 days) | Hostinger storage, separate from the server (Malaysia) | latest 2 | the VM or its disk dying |
+| **Hostinger snapshot** (section 5) | by hand, before big server changes | Hostinger | until replaced | a server change going wrong |
+
+What is **not** covered: data written since the last manual backup if the server dies between
+deploys (the weekly Hostinger backup can be up to ~8 days old). Payments are also recorded in the
+Razorpay dashboard, so a lost payment can always be looked up there; credit balances, listings and
+users can only come back from a backup.
+
+### Why each risk is covered
+
+| Risk | How likely | Covered by |
+|---|---|---|
+| VM disk / server failure | low (redundant provider storage) | Hostinger weekly auto-backup |
+| Accidental `docker compose down -v` or volume delete | low if careful; the classic way small teams lose data | manual backup on your PC |
+| Bad migration / script / `deleteMany` | low-medium, grows with the app | manual backup on your PC |
+
+### Rules
+
+- Never run `docker compose down -v`, `docker volume prune`, `docker volume rm ...`, or
+  `docker system prune --volumes`. They delete the database.
+- Never delete or edit `~/ListingLift/mongo-keyfile`, never run `rs.initiate()` again.
+- Backup files contain user data and payment records: keep the PC folder private, never upload it
+  anywhere public, never commit it.
+
+## 2. Where things are
+
+| What | Where |
+|---|---|
+| Mongo container | `peshkar-mongodb` (compose file `~/ListingLift/docker-compose.server.yml`) |
+| Server backup folder | `~/backups` (also holds compose copies and NotebookLM's old `.env.bak` from `vm-tuning.md`) |
+| PC backup folder | `Documents\peshkar-db-backups` |
+| Secrets needed to rebuild a server | `~/ListingLift/.env.production`, `~/ListingLift/mongo-keyfile` (see section 7) |
+| Deploy routine (includes the backup) | `docs/runbooks/deploy.md` |
+
+## 3. Manual backup (before every deploy)
+
+This is step 1-2 of `deploy.md`. Run it before every release and before anything risky on the
+server (scripts against the database, editing data by hand, server changes).
+
+🖥️ **VM**
+
+```bash
+STAMP=$(date +%Y%m%d-%H%M%S) && echo $STAMP
+```
+```bash
+docker exec peshkar-mongodb sh -c 'mongodump -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --gzip --archive=/tmp/b.gz'
+```
+```bash
+docker cp peshkar-mongodb:/tmp/b.gz ~/backups/peshkar-mongo-$STAMP.gz
+```
+```bash
+docker exec peshkar-mongodb rm -f /tmp/b.gz
+```
+```bash
+gzip -t ~/backups/peshkar-mongo-$STAMP.gz && echo BACKUP-OK && ls -lh ~/backups/peshkar-mongo-$STAMP.gz
+```
+
+- Expected: `done dumping ...` lines, then `BACKUP-OK` and the file size.
+- **No `BACKUP-OK` = stop. Do not deploy.**
+
+💻 **LOCAL** (copy to your PC)
+
+```powershell
+scp root@93.127.167.18:~/backups/peshkar-mongo-*.gz $HOME\Documents\peshkar-db-backups\
+```
+```powershell
+dir $HOME\Documents\peshkar-db-backups
+```
+
+- Expected: the newest file is listed with about the same size as on the server.
+
+🖥️ **VM** (keep only the last 5 on the server)
+
+```bash
+ls -1t ~/backups/peshkar-mongo-*.gz | tail -n +6 | xargs -r rm -f
+```
+
+On the PC keep at least the last 5-10 files and delete older ones by hand.
+
+## 4. Hostinger auto-backups (weekly, already on)
+
+🌐 hPanel -> VPS -> **Backups** shows "Auto-backups · Weekly".
+
+- A full copy of the **whole server** (MongoDB, uploads, configs, and the NotebookLM app too),
+  stored separately from the VPS. Seen on 2026-10-14 and 2026-10-22, about every 8 days; only the
+  latest 2 are kept. Restore time shown: about 57 minutes.
+- Size was ~26.6 GB before `vm-tuning.md` cleared ~28 GB of build cache; it is smaller now.
+- Restoring one **replaces the whole server** with the state on that date: everything after it
+  is lost, for both Peshkar and NotebookLM. Use it only when the server itself is broken or gone;
+  for a data mistake use section 6 instead.
+- Free on this plan (daily backups would be a paid add-on).
+
+## 5. Hostinger snapshot (before big server changes)
+
+🌐 hPanel -> VPS -> **Snapshots & Backups** -> **Create snapshot**, and wait until it is listed.
+Take one right before server work such as `vm-tuning.md`, OS upgrades or Docker upgrades; the weekly
+auto-backup may be days old. Restoring the snapshot brings the whole server back to that moment.
+
+## 6. Restore a manual backup (data damaged or deleted, server fine)
+
+This **replaces** the current database with the backup. Anything written after the backup is lost.
+Pick the newest file from before the problem.
+
+💻 **LOCAL** (only if the file is no longer on the server; use the right file name)
+
+```powershell
+scp $HOME\Documents\peshkar-db-backups\peshkar-mongo-XXXX.gz root@93.127.167.18:~/backups/
+```
+
+🖥️ **VM**
+
+```bash
+ls -lh ~/backups/peshkar-mongo-*.gz
+```
+```bash
+docker cp ~/backups/peshkar-mongo-XXXX.gz peshkar-mongodb:/tmp/r.gz
+```
+```bash
+docker exec peshkar-mongodb sh -c 'mongorestore -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --gzip --archive=/tmp/r.gz --drop'
+```
+```bash
+docker exec peshkar-mongodb rm -f /tmp/r.gz
+```
+```bash
+cd ~/ListingLift
+```
+```bash
+docker compose -f docker-compose.server.yml restart api-service worker
+```
+```bash
+curl -s https://api.peshkarai.in/health
+```
+
+- Expected: `mongorestore` ends with `... document(s) restored successfully`; health returns
+  `{"healthy":true,...}`.
+- `--drop` replaces each collection that is in the backup. Collections created after the backup
+  stay as they are.
+- Before restoring over data you might still need, take a fresh backup first (section 3) so the
+  restore itself can be undone.
+
+## 7. The server is gone (rebuild)
+
+1. 🌐 Restore the latest Hostinger auto-backup (section 4) or a snapshot (section 5). This brings back
+   everything, including `.env.production` and `mongo-keyfile`.
+2. If the newest PC backup is newer than that Hostinger backup, restore it on top (section 6).
+3. Check `https://api.peshkarai.in/health`, then make one test listing.
+
+If Hostinger cannot restore anything, a new server needs the repo, `.env.production`,
+`mongo-keyfile` (or a new one plus the replica-set steps in `mongo-replica-set.md`) and the newest PC
+backup. Optional, once: keep a private copy of the two secret files on your PC (never in git, never
+in chat):
+
+```powershell
+scp root@93.127.167.18:~/ListingLift/.env.production root@93.127.167.18:~/ListingLift/mongo-keyfile $HOME\Documents\peshkar-db-backups\
+```
+
+## 8. If you ever want automated off-site backups
+
+Everything for hourly, encrypted, off-site backups is already built and tested, but **not
+installed or used** (appendix A). Nothing runs unless it is installed on the server: the scripts are
+excluded from the Docker images, and the workflow only runs from a separate private repo.
+
+- `scripts/backup/`: hourly backup, restore, backup-user setup, systemd timer.
+- `ops/peshkar-ops/`: weekly restore-drill workflow for a private repo.
+- An age encryption key pair was already created on 2026-10-26 (PDF in
+  `Documents\peshkar-backup-key`, public key `age1aml7ykelujxjxucunq08ermfggr5thjvmp75a6qxlmke2mh2ysnq7eh6uc`).
+  It is only needed if appendix A is turned on; if that PDF is deleted, make a new key then.
+- Cloudflare R2 needs a card on file to enable, even though this database would fit in its free
+  tier. The upload uses rclone, which could also point at a free Google Drive instead of R2 (needs a
+  small script change).
+
+---
+
+# Appendix A: automated off-site backups (built, NOT in use)
+
+Kept for reference. None of this is set up today.
+
+### 1. What you get
 
 Every hour (at minute 17 UTC) the server runs `scripts/backup/mongo-backup.sh`, which:
 
@@ -40,7 +231,7 @@ Important: the `backup-before-replset-*.gz` file made by `scripts/enable-mongo-r
 **inside the database volume**. It is **not** a backup: if the volume or the server is lost, it is
 lost too.
 
-### Words used here
+#### Words used here
 
 - **age**: a small, modern encryption tool. A **key pair** is a *public key* (`age1...`, safe to
   share, can only lock) and a *private key* (`AGE-SECRET-KEY-1...`, secret, unlocks).
@@ -52,7 +243,7 @@ lost too.
   runs, and `--oplogReplay` re-applies them on restore, so the copy is one exact moment in time.
 - **UTC**: world time. India time (IST) = UTC + 5:30. All backup file names use UTC.
 
-### Files in the repo
+#### Files in the repo
 
 | File | What it is |
 |---|---|
@@ -66,11 +257,11 @@ lost too.
 
 ---
 
-## 2. One-time setup
+### 2. One-time setup
 
 Do the steps in order. Each step says how to undo it.
 
-### 2.1 Make your age key pair (on your own Windows computer, NOT the server)
+#### 2.1 Make your age key pair (on your own Windows computer, NOT the server)
 
 1. Open PowerShell and install age:
    ```powershell
@@ -90,7 +281,7 @@ Do the steps in order. Each step says how to undo it.
 
 Undo: delete the file. Only do this before any backups exist; afterwards it is the only way to read them.
 
-### 2.2 Create the R2 bucket
+#### 2.2 Create the R2 bucket
 
 1. Log in to https://dash.cloudflare.com, pick your account, open **R2 Object Storage** in the left menu.
 2. Click **Create bucket**. Name: `peshkar-db-backups` (any name works; use the same name everywhere
@@ -100,7 +291,7 @@ Undo: delete the file. Only do this before any backups exist; afterwards it is t
 
 Undo: bucket **Settings > Delete bucket** (only possible once it is empty).
 
-### 2.3 Add the bucket lock rules (nobody can delete fresh backups)
+#### 2.3 Add the bucket lock rules (nobody can delete fresh backups)
 
 In the bucket, open **Settings**, find **Bucket lock rules** and click **Add rule** three times:
 
@@ -115,7 +306,7 @@ Type the prefix exactly, including the slash at the end.
 Undo: delete the rule in the same place. Only someone logged in to the dashboard (or with an
 admin token) can do this. The server's token cannot.
 
-### 2.4 Add the lifecycle rules (old backups are deleted automatically)
+#### 2.4 Add the lifecycle rules (old backups are deleted automatically)
 
 Still in the bucket's **Settings**, find **Object lifecycle rules** and click **Add rule** three times:
 
@@ -130,7 +321,7 @@ objects can stay up to about a day past their age before R2 removes them; that i
 
 Undo: delete the rules (storage then grows forever).
 
-### 2.5 Create two R2 API tokens (one writer, one reader)
+#### 2.5 Create two R2 API tokens (one writer, one reader)
 
 1. In **R2 Object Storage**, click **Manage API tokens** (on the R2 overview page; it may be labelled
    **API Tokens > Manage**).
@@ -152,7 +343,7 @@ Undo: delete the rules (storage then grows forever).
 Undo: on the same page, **Delete** a token (or **Roll** it to get a new secret). Anything using the old
 one stops working.
 
-### 2.6 Healthchecks.io: two checks with email alerts
+#### 2.6 Healthchecks.io: two checks with email alerts
 
 1. Sign up at https://healthchecks.io (free plan). Your login email automatically gets an **Email**
    notification method. Confirm it under **Integrations**: you should see "Email" with your address;
@@ -180,7 +371,7 @@ How alerts reach you:
 
 Undo: delete the checks (you then get no alerts).
 
-### 2.7 Install the tools on the server
+#### 2.7 Install the tools on the server
 
 ```bash
 sudo apt-get update
@@ -193,7 +384,7 @@ is needed for Cloudflare R2; Ubuntu 24.04 ships 1.60.)
 
 Undo: `sudo apt-get remove age rclone` (keep jq and curl; other things may use them).
 
-### 2.8 Create the settings file `/etc/peshkar-backup/backup.env`
+#### 2.8 Create the settings file `/etc/peshkar-backup/backup.env`
 
 On the server, in the app folder (where `docker-compose.server.yml` is):
 
@@ -230,7 +421,7 @@ of the finished file in your password manager (you need it to rebuild a server).
 
 Undo: `sudo rm -r /etc/peshkar-backup`
 
-### 2.9 Create the MongoDB backup user
+#### 2.9 Create the MongoDB backup user
 
 ```bash
 cd /path/to/ListingLift
@@ -243,7 +434,7 @@ read everything for a backup but cannot change or delete data.
 
 Undo: `sudo bash scripts/backup/create-backup-user.sh --remove`
 
-### 2.10 Install the backup script and the hourly timer
+#### 2.10 Install the backup script and the hourly timer
 
 ```bash
 cd /path/to/ListingLift
@@ -263,7 +454,7 @@ sudo rm /etc/systemd/system/peshkar-mongo-backup.{service,timer} /usr/local/sbin
 sudo systemctl daemon-reload
 ```
 
-### 2.11 First manual run
+#### 2.11 First manual run
 
 `FORCE_DAILY=1` also makes the daily copy and the config copy right away, so everything is tested:
 
@@ -294,7 +485,7 @@ journalctl -u peshkar-mongo-backup.service -n 20 --no-pager
 ```
 Expected: the same kind of lines ending with `OK ...` and `Finished peshkar-mongo-backup.service`.
 
-### 2.12 Turn on the hourly timer
+#### 2.12 Turn on the hourly timer
 
 ```bash
 sudo systemctl enable --now peshkar-mongo-backup.timer
@@ -306,7 +497,7 @@ does not matter; the timer uses UTC.
 
 Undo: `sudo systemctl disable --now peshkar-mongo-backup.timer`
 
-### 2.13 Check that it works
+#### 2.13 Check that it works
 
 1. Local copies: `sudo ls -l /var/backups/peshkar/local/` shows `peshkar-mongo-<time>.archive.gz` and
    `.manifest.json` files with `-rw-------` and owner `root`.
@@ -320,7 +511,7 @@ Undo: `sudo systemctl disable --now peshkar-mongo-backup.timer`
    "success" with the `OK ...` message.
 4. After the next hour passes, step 1 shows one more file. After 24 hours there are always 24.
 
-### 2.14 Check that the lock really protects backups
+#### 2.14 Check that the lock really protects backups
 
 Upload a small test file into the hourly folder and try to delete it with the server's token:
 
@@ -336,7 +527,7 @@ the lifecycle rule; it does not disturb anything (the weekly test only looks at 
 
 If the delete **succeeds**, the lock rule is missing or its prefix is wrong: go back to 2.3.
 
-### 2.15 Set up the weekly restore test
+#### 2.15 Set up the weekly restore test
 
 Follow `ops/peshkar-ops/README.md`: create the private repo `peshkar-ops`, copy the files in, add the
 six secrets (read-only token, bucket, endpoint, age private key, weekly Healthchecks URL), and run it
@@ -344,7 +535,7 @@ once by hand. It should end with `PASS: restore drill complete`.
 
 ---
 
-## 3. Restore from a local copy (server is fine, data was damaged or deleted)
+### 3. Restore from a local copy (server is fine, data was damaged or deleted)
 
 Use this when the server works but something in the database is wrong (bad deploy, deleted data).
 The local copies cover the last 24 hours.
@@ -410,7 +601,7 @@ What the restore does and does not do:
   ```
 - Redis (queues, rate limits) is not backed up. It only holds short-lived data.
 
-## 4. Restore from R2 (local copies are gone or too new)
+### 4. Restore from R2 (local copies are gone or too new)
 
 The decryption happens on **your computer**, because only you have the private key.
 
@@ -439,7 +630,7 @@ The decryption happens on **your computer**, because only you have the private k
 5. **Delete the decrypted files on your computer** (`Remove-Item peshkar-mongo-<TIME>.archive.gz,
    peshkar-mongo-<TIME>.manifest.json`). Keep only the encrypted ones, if anything.
 
-## 5. Monthly check (about 10 minutes)
+### 5. Monthly check (about 10 minutes)
 
 1. Healthchecks.io: both checks green. Event log of the hourly check shows a success every hour.
 2. GitHub > `peshkar-ops` > Actions: the last "Restore drill" runs are green.
@@ -458,9 +649,9 @@ The decryption happens on **your computer**, because only you have the private k
    shows 48 (24 archives + 24 manifests).
 6. Your key file is still in both places (password manager + offline copy).
 
-## 6. When an alert email arrives
+### 6. When an alert email arrives
 
-### "DOWN | peshkar hourly backup"
+#### "DOWN | peshkar hourly backup"
 
 1. Open the email or the check on Healthchecks.io. If it was a `/fail` ping, the message says what
    failed. If there was no ping at all, the server may be down or the timer off.
@@ -485,14 +676,14 @@ The decryption happens on **your computer**, because only you have the private k
 
 4. After fixing, run `sudo systemctl start peshkar-mongo-backup.service`. You get an **UP** email.
 
-### "DOWN | peshkar weekly restore test"
+#### "DOWN | peshkar weekly restore test"
 
 Open GitHub > `peshkar-ops` > Actions > the failed "Restore drill" run and read the `FAIL:` line.
 The table in `ops/peshkar-ops/README.md` says what each one means. Most common:
 `newest backup is older than 3 hours` means the hourly backups stopped (see above). After fixing,
 re-run with **Run workflow**.
 
-## 7. Rebuild everything on a new server
+### 7. Rebuild everything on a new server
 
 Use this if the server is lost.
 
@@ -537,7 +728,7 @@ Use this if the server is lost.
    the R2 bucket, tokens, Healthchecks checks and peshkar-ops stay as they are). Run
    `create-backup-user.sh` even if the user came back with the restore.
 
-## 8. Turn backups off completely
+### 8. Turn backups off completely
 
 ```bash
 sudo systemctl disable --now peshkar-mongo-backup.timer
@@ -549,7 +740,7 @@ sudo rm -r /etc/peshkar-backup /var/backups/peshkar
 
 Then delete the two R2 tokens and pause the Healthchecks checks. Backups in R2 expire by themselves.
 
-## 9. Costs (rough)
+### 9. Costs (rough)
 
 R2 charges about US$0.015 per GB per month above the 10 GB free tier, and nothing for downloads.
 With a 100 MB compressed backup, 7 days of hourly copies (168) plus 30 daily copies is about 20 GB,
