@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findOne = vi.fn();
-const fetchBufferFromR2 = vi.fn();
-const uploadBufferToR2 = vi.fn();
-const renderSocialCards = vi.fn();
-const deleteObjectFromR2 = vi.fn();
+const runAssetJob = vi.fn();
+
+const { AssetJobTimeoutError } = vi.hoisted(() => ({
+  AssetJobTimeoutError: class AssetJobTimeoutError extends Error {},
+}));
 
 vi.mock("@repo/database", () => ({
   ListingObject: {
@@ -13,11 +14,14 @@ vi.mock("@repo/database", () => ({
 }));
 
 vi.mock("@repo/services", () => ({
-  fetchBufferFromR2: (...args: unknown[]) => fetchBufferFromR2(...args),
-  uploadBufferToR2: (...args: unknown[]) => uploadBufferToR2(...args),
-  renderSocialCards: (...args: unknown[]) => renderSocialCards(...args),
   getPresignedDownloadUrl: vi.fn(),
-  deleteObjectFromR2: (...args: unknown[]) => deleteObjectFromR2(...args),
+  runAssetJob: (...args: unknown[]) => runAssetJob(...args),
+  AssetJobTimeoutError,
+  // Same rule as the real helper: white studio shot, then any active image, then the original
+  pickCardSourceImage: (listing: any) =>
+    listing.generatedImages.find((img: any) => img.isLatest !== false && img.variationType === "studio_white") ||
+    listing.generatedImages.find((img: any) => img.isLatest !== false) ||
+    listing.originalImages[0],
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, limit: 30, remaining: 29, resetInSeconds: 0 }),
 }));
 
@@ -31,7 +35,7 @@ function caller(user: Record<string, unknown> = {}) {
   } as any);
 }
 
-function makeListing() {
+function makeListing(overrides: Record<string, unknown> = {}) {
   return {
     _id: "list1",
     userId: "user1",
@@ -40,70 +44,97 @@ function makeListing() {
     templateId: "minimal-luxury",
     generatedImages: [{ s3Key: "generated/list1/studio_1.jpg", isLatest: true, variationType: "studio_white" }],
     originalImages: [],
-    whatsappCard: { s3Key: "cards/list1/old-wa.webp" },
-    instagramPost: undefined,
-    instagramStory: undefined,
-    save: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn(),
+    ...overrides,
   };
 }
+
+const card = (name: string) => ({
+  s3Key: `cards/list1/${name}.jpg`,
+  url: `https://cdn/cards/list1/${name}.jpg`,
+  templateId: "studio-auto",
+  generatedAt: new Date("2026-10-26T10:00:00Z"),
+});
 
 describe("card.regenerateCards", () => {
   beforeEach(() => {
     findOne.mockReset();
-    fetchBufferFromR2.mockReset().mockResolvedValue(Buffer.from("product"));
-    renderSocialCards.mockReset().mockResolvedValue({
-      whatsappCard: Buffer.from("wa"),
-      whatsapp: Buffer.from("wa"),
-      instagramPost: Buffer.from("post"),
-      instagramStory: Buffer.from("story"),
+    runAssetJob.mockReset().mockResolvedValue({
+      whatsappCard: card("whatsapp"),
+      instagramPost: card("ig-post"),
+      instagramStory: card("ig-story"),
     });
-    uploadBufferToR2
-      .mockReset()
-      .mockImplementation(async (key: string) => ({ s3Key: key, publicUrl: `https://cdn/${key}` }));
-    deleteObjectFromR2.mockReset().mockResolvedValue(undefined);
   });
 
-  it("passes the seller's card settings through to the renderer", async () => {
+  it("hands the rendering to the worker and returns the three new cards", async () => {
     findOne.mockResolvedValue(makeListing());
 
-    await caller({
-      cardSettings: { language: "hi", cod: true, freeDelivery: false, easyReturns: true, madeInIndia: false },
-    }).regenerateCards({ listingObjectId: "list1" });
+    const res = await caller().regenerateCards({ listingObjectId: "list1", templateId: "diwali-glow" });
 
-    expect(renderSocialCards).toHaveBeenCalledWith(
-      expect.objectContaining({
-        language: "hi",
-        trustBadges: { cod: true, freeDelivery: false, easyReturns: true, madeInIndia: false },
-      })
-    );
+    expect(runAssetJob).toHaveBeenCalledWith("regenerate-cards", {
+      listingObjectId: "list1",
+      userId: "user1",
+      templateId: "diwali-glow",
+    });
+    expect(res).toEqual({
+      whatsappCard: card("whatsapp"),
+      instagramPost: card("ig-post"),
+      instagramStory: card("ig-story"),
+    });
   });
 
-  it("uses safe defaults for users without card settings (no claims, English)", async () => {
+  it("keeps the listing's template when none is chosen", async () => {
     findOne.mockResolvedValue(makeListing());
 
     await caller().regenerateCards({ listingObjectId: "list1" });
 
-    expect(renderSocialCards).toHaveBeenCalledWith(
-      expect.objectContaining({
-        language: "en",
-        trustBadges: { cod: false, freeDelivery: false, easyReturns: false, madeInIndia: false },
-      })
-    );
+    expect(runAssetJob).toHaveBeenCalledWith("regenerate-cards", { listingObjectId: "list1", userId: "user1" });
   });
 
-  it("uploads every card as JPEG and cleans up the old card", async () => {
+  it("only looks up listings the caller owns, and 404s otherwise", async () => {
+    findOne.mockResolvedValue(null);
+
+    await expect(caller().regenerateCards({ listingObjectId: "list1" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(findOne).toHaveBeenCalledWith({ _id: "list1", userId: "user1" });
+    expect(runAssetJob).not.toHaveBeenCalled();
+  });
+
+  it("rejects listings without any photo before queueing work", async () => {
+    findOne.mockResolvedValue(makeListing({ generatedImages: [], originalImages: [] }));
+
+    await expect(caller().regenerateCards({ listingObjectId: "list1" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(runAssetJob).not.toHaveBeenCalled();
+  });
+
+  it("never saves the listing itself (the worker updates it atomically)", async () => {
     const listing = makeListing();
     findOne.mockResolvedValue(listing);
 
     await caller().regenerateCards({ listingObjectId: "list1" });
 
-    expect(uploadBufferToR2).toHaveBeenCalledTimes(3);
-    for (const [key, , contentType] of uploadBufferToR2.mock.calls) {
-      expect(key).toMatch(/^cards\/list1\/.+\.jpg$/);
-      expect(contentType).toBe("image/jpeg");
-    }
-    expect(listing.whatsappCard.s3Key).toMatch(/\.jpg$/);
-    expect(listing.save).toHaveBeenCalled();
-    expect(deleteObjectFromR2).toHaveBeenCalledWith("cards/list1/old-wa.webp");
+    expect(listing.save).not.toHaveBeenCalled();
+  });
+
+  it("turns a worker timeout into a TIMEOUT error with a friendly message", async () => {
+    findOne.mockResolvedValue(makeListing());
+    runAssetJob.mockRejectedValue(new AssetJobTimeoutError("slow"));
+
+    await expect(caller().regenerateCards({ listingObjectId: "list1" })).rejects.toMatchObject({
+      code: "TIMEOUT",
+      message: expect.stringMatching(/try again/i),
+    });
+  });
+
+  it("surfaces a worker failure as an internal error", async () => {
+    findOne.mockResolvedValue(makeListing());
+    runAssetJob.mockRejectedValue(new Error("R2 down"));
+
+    await expect(caller().regenerateCards({ listingObjectId: "list1" })).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+    });
   });
 });

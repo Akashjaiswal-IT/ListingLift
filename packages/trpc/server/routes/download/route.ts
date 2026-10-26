@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
-import { getPresignedDownloadUrl, createListingBundleZip } from "@repo/services";
+import { getPresignedDownloadUrl, runAssetJob, AssetJobTimeoutError } from "@repo/services";
 import { assertOwnsStorageKey } from "../../storage-access";
 import { enforceRateLimit } from "../../rate-limit";
 
@@ -36,7 +36,21 @@ export const downloadRouter = router({
       }
 
       await enforceRateLimit(ctx.user._id, "export", "download");
-      const result = await createListingBundleZip(listing);
-      return result;
+      // Zipping (and the marketplace spreadsheet) runs in the worker so it never blocks the API
+      try {
+        const result = await runAssetJob("bundle-zip", {
+          listingObjectId: String(listing._id),
+          userId: String(ctx.user._id),
+        });
+        return { downloadUrl: result.downloadUrl, s3Key: result.s3Key };
+      } catch (err) {
+        if (err instanceof AssetJobTimeoutError) {
+          throw new TRPCError({
+            code: "TIMEOUT",
+            message: "Preparing the download is taking longer than usual. Please try again in a minute.",
+          });
+        }
+        throw err;
+      }
     }),
 });

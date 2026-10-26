@@ -3,11 +3,10 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../../trpc";
 import { ListingObject } from "@repo/database";
 import {
-  fetchBufferFromR2,
-  uploadBufferToR2,
-  renderSocialCards,
   getPresignedDownloadUrl,
-  deleteObjectFromR2,
+  pickCardSourceImage,
+  runAssetJob,
+  AssetJobTimeoutError,
 } from "@repo/services";
 import { assertOwnsStorageKey } from "../../storage-access";
 import { enforceRateLimit } from "../../rate-limit";
@@ -16,6 +15,7 @@ export const cardRouter = router({
   regenerateCards: protectedProcedure
     .input(z.object({ listingObjectId: z.string(), templateId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
+      // Cheap checks here; the rendering itself (sharp + Pango, CPU-heavy) runs in the worker
       const listing = await ListingObject.findOne({
         _id: input.listingObjectId,
         userId: ctx.user._id,
@@ -27,96 +27,33 @@ export const cardRouter = router({
 
       await enforceRateLimit(ctx.user._id, "regenerate_cards", "card regeneration");
 
-      if (input.templateId) {
-        listing.templateId = input.templateId;
-      }
-
-      // Prefer the pure-white-background studio shot (cleanest cutout), then any
-      // active generated image, then the original photo
-      const primaryImage =
-        listing.generatedImages.find(
-          (img) => img.isLatest !== false && img.variationType === "studio_white"
-        ) ||
-        listing.generatedImages.find((img) => img.isLatest !== false) ||
-        listing.originalImages[0];
-
-      if (!primaryImage) {
+      if (!pickCardSourceImage(listing)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "No product photo available to generate cards",
         });
       }
 
-      const productBuffer = await fetchBufferFromR2(primaryImage.s3Key);
-
-      const cards = await renderSocialCards({
-        productImage: productBuffer,
-        productTitle: listing.userTitle || "Product",
-        price: listing.price,
-        discountPrice: listing.discountPrice,
-        ctaText: listing.ctaText || ctx.user.defaultCta?.text,
-        templateId: input.templateId || listing.templateId,
-        sellerInfo: {
-          storeName: ctx.user.storeName,
-          whatsappNumber: ctx.user.whatsappNumber,
-          instagramHandle: ctx.user.instagramHandle,
-        },
-        language: ctx.user.cardSettings?.language ?? "en",
-        trustBadges: {
-          cod: ctx.user.cardSettings?.cod === true,
-          freeDelivery: ctx.user.cardSettings?.freeDelivery === true,
-          easyReturns: ctx.user.cardSettings?.easyReturns === true,
-          madeInIndia: ctx.user.cardSettings?.madeInIndia === true,
-        },
-      });
-
-      // Collect old card keys so they can be cleaned up from R2 storage once new ones are saved
-      const oldCardKeys: string[] = [
-        listing.whatsappCard?.s3Key,
-        listing.instagramPost?.s3Key,
-        listing.instagramStory?.s3Key,
-      ].filter(Boolean) as string[];
-
-      const waKey = `cards/${listing._id}/whatsapp-${Date.now()}.jpg`;
-      const igPostKey = `cards/${listing._id}/ig-post-${Date.now()}.jpg`;
-      const igStoryKey = `cards/${listing._id}/ig-story-${Date.now()}.jpg`;
-
-      const [waUpload, igPostUpload, igStoryUpload] = await Promise.all([
-        uploadBufferToR2(waKey, cards.whatsappCard, "image/jpeg"),
-        uploadBufferToR2(igPostKey, cards.instagramPost, "image/jpeg"),
-        uploadBufferToR2(igStoryKey, cards.instagramStory, "image/jpeg"),
-      ]);
-
-      listing.whatsappCard = {
-        s3Key: waUpload.s3Key,
-        url: waUpload.publicUrl,
-        generatedAt: new Date(),
-      };
-      listing.instagramPost = {
-        s3Key: igPostUpload.s3Key,
-        url: igPostUpload.publicUrl,
-        generatedAt: new Date(),
-      };
-      listing.instagramStory = {
-        s3Key: igStoryUpload.s3Key,
-        url: igStoryUpload.publicUrl,
-        generatedAt: new Date(),
-      };
-
-      await listing.save();
-
-      // Clean up previous cards in storage now that new ones are saved
-      for (const oldKey of oldCardKeys) {
-        try {
-          await deleteObjectFromR2(oldKey);
-        } catch {}
+      try {
+        const cards = await runAssetJob("regenerate-cards", {
+          listingObjectId: String(listing._id),
+          userId: String(ctx.user._id),
+          ...(input.templateId ? { templateId: input.templateId } : {}),
+        });
+        return {
+          whatsappCard: cards.whatsappCard,
+          instagramPost: cards.instagramPost,
+          instagramStory: cards.instagramStory,
+        };
+      } catch (err) {
+        if (err instanceof AssetJobTimeoutError) {
+          throw new TRPCError({
+            code: "TIMEOUT",
+            message: "Card rendering is taking longer than usual. Please try again in a minute.",
+          });
+        }
+        throw err;
       }
-
-      return {
-        whatsappCard: listing.whatsappCard,
-        instagramPost: listing.instagramPost,
-        instagramStory: listing.instagramStory,
-      };
     }),
 
   getDownloadUrl: protectedProcedure

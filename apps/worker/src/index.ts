@@ -5,6 +5,7 @@ import {
   getRedisConnection,
   IMAGE_GENERATION_QUEUE_NAME,
   RE_EDIT_QUEUE_NAME,
+  ASSETS_QUEUE_NAME,
   reconcileStuckWork,
 } from "@repo/services";
 
@@ -13,12 +14,15 @@ const RECONCILE_EVERY_MS = 5 * 60 * 1000;
 // Jobs at once per queue; raise only if your Gemini limits (AI Studio) allow it.
 const GENERATION_CONCURRENCY = Number(process.env.WORKER_GENERATION_CONCURRENCY) || 3;
 const RE_EDIT_CONCURRENCY = Number(process.env.WORKER_RE_EDIT_CONCURRENCY) || 3;
+// Card re-rendering and ZIP bundles are CPU-bound; on a 1-vCPU server one at a time is fastest.
+const ASSETS_CONCURRENCY = Number(process.env.WORKER_ASSETS_CONCURRENCY) || 1;
 // BullMQ only honours manual rate limits (worker.rateLimit) when a limiter is configured. This one
 // is deliberately loose; the real Gemini limits are enforced per call by the shared Gemini limiter.
 const QUEUE_LIMITER = { max: 30, duration: 60_000 };
 import { env } from "./env";
 import { processImageGeneration } from "./processors/image-generation.processor";
 import { processReEdit } from "./processors/re-edit.processor";
+import { processAssetJob } from "./processors/assets.processor";
 
 async function main() {
   logger.info("==================================================");
@@ -96,7 +100,20 @@ async function main() {
     });
   });
 
-  // 3. Maintenance: every 5 minutes repair work a crash left half-done (stuck "queued" listings,
+  // 3. Assets Worker (card re-rendering + ZIP bundles requested by the API, which waits for them)
+  const assetsWorker = new Worker(ASSETS_QUEUE_NAME, processAssetJob, {
+    connection: redis,
+    concurrency: ASSETS_CONCURRENCY,
+    lockDuration: 120000,
+  });
+
+  assetsWorker.on("failed", (job, err) => {
+    logger.error(`Job ${job?.id} on queue '${ASSETS_QUEUE_NAME}' failed:`, {
+      err: err.message,
+    });
+  });
+
+  // 4. Maintenance: every 5 minutes repair work a crash left half-done (stuck "queued" listings,
   // unrefunded failures, stuck re-edits). One scheduler entry, so it runs once per interval even
   // with several worker replicas.
   const maintenanceQueue = new Queue(MAINTENANCE_QUEUE_NAME, { connection: redis });
@@ -118,7 +135,7 @@ async function main() {
   });
 
   logger.info(
-    `All BullMQ Workers active (generation x${GENERATION_CONCURRENCY}, re-edit x${RE_EDIT_CONCURRENCY}, maintenance every 5 min).`
+    `All BullMQ Workers active (generation x${GENERATION_CONCURRENCY}, re-edit x${RE_EDIT_CONCURRENCY}, assets x${ASSETS_CONCURRENCY}, maintenance every 5 min).`
   );
 
   // Graceful shutdown
@@ -127,6 +144,7 @@ async function main() {
     try {
       await imageGenerationWorker.close();
       await reEditWorker.close();
+      await assetsWorker.close();
       await maintenanceWorker.close();
       await maintenanceQueue.close();
       await disconnectDatabase();

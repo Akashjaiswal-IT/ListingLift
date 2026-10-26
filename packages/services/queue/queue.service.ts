@@ -1,4 +1,4 @@
-import { Queue } from "bullmq";
+import { Queue, QueueEvents } from "bullmq";
 import Redis from "ioredis";
 
 let redisConnection: Redis | null = null;
@@ -85,6 +85,41 @@ export async function enqueueReEdit(params: {
     { jobId: `reedit_${params.generatedImageId}_${Date.now()}` }
   );
   return job.id || `reedit_${params.generatedImageId}`;
+}
+
+// ── Assets queue ─────────────────────────────────────────────────────────────────────────────
+// CPU-heavy work the API used to do inside the request (card re-rendering, ZIP bundles). The
+// server has one vCPU, so doing it in the API froze every other request; the worker runs it
+// instead, one job at a time, while the API waits for the result.
+export const ASSETS_QUEUE_NAME = "assets";
+
+let assetsQueue: Queue | null = null;
+let assetsQueueEvents: QueueEvents | null = null;
+
+export function getAssetsQueue(): Queue {
+  if (!assetsQueue) {
+    assetsQueue = new Queue(ASSETS_QUEUE_NAME, {
+      connection: getRedisConnection(),
+      defaultJobOptions: {
+        // The user is waiting on the result; a retry would only arrive after they gave up
+        attempts: 1,
+        removeOnComplete: { age: 3600, count: 200 },
+        removeOnFail: { age: 24 * 3600, count: 200 },
+      },
+    });
+  }
+  return assetsQueue;
+}
+
+/** Listens for finished asset jobs. Uses its own connection: it blocks while waiting for events. */
+export async function getAssetsQueueEvents(): Promise<QueueEvents> {
+  if (!assetsQueueEvents) {
+    assetsQueueEvents = new QueueEvents(ASSETS_QUEUE_NAME, {
+      connection: getRedisConnection().duplicate(),
+    });
+  }
+  await assetsQueueEvents.waitUntilReady();
+  return assetsQueueEvents;
 }
 
 // When this many generation jobs are already waiting, new requests are turned away BEFORE any
