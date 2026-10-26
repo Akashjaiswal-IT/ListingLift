@@ -1,0 +1,23 @@
+# Peshkar AI - one MongoDB backup run (started every hour by peshkar-mongo-backup.timer).
+# Install: see docs/runbooks/database-backups.md
+#   sudo install -m 644 scripts/backup/systemd/peshkar-mongo-backup.service /etc/systemd/system/
+# Logs:   journalctl -u peshkar-mongo-backup.service -n 50
+[Unit]
+Description=Peshkar AI hourly MongoDB backup (local copy + encrypted copy to Cloudflare R2)
+Documentation=https://github.com/Akashjaiswal-IT/ListingLift/blob/main/docs/runbooks/database-backups.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=ENV_FILE=/etc/peshkar-backup/backup.env
+ExecStart=/usr/local/sbin/peshkar-mongo-backup
+# Be gentle with the live app: lower CPU priority and only use idle disk time.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min
+# Light hardening that does not get in the way of docker or the backup folders.
+PrivateTmp=true
+NoNewPrivileges=true
+UMask=0077

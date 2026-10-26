@@ -1,0 +1,17 @@
+# Peshkar AI - run the MongoDB backup every hour at minute 17 (UTC), plus up to 2 minutes of
+# random delay. Persistent=true: if the server was off at that time, run once soon after boot.
+# Install: see docs/runbooks/database-backups.md
+#   sudo install -m 644 scripts/backup/systemd/peshkar-mongo-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now peshkar-mongo-backup.timer
+# Check:  systemctl list-timers peshkar-mongo-backup.timer
+[Unit]
+Description=Hourly Peshkar AI MongoDB backup
+
+[Timer]
+OnCalendar=*-*-* *:17:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+Unit=peshkar-mongo-backup.service
+
+[Install]
+WantedBy=timers.target

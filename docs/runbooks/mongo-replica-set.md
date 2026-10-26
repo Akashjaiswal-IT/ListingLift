@@ -31,4 +31,8 @@ Restore the previous `docker-compose.server.yml` (no `command:` line) and the ol
 then `docker compose -f docker-compose.server.yml up -d --no-deps mongodb`. Data is untouched by the
 conversion; the backup from step 2 is in the data volume as `backup-before-replset-*.gz`.
 
+> **Note:** that dump lives inside the same data volume as the database, so it is **not a real
+> backup** (losing the volume or the server loses it too). Real, encrypted, off-site backups are
+> described in [database-backups.md](database-backups.md).
+
 **Never run `docker compose down -v`**: it deletes the database volume.

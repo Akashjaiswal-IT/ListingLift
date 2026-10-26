@@ -1,0 +1,88 @@
+# Weekly restore drill for the Peshkar AI database backups.
+#
+# This file belongs in the PRIVATE repository "peshkar-ops" (the template is kept in the public
+# app repo under ops/peshkar-ops/). It downloads the newest hourly backup from Cloudflare R2 with a
+# READ-ONLY token, decrypts it, restores it into a throwaway MongoDB and checks it against the
+# manifest. The log only ever contains PASS/FAIL lines: no data, no counts, no secrets.
+# Setup and the list of repository secrets: see README.md next to this folder.
+name: Restore drill
+
+on:
+  schedule:
+    # Every Monday at 04:43 UTC (10:13 India time). GitHub may start scheduled runs a little late.
+    - cron: "43 4 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      RCLONE_REMOTE: r2
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_READ_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_READ_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_REGION: auto
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+      MAX_AGE_HOURS: "3"
+      MONGO_IMAGE: mongo:7
+    steps:
+      - name: Check out this repository (for scripts/restore-drill.sh)
+        uses: actions/checkout@v4
+
+      - name: Tell Healthchecks.io the drill has started
+        env:
+          HC_URL: ${{ secrets.HC_DRILL_PING_URL }}
+        run: curl -fsS -m 10 --retry 3 -o /dev/null "${HC_URL%/}/start" || true
+
+      - name: Install age, rclone and jq
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq age rclone jq >/dev/null
+
+      - name: Start a throwaway MongoDB (mongo:7, replica set rs0)
+        run: bash scripts/restore-drill.sh start-mongo
+
+      - name: Download the newest hourly backup (read-only token)
+        run: bash scripts/restore-drill.sh fetch
+
+      - name: Decrypt the backup (private key exists only during this step)
+        env:
+          AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY }}
+        run: |
+          umask 077
+          key="$(mktemp "$RUNNER_TEMP/age-key.XXXXXX")"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$AGE_PRIVATE_KEY" > "$key"
+          AGE_KEY_FILE="$key" bash scripts/restore-drill.sh decrypt
+
+      - name: Restore with --oplogReplay and compare with the manifest
+        run: bash scripts/restore-drill.sh verify
+
+      - name: Remove the throwaway database and every downloaded file
+        if: always()
+        run: bash scripts/restore-drill.sh cleanup
+
+      - name: Report PASS to Healthchecks.io
+        if: success()
+        env:
+          HC_URL: ${{ secrets.HC_DRILL_PING_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: curl -fsS -m 10 --retry 3 -o /dev/null --data-raw "PASS restore drill ${RUN_URL}" "${HC_URL%/}" || true
+
+      - name: Report FAIL to Healthchecks.io
+        if: failure() || cancelled()
+        env:
+          HC_URL: ${{ secrets.HC_DRILL_PING_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: curl -fsS -m 10 --retry 3 -o /dev/null --data-raw "FAIL restore drill, open ${RUN_URL}" "${HC_URL%/}/fail" || true
