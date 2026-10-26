@@ -24,7 +24,7 @@ few seconds each. Do it at a quiet time.
 - Never run `docker compose down -v`, `docker volume prune`, `docker volume rm ...`, or
   `docker system prune --volumes`. The `-v`/volume commands **delete the database**.
 - Never run `docker system prune -a` (it would delete the rollback images tagged `:pre-slim`).
-- Never delete or edit `/root/ListingLift/mongo-keyfile`, never run `rs.initiate()` again, never
+- Never delete or edit `~/ListingLift/mongo-keyfile`, never run `rs.initiate()` again, never
   remove `--replSet rs0` / `--keyFile` from the compose file or `replicaSet=rs0` from `MONGODB_URI`
   (see `docs/runbooks/mongo-replica-set.md`).
 - Never `cat` the `.env` files into a chat or ticket.
@@ -35,10 +35,14 @@ All commands are run on the server as `root`, unless a step says "on your laptop
 
 ---
 
-## 0. Before you start: push the code
+## 0. Before you start
 
-On your laptop, commit and push both repos (ListingLift and NotebookLM-Clone) with the changes
-from this work. The server steps below `git pull` them.
+- Both repos (ListingLift and NotebookLM-Clone) are pushed; the server steps below `git pull` them.
+- The Mongo replica set must already be done (`mongo-replica-set.md`). Check:
+  `grep -o 'replicaSet=rs0' ~/ListingLift/.env.production` must print `replicaSet=rs0`.
+- `~` is root's home folder, so every `cd ~/...` works from anywhere.
+- Hostinger weekly auto-backups are on (hPanel -> VPS -> Backups); they can be days old, so the
+  snapshot (step 1) and database backup (step 3) are still taken right before starting.
 
 ## 1. Take a VPS snapshot (safety net for everything below)
 
@@ -50,11 +54,11 @@ Hostinger hPanel -> VPS -> **Snapshots & Backups** -> **Create snapshot**. Wait 
 ## 2. Save copies of the current config files
 
 ```bash
-mkdir -p /root/backups && STAMP=$(date +%Y%m%d-%H%M%S) && echo $STAMP
-cp /root/ListingLift/docker-compose.server.yml /root/backups/peshkar-compose.$STAMP.yml
-cd /root/NotebookLM-Clone/backend
-for f in docker-compose.server.yml docker-compose.api-gateway.yml docker-compose.logs.yml; do cp $f /root/backups/nlm-$f.$STAMP; done
-ls -l /root/backups
+mkdir -p ~/backups && STAMP=$(date +%Y%m%d-%H%M%S) && echo $STAMP
+cp ~/ListingLift/docker-compose.server.yml ~/backups/peshkar-compose.$STAMP.yml
+cd ~/NotebookLM-Clone/backend
+for f in docker-compose.server.yml docker-compose.api-gateway.yml docker-compose.logs.yml; do cp $f ~/backups/nlm-$f.$STAMP; done
+ls -l ~/backups
 ```
 
 - Expected: the 4 files listed. **Write down the STAMP value** (e.g. `20261027-221500`); the
@@ -64,14 +68,16 @@ ls -l /root/backups
 
 ```bash
 docker exec peshkar-mongodb sh -c 'mongodump -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --gzip --archive=/tmp/b.gz'
-docker cp peshkar-mongodb:/tmp/b.gz /root/backups/peshkar-mongo-$STAMP.gz
+docker cp peshkar-mongodb:/tmp/b.gz ~/backups/peshkar-mongo-$STAMP.gz
 docker exec peshkar-mongodb rm -f /tmp/b.gz
-gzip -t /root/backups/peshkar-mongo-$STAMP.gz && echo BACKUP-OK && ls -lh /root/backups/peshkar-mongo-$STAMP.gz
+gzip -t ~/backups/peshkar-mongo-$STAMP.gz && echo BACKUP-OK && ls -lh ~/backups/peshkar-mongo-$STAMP.gz
 ```
 
 - Expected: `done dumping ...` lines, then `BACKUP-OK` and a file bigger than a few hundred KB.
-- Then **on your laptop** (PowerShell):
-  `scp root@93.127.167.18:/root/backups/peshkar-mongo-*.gz $HOME\Downloads\`
+- **No `BACKUP-OK` = stop here.**
+- Then **on your laptop** (PowerShell), same folder as `deploy.md`:
+  `mkdir $HOME\Documents\peshkar-db-backups -Force`
+  `scp root@93.127.167.18:~/backups/peshkar-mongo-*.gz $HOME\Documents\peshkar-db-backups\`
 - Rollback: nothing to undo (read-only).
 
 ## 4. Free ~28 GB of disk (old build cache)
@@ -123,7 +129,7 @@ swapon --show; free -m
 ## 6. Docker daemon settings (log rotation, live-restore, build-cache limit)
 
 ```bash
-cd /root/ListingLift && git pull origin main
+cd ~/ListingLift && git pull origin main
 cp ops/server/daemon.json /etc/docker/daemon.json
 dockerd --validate --config-file=/etc/docker/daemon.json
 ```
@@ -167,7 +173,7 @@ already have; the slim images come in step 8.
 First keep the current images as rollback copies:
 
 ```bash
-cd /root/ListingLift
+cd ~/ListingLift
 docker tag peshkar-server-api-service:latest peshkar-server-api-service:pre-slim
 docker tag peshkar-server-worker:latest peshkar-server-worker:pre-slim
 docker images | grep peshkar-server
@@ -201,7 +207,7 @@ docker inspect --format '{{.Name}} mem={{.HostConfig.Memory}} log={{.HostConfig.
   - Peshkar containers show `mem=` limits and `max-file:3 max-size:10m`.
 - Rollback:
   ```bash
-  cp /root/backups/peshkar-compose.$STAMP.yml docker-compose.server.yml
+  cp ~/backups/peshkar-compose.$STAMP.yml docker-compose.server.yml
   docker compose -f docker-compose.server.yml up -d
   ```
   (Afterwards `git checkout -- docker-compose.server.yml` to get the repo version back before the next pull.)
@@ -214,7 +220,7 @@ updated first**. Build one image at a time.
 ### 8a. Worker
 
 ```bash
-cd /root/ListingLift
+cd ~/ListingLift
 docker compose -f docker-compose.server.yml build worker
 docker images | grep peshkar-server-worker
 docker compose -f docker-compose.server.yml up -d --no-deps worker
@@ -277,7 +283,7 @@ docker exec peshkar-server-api-service-1 node -e "require('sharp'); require('pdf
 ## 9. NotebookLM app: limits + secret-free image
 
 ```bash
-cd /root/NotebookLM-Clone/backend && git pull origin main
+cd ~/NotebookLM-Clone/backend && git pull origin main
 docker tag server-application-a-api-service:latest server-application-a-api-service:pre-fix
 docker compose -f docker-compose.server.yml config --quiet && echo CONFIG-OK
 docker compose -f docker-compose.server.yml build api-service
@@ -294,13 +300,13 @@ docker stats --no-stream
   Peshkar is idle NotebookLM can still use all the CPU), log rotation, slower health checks, pinned Caddy.
 - Clean up the secret backup file on disk (it is world-readable today) and tighten env permissions:
   ```bash
-  mv /root/NotebookLM-Clone/backend/.env.bak.* /root/backups/ && chmod 600 /root/backups/.env.bak.* /root/NotebookLM-Clone/backend/.env /root/ListingLift/.env.production
+  mv ~/NotebookLM-Clone/backend/.env.bak.* ~/backups/ && chmod 600 ~/backups/.env.bak.* ~/NotebookLM-Clone/backend/.env ~/ListingLift/.env.production
   ```
   If the old NotebookLM image was ever pushed or shared, rotate the keys that were in that `.env` backup.
 - Rollback:
   ```bash
   docker tag server-application-a-api-service:pre-fix server-application-a-api-service:latest
-  cp /root/backups/nlm-docker-compose.server.yml.$STAMP docker-compose.server.yml
+  cp ~/backups/nlm-docker-compose.server.yml.$STAMP docker-compose.server.yml
   docker compose -f docker-compose.server.yml up -d --force-recreate
   ```
 
@@ -309,7 +315,7 @@ docker stats --no-stream
 All three sites blink for a few seconds.
 
 ```bash
-cd /root/NotebookLM-Clone/backend
+cd ~/NotebookLM-Clone/backend
 docker compose -f docker-compose.api-gateway.yml config --quiet && echo CONFIG-OK
 docker compose -f docker-compose.api-gateway.yml up -d
 sleep 15
@@ -322,7 +328,7 @@ docker logs --tail 20 traefik-traefik-1
   (WARN level prints very little). Certificates are kept (stored in `certificates/letsencrypt/acme.json`).
 - Rollback:
   ```bash
-  cp /root/backups/nlm-docker-compose.api-gateway.yml.$STAMP docker-compose.api-gateway.yml
+  cp ~/backups/nlm-docker-compose.api-gateway.yml.$STAMP docker-compose.api-gateway.yml
   docker compose -f docker-compose.api-gateway.yml up -d
   ```
 
@@ -334,7 +340,7 @@ The user file holds only a bcrypt hash of the password and is gitignored (never 
 Create the login (choose your own username; the password is typed invisibly, not stored in shell history):
 
 ```bash
-cd /root/NotebookLM-Clone/backend
+cd ~/NotebookLM-Clone/backend
 mkdir -p dozzle
 docker pull amir20/dozzle:v10.7.4
 read -rs -p "New Dozzle password: " DZPW; echo
@@ -364,7 +370,7 @@ curl -s -o /dev/null -w 'API without login: %{http_code}\n' https://logs.yasho.t
   by hand, or overwrite the file), then `docker compose -f docker-compose.logs.yml restart dozzle`.
 - Rollback:
   ```bash
-  cp /root/backups/nlm-docker-compose.logs.yml.$STAMP docker-compose.logs.yml
+  cp ~/backups/nlm-docker-compose.logs.yml.$STAMP docker-compose.logs.yml
   docker compose -f docker-compose.logs.yml up -d
   ```
   (That brings back the old, public-without-login version. To simply switch Dozzle off instead:
@@ -397,7 +403,7 @@ df -h /
 Future Peshkar releases (images still built on the server, one at a time):
 
 ```bash
-cd /root/ListingLift && git pull origin main
+cd ~/ListingLift && git pull origin main
 docker compose -f docker-compose.server.yml build worker && docker compose -f docker-compose.server.yml up -d --no-deps worker
 docker compose -f docker-compose.server.yml build api-service && docker compose -f docker-compose.server.yml up -d --no-deps api-service
 ```
@@ -424,7 +430,7 @@ Store it in your password manager. (You can also reset it in hPanel -> VPS -> Se
    ```
 2. Copy the public key to the server:
    ```powershell
-   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@93.127.167.18 "mkdir -p /root/.ssh && cat >> /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys"
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@93.127.167.18 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
    ```
 3. Test in a **new** PowerShell window: `ssh root@93.127.167.18`. It must log in **without asking for
    the root password** (only your key passphrase). Don't continue until this works.
