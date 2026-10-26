@@ -237,15 +237,19 @@ export const translations: Record<Language, Translations> = {
     tour: {
       takeTourBtn: "ऐप टूर देखें",
       welcomeTitle: "Peshkar AI में आपका स्वागत है!",
-      welcomeSubtitle: "आइए 1 मिनट में समझें कि आप अपने फ़ोन की फ़ोटो से स्टूडियो कैटलॉग कैसे बना सकते हैं।",
+      welcomeSubtitle:
+        "आइए 1 मिनट में समझें कि आप अपने फ़ोन की फ़ोटो से स्टूडियो कैटलॉग कैसे बना सकते हैं।",
       step1Title: "फ़ोन से फ़ोटो खींचें और अपलोड करें",
       step1Desc: "महंगे कैमरे या लाइटिंग की ज़रूरत नहीं। अपनी सामान्य फ़ोन फ़ोटो अपलोड करें।",
       step2Title: "प्योर व्हाइट + लक्ज़री स्टूडियो बैकग्राउंड",
-      step2Desc: "आपको हमेशा एक अमेज़ॅन/फ्लिपकार्ट स्टैंडर्ड व्हाइट बैकग्राउंड और एक प्रीमियम लाइफस्टाइल फ़ोटो मिलती है।",
+      step2Desc:
+        "आपको हमेशा एक अमेज़ॅन/फ्लिपकार्ट स्टैंडर्ड व्हाइट बैकग्राउंड और एक प्रीमियम लाइफस्टाइल फ़ोटो मिलती है।",
       step3Title: "व्हाट्सएप और मीशो रेडी किट",
-      step3Desc: "AI तुरंत टाइटल, बुलेट पॉइंट्स, व्हाट्सएप ब्रॉडकास्ट मैसेज और 3 ब्रांडेड कार्ड्स तैयार कर देता है।",
+      step3Desc:
+        "AI तुरंत टाइटल, बुलेट पॉइंट्स, व्हाट्सएप ब्रॉडकास्ट मैसेज और 3 ब्रांडेड कार्ड्स तैयार कर देता है।",
       step4Title: "जीरो रिस्क क्रेडिट सुरक्षा",
-      step4Desc: "यदि कोई जेनरेशन फ़ेल होती है, तो आपके क्रेडिट्स तुरंत आपके खाते में स्वतः रिफ़ंड हो जाते हैं।",
+      step4Desc:
+        "यदि कोई जेनरेशन फ़ेल होती है, तो आपके क्रेडिट्स तुरंत आपके खाते में स्वतः रिफ़ंड हो जाते हैं।",
       next: "अगला →",
       prev: "← पीछे",
       finish: "शुरू करें 🚀",
@@ -265,7 +269,8 @@ export const translations: Record<Language, Translations> = {
       signupTitle: "नया खाता बनाएं",
       trialBadge: "साइनअप पर 3 मुफ़्त स्टूडियो क्रेडिट्स",
       heroHeadline: "सामान्य फ़ोन फ़ोटो को बनाएं मल्टी-चैनल बिज़नेस",
-      heroSubtitle: "आज ही अपना मुफ़्त खाता बनाएं और तुरंत 3 क्रेडिट्स पाएं — 1 पूरी लिस्टिंग और 1 एडिट के लिए काफ़ी।",
+      heroSubtitle:
+        "आज ही अपना मुफ़्त खाता बनाएं और तुरंत 3 क्रेडिट्स पाएं — 1 पूरी लिस्टिंग और 1 एडिट के लिए काफ़ी।",
       perk1: "AI स्टूडियो फ़ोटोग्राफ़ी (प्योर व्हाइट बैकग्राउंड और लक्ज़री पेडस्टल)",
       perk2: "मीशो, अमेज़ॅन और फ्लिपकार्ट के लिए ऑटोमेटेड SEO कॉपीराइटिंग",
       perk3: "व्हाट्सएप ब्रॉडकास्ट और इंस्टाग्राम स्टोरी कार्ड्स 1-क्लिक में",
@@ -277,7 +282,8 @@ export const translations: Record<Language, Translations> = {
       badge: "सरल और पारदर्शी प्राइसिंग",
       title: "उतना ही भुगतान करें जितना आप",
       titleAccent: "बनाते हैं",
-      subtitle: "कोई मासिक सब्सक्रिप्शन नहीं। कोई छिपे हुए शुल्क नहीं। क्रेडिट्स कभी एक्सपायर नहीं होते।",
+      subtitle:
+        "कोई मासिक सब्सक्रिप्शन नहीं। कोई छिपे हुए शुल्क नहीं। क्रेडिट्स कभी एक्सपायर नहीं होते।",
       popularBadge: "सर्वाधिक लोकप्रिय",
       perCredit: "प्रति क्रेडिट",
       featuresIncluded: "शामिल सुविधाएं:",
@@ -293,11 +299,14 @@ export const translations: Record<Language, Translations> = {
       faqTitle: "अक्सर पूछे जाने वाले प्रश्न",
       faqSubtitle: "क्रेडिट्स, भुगतान और रिफंड सुरक्षा के बारे में सब कुछ।",
       faq1Q: "1 क्रेडिट से क्या-क्या बनाया जा सकता है?",
-      faq1A: "1 क्रेडिट से आप किसी भी फ़ोटो को री-एडिट कर सकते हैं। 2 क्रेडिट्स से आप क्विक स्टूडियो जेनरेशन (2 हाई-डेफिनिशन स्टूडियो फ़ोटो + मीशो कॉपी + व्हाट्सएप/इंस्टाग्राम कार्ड्स) पा सकते हैं।",
+      faq1A:
+        "1 क्रेडिट से आप किसी भी फ़ोटो को री-एडिट कर सकते हैं। 2 क्रेडिट्स से आप क्विक स्टूडियो जेनरेशन (2 हाई-डेफिनिशन स्टूडियो फ़ोटो + मीशो कॉपी + व्हाट्सएप/इंस्टाग्राम कार्ड्स) पा सकते हैं।",
       faq2Q: "क्या मेरे खरीदे गए क्रेडिट्स कभी एक्सपायर होंगे?",
-      faq2A: "बिल्कुल नहीं! आपके खरीदे गए क्रेडिट्स की कोई समाप्ति तिथि नहीं है। वे आपके खाते में हमेशा सुरक्षित रहते हैं।",
+      faq2A:
+        "बिल्कुल नहीं! आपके खरीदे गए क्रेडिट्स की कोई समाप्ति तिथि नहीं है। वे आपके खाते में हमेशा सुरक्षित रहते हैं।",
       faq3Q: "अगर कोई जेनरेशन फ़ेल हो जाए तो क्या होगा?",
-      faq3A: "हमारी ऑटोमेटेड सुरक्षा प्रणाली तुरंत आपके खाते में क्रेडिट्स स्वतः वापस (Refund) कर देती है। आपका 1 भी क्रेडिट व्यर्थ नहीं जाता।",
+      faq3A:
+        "हमारी ऑटोमेटेड सुरक्षा प्रणाली तुरंत आपके खाते में क्रेडिट्स स्वतः वापस (Refund) कर देती है। आपका 1 भी क्रेडिट व्यर्थ नहीं जाता।",
     },
   },
   en: {
@@ -381,15 +390,20 @@ export const translations: Record<Language, Translations> = {
     tour: {
       takeTourBtn: "Take App Tour",
       welcomeTitle: "Welcome to Peshkar AI!",
-      welcomeSubtitle: "Learn how to transform casual phone photos into studio catalogs in 60 seconds.",
+      welcomeSubtitle:
+        "Learn how to transform casual phone photos into studio catalogs in 60 seconds.",
       step1Title: "Shoot on Your Phone",
-      step1Desc: "No studio or expensive setup needed. Just take a photo on your smartphone and upload.",
+      step1Desc:
+        "No studio or expensive setup needed. Just take a photo on your smartphone and upload.",
       step2Title: "Pure White & Studio Environments",
-      step2Desc: "You always receive one Amazon/Flipkart compliant pure white catalog image plus premium lifestyle scenes.",
+      step2Desc:
+        "You always receive one Amazon/Flipkart compliant pure white catalog image plus premium lifestyle scenes.",
       step3Title: "1-Click WhatsApp & Meesho Kits",
-      step3Desc: "AI instantly creates marketplace copy, WhatsApp broadcast texts, and 3 branded social cards.",
+      step3Desc:
+        "AI instantly creates marketplace copy, WhatsApp broadcast texts, and 3 branded social cards.",
       step4Title: "Zero-Risk Credit Protection",
-      step4Desc: "If any generation fails, your credits are automatically refunded to your balance instantly.",
+      step4Desc:
+        "If any generation fails, your credits are automatically refunded to your balance instantly.",
       next: "Next →",
       prev: "← Back",
       finish: "Start Creating 🚀",
@@ -397,7 +411,8 @@ export const translations: Record<Language, Translations> = {
     },
     footer: {
       tagline: "Peshkar AI",
-      mission: "The AI studio built for India's micro-resellers, helping them grow their business on WhatsApp.",
+      mission:
+        "The AI studio built for India's micro-resellers, helping them grow their business on WhatsApp.",
       colProduct: "Product",
       colHelp: "Help & Support",
       colAccount: "Account",
@@ -409,12 +424,14 @@ export const translations: Record<Language, Translations> = {
       signupTitle: "Create Your Account",
       trialBadge: "3 Free Studio Credits on Signup",
       heroHeadline: "Turn ordinary phone snaps into multi-channel revenue.",
-      heroSubtitle: "Create your free account today & get 3 Studio Credits instantly — enough for 1 full listing + 1 edit.",
+      heroSubtitle:
+        "Create your free account today & get 3 Studio Credits instantly — enough for 1 full listing + 1 edit.",
       perk1: "AI Studio Photography (White background, luxury pedestals)",
       perk2: "Full Marketplace Catalog Copy + High-Converting Descriptions",
       perk3: "Ready-to-broadcast WhatsApp & Instagram Story Cards",
       perk4: "No credit card required to start",
-      trustText: "Secure payments via Razorpay • Credits refunded automatically if a generation fails",
+      trustText:
+        "Secure payments via Razorpay • Credits refunded automatically if a generation fails",
       copyright: "© 2026 Peshkar AI. Empowering Bharat's Commerce.",
     },
     pricingPage: {
@@ -437,11 +454,14 @@ export const translations: Record<Language, Translations> = {
       faqTitle: "Frequently Asked Questions",
       faqSubtitle: "Everything you need to know about credits, payments, and refund safety.",
       faq1Q: "What can I create with 1 credit?",
-      faq1A: "1 credit allows you to re-edit an existing image. 2 credits give you a full Quick Studio Generation (2 HD Studio Variations + Marketplace Copy + Social Cards).",
+      faq1A:
+        "1 credit allows you to re-edit an existing image. 2 credits give you a full Quick Studio Generation (2 HD Studio Variations + Marketplace Copy + Social Cards).",
       faq2Q: "Do my purchased credits ever expire?",
-      faq2A: "Never! Purchased credits have no expiration date and stay in your account balance permanently until you use them.",
+      faq2A:
+        "Never! Purchased credits have no expiration date and stay in your account balance permanently until you use them.",
       faq3Q: "What happens if an AI generation fails?",
-      faq3A: "Our automated protection engine instantly refunds the debited credits back to your balance immediately. Zero risk.",
+      faq3A:
+        "Our automated protection engine instantly refunds the debited credits back to your balance immediately. Zero risk.",
     },
   },
 };
@@ -453,23 +473,23 @@ interface LanguageContextType {
 }
 
 const LanguageContext = createContext<LanguageContextType>({
-  language: "hi",
+  language: "en",
   setLanguage: () => {},
-  t: translations.hi,
+  t: translations.en,
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("hi");
+  // The server-rendered document declares English. Start in English so its
+  // content and language declaration agree; a returning user's saved choice
+  // is restored after hydration below.
+  const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
     try {
-      const stored = (localStorage.getItem("peshkar_lang") || localStorage.getItem("listinglift_lang")) as Language | null;
+      const stored = (localStorage.getItem("peshkar_lang") ||
+        localStorage.getItem("listinglift_lang")) as Language | null;
       if (stored === "en" || stored === "hi") {
         setLanguageState(stored);
-      } else {
-        // Default to Hindi per user specification
-        setLanguageState("hi");
-        localStorage.setItem("peshkar_lang", "hi");
       }
     } catch {
       // Fallback

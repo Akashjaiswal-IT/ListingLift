@@ -15,8 +15,8 @@ interface BeforeAfterSliderProps {
 }
 
 export function BeforeAfterSlider({
-  beforeImage = "/images/hero-before.jpg",
-  afterImage = "/images/hero-after.jpg",
+  beforeImage = "/images/hero-before.webp",
+  afterImage = "/images/hero-after.webp",
   beforeLabel = "Raw Phone Photo",
   afterLabel = "AI Studio Revamp",
   beforeSubtitle = "Casual photo on bed",
@@ -91,6 +91,8 @@ export function BeforeAfterSlider({
           <img
             src={afterImage}
             alt={afterLabel}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover filter drop-shadow-2xl"
             draggable={false}
           />
@@ -104,6 +106,8 @@ export function BeforeAfterSlider({
           <img
             src={beforeImage}
             alt={beforeLabel}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover filter brightness-90 contrast-95"
             draggable={false}
           />

@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "~/components/legal/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Acceptable Use & Marketplace Rules | Peshkar AI",
+  description:
+    "Read the Peshkar AI rules for uploaded content, accurate product listings, prohibited use, and marketplace checks.",
+  alternates: { canonical: "/acceptable-use" },
+};
 const sections: LegalSection[] = [
   {
     title: { en: "Only Upload What You Can Use", hi: "केवल अधिकृत सामग्री अपलोड करें" },

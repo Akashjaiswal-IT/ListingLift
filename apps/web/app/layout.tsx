@@ -7,6 +7,8 @@ import { PostHogProvider } from "~/providers/PostHogProvider";
 import { Navbar } from "~/components/layout/Navbar";
 import { Footer } from "~/components/layout/Footer";
 import { ClerkProvider } from "@clerk/nextjs";
+import { env } from "~/env";
+import { SiteStructuredData } from "~/components/seo/StructuredData";
 
 const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -30,6 +32,7 @@ const serif = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL ?? "https://www.peshkarai.in"),
   title: {
     default: "Peshkar AI — AI Studio Photos & Listings for E-Commerce & Marketplace Sellers",
     template: "%s · Peshkar AI",
@@ -57,6 +60,22 @@ export const metadata: Metadata = {
       "Turn phone photos into studio-grade product images, marketplace listings, and social cards in minutes.",
     siteName: "Peshkar AI",
     type: "website",
+    url: "/",
+    images: [
+      {
+        url: "/images/peshkar-social-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "Peshkar AI studio-quality product photography",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Peshkar AI — AI Studio Photos & Listings for Sellers",
+    description:
+      "Turn phone photos into studio-grade product images, marketplace listings, and social cards in minutes.",
+    images: ["/images/peshkar-social-preview.png"],
   },
 };
 
@@ -73,10 +92,8 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <head>
-          <Script
-            src="https://checkout.razorpay.com/v1/checkout.js"
-            strategy="lazyOnload"
-          />
+          <SiteStructuredData />
+          <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
         </head>
         <body
           className={`${sans.variable} ${serif.variable} ${deva.variable} min-h-screen bg-background text-foreground antialiased flex flex-col font-sans`}
