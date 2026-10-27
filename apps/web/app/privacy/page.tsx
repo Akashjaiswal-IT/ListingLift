@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "~/components/legal/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy | Peshkar AI",
+  description:
+    "Learn how Peshkar AI collects, uses, stores, and protects account, product, payment, and usage information.",
+  alternates: { canonical: "/privacy" },
+};
 
 const sections: LegalSection[] = [
   {

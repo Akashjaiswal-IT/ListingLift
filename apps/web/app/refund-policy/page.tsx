@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "~/components/legal/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Refund & Credit Policy | Peshkar AI",
+  description:
+    "Read Peshkar AI's policy for credit purchases, completed generations, technical failures, and credit restoration.",
+  alternates: { canonical: "/refund-policy" },
+};
 const sections: LegalSection[] = [
   {
     title: { en: "Completed Generations", hi: "पूर्ण जनरेशन" },

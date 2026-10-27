@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "~/components/legal/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Terms of Service | Peshkar AI",
+  description:
+    "Read the Peshkar AI Terms of Service, including account rules, AI output review, credits, payments, and liability terms.",
+  alternates: { canonical: "/terms" },
+};
 
 const sections: LegalSection[] = [
   {
