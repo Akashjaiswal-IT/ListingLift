@@ -3,34 +3,30 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Sparkles,
-  ArrowRight,
   CheckCircle2,
   Copy,
   Download,
-  Upload,
   MessageCircle,
-  Instagram,
   ShoppingBag,
-  ChevronRight,
-  RotateCw,
   Check,
-  Share2,
   Heart,
   Send,
   Bookmark,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Card, CardContent } from "~/components/ui/card";
 import { useLanguage } from "~/providers/LanguageContext";
 import { toast } from "sonner";
-import { OnboardingTour } from "~/components/onboarding/OnboardingTour";
 import { BeforeAfterSlider } from "~/components/landing/BeforeAfterSlider";
 import { AnimatedHero } from "~/components/landing/hero/AnimatedHero";
 import { HERO_COPY, pick } from "~/components/landing/hero/hero-content";
 import { CustomTopup } from "~/components/pricing/CustomTopup";
-import { LANDING_PACKS, formatPackPrice } from "~/lib/credit-packs";
+import { PackCard } from "~/components/pricing/PackCard";
+import { PricingFaq } from "~/components/pricing/PricingFaq";
+import { HowItWorks } from "~/components/landing/HowItWorks";
+import { ExamplesGallery } from "~/components/landing/ExamplesGallery";
+import { LANDING_PACKS } from "~/lib/credit-packs";
+import { copyToClipboard } from "~/lib/clipboard";
 
 // Demo photos in /public/images/demo-*.webp come from Unsplash (free to use under the Unsplash License):
 // - demo-watch-white:           https://unsplash.com/photos/black-smart-watch-with-white-background-O43D6CYzxqM
@@ -64,28 +60,10 @@ const KIT_DEMO = {
     },
     category: { en: "Smart Watches", hi: "स्मार्ट वॉच" },
     specs: [
-      {
-        label: { en: "Material", hi: "मटेरियल" },
-        value: {
-          en: "Aluminium alloy case, soft silicone strap",
-          hi: "एल्यूमीनियम अलॉय केस, सॉफ्ट सिलिकॉन स्ट्रैप",
-        },
-      },
-      {
-        label: { en: "Display", hi: "डिस्प्ले" },
-        value: { en: '1.9" HD always-on touch display', hi: '1.9" HD ऑलवेज-ऑन टच डिस्प्ले' },
-      },
-      {
-        label: { en: "Battery", hi: "बैटरी" },
-        value: { en: "Up to 7 days with fast charge", hi: "फास्ट चार्ज के साथ 7 दिन तक" },
-      },
-      {
-        label: { en: "Features", hi: "फ़ीचर्स" },
-        value: {
-          en: "Heart rate monitor, water resistant, sports modes",
-          hi: "हार्ट रेट मॉनिटर, वाटर रेसिस्टेंट, स्पोर्ट्स मोड्स",
-        },
-      },
+      { label: { en: "Material", hi: "मटेरियल" }, value: { en: "Aluminium alloy case, soft silicone strap", hi: "एल्यूमीनियम अलॉय केस, सॉफ्ट सिलिकॉन स्ट्रैप" } },
+      { label: { en: "Display", hi: "डिस्प्ले" }, value: { en: "1.9\" HD always-on touch display", hi: "1.9\" HD ऑलवेज-ऑन टच डिस्प्ले" } },
+      { label: { en: "Battery", hi: "बैटरी" }, value: { en: "Up to 7 days with fast charge", hi: "फास्ट चार्ज के साथ 7 दिन तक" } },
+      { label: { en: "Features", hi: "फ़ीचर्स" }, value: { en: "Heart rate monitor, water resistant, sports modes", hi: "हार्ट रेट मॉनिटर, वाटर रेसिस्टेंट, स्पोर्ट्स मोड्स" } },
       { label: { en: "Country of Origin", hi: "मूल देश" }, value: { en: "India", hi: "भारत" } },
     ],
   },
@@ -98,8 +76,7 @@ const KIT_DEMO = {
       en: "Meet your new everyday companion ✨\nClean white design, 7-day battery and all-day health tracking.\nTap the link in bio to order. Cash on Delivery available!",
       hi: "मिलिए अपने नए रोज़ के साथी से ✨\nक्लीन व्हाइट डिज़ाइन, 7 दिन की बैटरी और पूरे दिन हेल्थ ट्रैकिंग।\nऑर्डर करने के लिए बायो में दिया लिंक टैप करें। कैश ऑन डिलीवरी उपलब्ध!",
     },
-    hashtags:
-      "#smartwatch #whitesmartwatch #fitnesstracker #onlineshoppingindia #styleupgrade #newarrival",
+    hashtags: "#smartwatch #whitesmartwatch #fitnesstracker #onlineshoppingindia #styleupgrade #newarrival",
   },
 };
 
@@ -124,63 +101,26 @@ export function HomePage() {
   const { t, language } = useLanguage();
   const isHi = language === "hi";
   const [activeTab, setActiveTab] = useState<KitTab>("whatsapp");
-  const [activeHistoryFilter, setActiveHistoryFilter] = useState<"all" | "whatsapp" | "meesho">(
-    "all",
-  );
-  const [selectedStyle, setSelectedStyle] = useState("studio_white");
   const [copied, setCopied] = useState(false);
 
-  const handleCopyCaption = () => {
+  const handleCopyCaption = async () => {
     const textToCopy = getKitCopyText(activeTab, isHi ? "hi" : "en");
-    navigator.clipboard.writeText(textToCopy);
+    if (!(await copyToClipboard(textToCopy))) {
+      toast.error(isHi ? "कॉपी नहीं हो सका" : "Couldn't copy");
+      return;
+    }
     setCopied(true);
     toast.success(t.sections.copied);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const historyItems = [
-    {
-      id: "1",
-      title: isHi ? "ब्लैक बैकपैक प्रो" : "Black Backpack Pro",
-      time: isHi ? "2 घंटे पहले" : "Added 2 hours ago",
-      type: "whatsapp",
-      img: "/images/hero-after.webp",
-    },
-    {
-      id: "2",
-      title: isHi ? "क्लासिक स्मार्टवॉच" : "Classic Smartwatch",
-      time: isHi ? "कल जोड़ा गया" : "Added yesterday",
-      type: "meesho",
-      img: "/images/demo-watch-white.webp",
-    },
-    {
-      id: "3",
-      title: isHi ? "वायरलेस हेडफ़ोन" : "Wireless Headphones",
-      time: isHi ? "3 दिन पहले" : "Added 3 days ago",
-      type: "whatsapp",
-      img: "/images/demo-headphones.webp",
-    },
-    {
-      id: "4",
-      title: isHi ? "प्रीमियम लेदर बैग" : "Leather Bag",
-      time: isHi ? "1 सप्ताह पहले" : "Added 1 week ago",
-      type: "meesho",
-      img: "/images/demo-leather-bag.webp",
-    },
-  ];
-
-  const filteredHistory = historyItems.filter((item) => {
-    if (activeHistoryFilter === "all") return true;
-    return item.type === activeHistoryFilter;
-  });
-
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors selection:bg-primary/20">
-      {/* Interactive Onboarding Tour (Auto-triggers on first signup or manual trigger) */}
-      <OnboardingTour />
-
-      {/* Animated hero: drop a photo → copies fly out → processing → listing kit */}
-      <AnimatedHero isHi={isHi} />
+      {/* Animated hero: drop a photo → copies fly out → processing → listing kit.
+          Kept exactly as designed; the scope keeps its original brand colours. */}
+      <div className="hero-brand-scope contents">
+        <AnimatedHero isHi={isHi} />
+      </div>
 
       {/* See the difference: before / after slider */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16">
@@ -204,197 +144,8 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ================= SECTION 1: 1. UPLOAD & AI REVAMP (Ref Image 2 & 3) ================= */}
-      <section
-        id="step-1-demo"
-        className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 space-y-8"
-      >
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight">
-            {t.sections.step1Title}
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {t.sections.step1Subtitle}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          {/* Left Column: Interactive Upload Controls */}
-          <div className="lg:col-span-5 p-6 rounded-2xl border border-border bg-card shadow-xs space-y-5">
-            <Link href="/app/generate">
-              <div className="border-2 border-dashed border-border hover:border-primary/60 rounded-xl p-8 text-center cursor-pointer transition-colors bg-muted/20 hover:bg-muted/40 group">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <Upload className="h-6 w-6" />
-                </div>
-                <span className="font-bold text-sm block text-foreground">
-                  {t.sections.tapUpload}
-                </span>
-                <span className="text-xs text-muted-foreground mt-1 block">
-                  {t.sections.supports}
-                </span>
-              </div>
-            </Link>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {t.sections.transformStyle}
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { id: "studio_white", name: t.sections.styleCleanWhite },
-                  { id: "lifestyle", name: t.sections.styleLifestyle },
-                  { id: "luxury", name: t.sections.styleLuxury },
-                  { id: "festive", name: t.sections.styleFestive },
-                ].map((st) => (
-                  <button
-                    key={st.id}
-                    onClick={() => setSelectedStyle(st.id)}
-                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center justify-between ${
-                      selectedStyle === st.id
-                        ? "border-primary bg-primary/10 text-primary font-bold"
-                        : "border-border bg-background hover:bg-muted/50 text-foreground"
-                    }`}
-                  >
-                    <span>{st.name}</span>
-                    {selectedStyle === st.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">
-                {t.sections.customPromptLabel}
-              </label>
-              <input
-                type="text"
-                placeholder={t.sections.customPromptPlaceholder}
-                className="w-full text-xs h-9 px-3 rounded-lg border border-border bg-background text-foreground focus:outline-primary"
-              />
-            </div>
-
-            <Link href="/app/generate" className="block">
-              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold text-xs rounded-xl shadow-sm">
-                {t.sections.generateBtn}
-              </Button>
-            </Link>
-          </div>
-
-          {/* Right Column: AI Results Preview */}
-          <div className="lg:col-span-7 flex flex-col h-full gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold tracking-tight text-foreground">
-                {t.sections.aiResultsTitle}
-              </span>
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
-                ✓ {t.sections.generatedIn}
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {/* Variation 1: Guaranteed Pure White Studio (Amazon / Flipkart standard) */}
-              <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
-                <div className="aspect-square rounded-xl overflow-hidden bg-white border border-stone-200 relative">
-                  <img
-                    src="/images/demo-watch-white.webp"
-                    alt="Black smartwatch on a pure white studio background"
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2 left-2">
-                    <Badge className="bg-stone-900 text-white text-[9px] font-bold">
-                      {isHi ? "प्योर स्टूडियो व्हाइट" : "Pure Studio White"}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-1 mt-auto">
-                  <span className="text-xs font-bold text-foreground">
-                    {isHi ? "क्लासिक व्हाइट स्टूडियो" : "Classic White Studio"}
-                  </span>
-                  <Link href="/app/generate">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs font-semibold text-primary border-primary/30"
-                    >
-                      {t.sections.selectAndCreate}
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Variation 2: Warm Studio / Lifestyle Scene */}
-              <div className="h-full flex flex-col rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xs">
-                <div className="aspect-square rounded-xl overflow-hidden relative">
-                  <img
-                    src="/images/demo-headphones-lifestyle.webp"
-                    alt="White wireless headphones resting on a warm wooden table"
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2 left-2">
-                    <Badge className="bg-stone-900 text-white text-[9px] font-bold">
-                      {isHi ? "वार्म स्टूडियो लाइटिंग" : "Warm Studio Lighting"}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-1 mt-auto">
-                  <span className="text-xs font-bold text-foreground">
-                    {isHi ? "लाइफ़स्टाइल सीन" : "Lifestyle Lighting"}
-                  </span>
-                  <Link href="/app/generate">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs font-semibold text-primary border-primary/30"
-                    >
-                      {t.sections.selectAndCreate}
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Also included in every kit - fills the column so both sides end level on desktop */}
-            <div className="flex-1 rounded-2xl border border-border bg-card p-4 shadow-xs flex flex-col justify-center gap-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isHi ? "हर किट में शामिल" : "Also included in every kit"}
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { icon: Sparkles, label: isHi ? "SEO कैटलॉग कॉपी" : "SEO catalog copy" },
-                  {
-                    icon: Instagram,
-                    label: isHi
-                      ? "3 सोशल कार्ड (WhatsApp, इंस्टा पोस्ट, स्टोरी)"
-                      : "3 social cards (WhatsApp, Insta post, story)",
-                  },
-                  {
-                    icon: Download,
-                    label: isHi ? "Excel कैटलॉग एक्सपोर्ट" : "Excel catalog export",
-                  },
-                  {
-                    icon: MessageCircle,
-                    label: isHi ? "WhatsApp ब्रॉडकास्ट टेक्स्ट" : "WhatsApp broadcast text",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center gap-2.5 text-xs font-medium text-foreground"
-                  >
-                    <span className="h-8 w-8 shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                      <item.icon className="h-4 w-4" />
-                    </span>
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* How it works: three real steps, real app-made images, working sample CTA */}
+      <HowItWorks isHi={isHi} />
 
       {/* ================= SECTION 2: 2. YOUR LISTING KIT (Ref Image 3) ================= */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 space-y-8 border-t border-border/40">
@@ -408,11 +159,7 @@ export function HomePage() {
         </div>
 
         {/* Platform Tabs */}
-        <div
-          className="flex items-center gap-2"
-          role="tablist"
-          aria-label={isHi ? "प्लेटफ़ॉर्म" : "Platform"}
-        >
+        <div className="flex items-center gap-2" role="tablist" aria-label={isHi ? "प्लेटफ़ॉर्म" : "Platform"}>
           {[
             { id: "whatsapp", label: t.sections.tabWhatsapp },
             { id: "meesho", label: t.sections.tabMeesho },
@@ -433,17 +180,14 @@ export function HomePage() {
               onKeyDown={(e) => {
                 if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
                 const i = KIT_TABS.indexOf(tab.id as KitTab);
-                const next =
-                  KIT_TABS[
-                    (i + (e.key === "ArrowRight" ? 1 : KIT_TABS.length - 1)) % KIT_TABS.length
-                  ]!;
+                const next = KIT_TABS[(i + (e.key === "ArrowRight" ? 1 : KIT_TABS.length - 1)) % KIT_TABS.length]!;
                 setActiveTab(next);
                 setCopied(false);
                 document.getElementById(`kit-tab-${next}`)?.focus();
               }}
               className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                 activeTab === tab.id
-                  ? "bg-primary text-white shadow-xs"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -482,8 +226,6 @@ export function HomePage() {
                           <img
                             src="/images/demo-watch-white-band.webp"
                             alt="White smartwatch with a white strap on a light background"
-                            loading="lazy"
-                            decoding="async"
                             className="w-full h-full object-cover rounded-md"
                           />
                         </div>
@@ -498,14 +240,11 @@ export function HomePage() {
                               48% OFF
                             </Badge>
                           </div>
-                          <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                          <span className="text-[10px] text-success font-semibold block mt-1">
                             {isHi ? "मुफ़्त शिपिंग | COD उपलब्ध" : "Free Shipping | COD Available"}
                           </span>
                         </div>
-                        <Button
-                          size="sm"
-                          className="w-full mt-auto bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8"
-                        >
+                        <Button size="sm" className="w-full mt-auto bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs h-8">
                           <MessageCircle className="h-3.5 w-3.5 mr-1" />
                           {t.sections.messageToOrder}
                         </Button>
@@ -518,31 +257,22 @@ export function HomePage() {
                           <img
                             src="/images/demo-watch-white-band.webp"
                             alt="White smartwatch with a white strap on a light background"
-                            loading="lazy"
-                            decoding="async"
                             className="w-full h-full object-cover rounded-md"
                           />
                         </div>
                         <div>
-                          <h4 className="font-bold text-xs text-stone-900">
-                            {KIT_DEMO.meesho.productTitle[isHi ? "hi" : "en"]}
-                          </h4>
+                          <h4 className="font-bold text-xs text-stone-900">{KIT_DEMO.meesho.productTitle[isHi ? "hi" : "en"]}</h4>
                           <div className="flex items-baseline gap-2 mt-1">
                             <span className="text-sm font-black text-stone-900">₹1,299</span>
                             <span className="text-[10px] text-stone-400 line-through">₹2,499</span>
-                            <span className="text-[10px] font-bold text-emerald-700">
-                              48% {isHi ? "छूट" : "off"}
-                            </span>
+                            <span className="text-[10px] font-bold text-success">48% {isHi ? "छूट" : "off"}</span>
                           </div>
                           <span className="text-[10px] text-stone-600 font-medium block mt-1">
                             {KIT_DEMO.meesho.delivery[isHi ? "hi" : "en"]}
                           </span>
                         </div>
                         <Link href="/app/generate" className="block mt-auto">
-                          <Button
-                            size="sm"
-                            className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs h-8"
-                          >
+                          <Button size="sm" className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs h-8">
                             <ShoppingBag className="h-3.5 w-3.5 mr-1" />
                             {KIT_DEMO.meesho.cta[isHi ? "hi" : "en"]}
                           </Button>
@@ -564,8 +294,6 @@ export function HomePage() {
                           <img
                             src="/images/demo-watch-white-band.webp"
                             alt="White smartwatch with a white strap on a light background"
-                            loading="lazy"
-                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -631,9 +359,7 @@ export function HomePage() {
                           <span className="text-[10px] font-bold uppercase text-muted-foreground block">
                             {isHi ? "टाइटल" : "Title"}
                           </span>
-                          <p className="font-semibold text-foreground mt-0.5">
-                            {KIT_DEMO.meesho.catalogTitle[lang]}
-                          </p>
+                          <p className="font-semibold text-foreground mt-0.5">{KIT_DEMO.meesho.catalogTitle[lang]}</p>
                         </div>
                         <div>
                           <span className="text-[10px] font-bold uppercase text-muted-foreground block">
@@ -648,10 +374,7 @@ export function HomePage() {
                           <ul className="mt-1 space-y-1 text-muted-foreground">
                             {KIT_DEMO.meesho.specs.map((spec) => (
                               <li key={spec.label.en}>
-                                <span className="font-semibold text-foreground">
-                                  {spec.label[lang]}:
-                                </span>{" "}
-                                {spec.value[lang]}
+                                <span className="font-semibold text-foreground">{spec.label[lang]}:</span> {spec.value[lang]}
                               </li>
                             ))}
                           </ul>
@@ -662,9 +385,7 @@ export function HomePage() {
                     {tab === "instagram" && (
                       <div className="flex-1 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs leading-relaxed space-y-3">
                         <p className="whitespace-pre-wrap">{KIT_DEMO.instagram.caption[lang]}</p>
-                        <p className="text-primary font-medium break-words">
-                          {KIT_DEMO.instagram.hashtags}
-                        </p>
+                        <p className="text-primary font-medium break-words">{KIT_DEMO.instagram.hashtags}</p>
                       </div>
                     )}
                   </div>
@@ -696,28 +417,22 @@ export function HomePage() {
               </span>
               <ul className="space-y-1.5 text-xs text-stone-300">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  {isHi
-                    ? "हाई रेजोल्यूशन ऑलवेज-ऑन रेटिना डिस्प्ले"
-                    : "High Resolution Always-On Retina Display"}
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                  {isHi ? "हाई रेजोल्यूशन ऑलवेज-ऑन रेटिना डिस्प्ले" : "High Resolution Always-On Retina Display"}
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  {isHi
-                    ? "मल्टीपल स्पोर्ट्स और फिटनेस ट्रैकिंग मोड्स"
-                    : "Multiple Sports & Fitness Tracking Modes"}
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                  {isHi ? "मल्टीपल स्पोर्ट्स और फिटनेस ट्रैकिंग मोड्स" : "Multiple Sports & Fitness Tracking Modes"}
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  {isHi
-                    ? "फास्ट चार्ज के साथ 7-दिन की लॉन्ग-लास्टिंग बैटरी"
-                    : "Long-Lasting 7-Day Battery with Fast Charge"}
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                  {isHi ? "फास्ट चार्ज के साथ 7-दिन की लॉन्ग-लास्टिंग बैटरी" : "Long-Lasting 7-Day Battery with Fast Charge"}
                 </li>
               </ul>
             </div>
 
             <Link href="/app/generate" className="block mt-auto pt-2">
-              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold text-xs rounded-xl shadow-md gap-2">
+              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-xl shadow-md gap-2">
                 <Download className="h-4 w-4" />
                 {t.sections.downloadEntireKit}
               </Button>
@@ -741,353 +456,24 @@ export function HomePage() {
           </p>
         </div>
 
-        {/* 4 Universal Pricing Cards */}
+        {/* Credit packs: the same card component as the /pricing page */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Pack 1: Studio Kickstart */}
-          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
-            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
-                  {isHi ? "स्टूडियो किकस्टार्ट" : "Studio Kickstart"}
-                </h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">
-                    {formatPackPrice(LANDING_PACKS[0])}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / {LANDING_PACKS[0].credits} {t.sections.creditsUnit}
-                  </span>
-                </div>
-                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹{LANDING_PACKS[0].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-2 border-t border-border/50">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  {t.pricingPage.featuresIncluded}
-                </span>
-                <ul className="space-y-2.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>
-                      {Math.floor(LANDING_PACKS[0].credits / 2)}{" "}
-                      {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f1}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f3}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f4}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <Link href="/pricing" className="block w-full">
-                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[0])})
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Pack 2: Growth Seller */}
-          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
-            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
-                  {isHi ? "ग्रोथ सेलर" : "Growth Seller"}
-                </h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">
-                    {formatPackPrice(LANDING_PACKS[1])}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / {LANDING_PACKS[1].credits} {t.sections.creditsUnit}
-                  </span>
-                </div>
-                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹{LANDING_PACKS[1].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-2 border-t border-border/50">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  {t.pricingPage.featuresIncluded}
-                </span>
-                <ul className="space-y-2.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>
-                      {Math.floor(LANDING_PACKS[1].credits / 2)}{" "}
-                      {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f1}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f3}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f4}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <Link href="/pricing" className="block w-full">
-                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[1])})
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Pack 3: Merchant Pro (Popular) */}
-          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-2 border-primary shadow-xl shadow-primary/10 bg-primary/5 ring-1 ring-primary/30 rounded-2xl">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <Badge className="bg-primary text-white font-black uppercase text-[10px] px-3 py-0.5 shadow-sm">
-                {t.pricingPage.popularBadge}
-              </Badge>
-            </div>
-            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
-                  {isHi ? "मर्चेंट प्रो" : "Merchant Pro"}
-                </h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">
-                    {formatPackPrice(LANDING_PACKS[2])}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / {LANDING_PACKS[2].credits} {t.sections.creditsUnit}
-                  </span>
-                </div>
-                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹{LANDING_PACKS[2].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-2 border-t border-border/50">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  {t.pricingPage.featuresIncluded}
-                </span>
-                <ul className="space-y-2.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>
-                      {Math.floor(LANDING_PACKS[2].credits / 2)}{" "}
-                      {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f1}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f3}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f4}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <Link href="/pricing" className="block w-full">
-                <Button className="w-full font-bold h-11 rounded-xl shadow-md shadow-primary/20 text-xs bg-primary hover:bg-primary/90 text-white">
-                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[2])})
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Pack 4: Brand Studio (Best Value) */}
-          <Card className="relative flex flex-col justify-between transition-all hover:scale-[1.02] border-border/70 bg-card rounded-2xl shadow-xs hover:border-border">
-            <CardContent className="p-6 space-y-6 pt-7 flex flex-col justify-between h-full">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
-                  {isHi ? "ब्रांड स्टूडियो" : "Brand Studio"}
-                </h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-black font-serif text-foreground">
-                    {formatPackPrice(LANDING_PACKS[3])}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / {LANDING_PACKS[3].credits} {t.sections.creditsUnit}
-                  </span>
-                </div>
-                <span className="inline-block mt-1 text-xs text-muted-foreground font-medium">
-                  ₹{LANDING_PACKS[3].perCreditRupees.toFixed(2)} {t.pricingPage.perCredit}
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-2 border-t border-border/50">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  {t.pricingPage.featuresIncluded}
-                </span>
-                <ul className="space-y-2.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>
-                      {Math.floor(LANDING_PACKS[3].credits / 2)}{" "}
-                      {isHi ? "स्टूडियो जेनरेशन्स" : "Quick Studio Generations"}
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f1}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f3}</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{t.pricingPage.f4}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <Link href="/pricing" className="block w-full">
-                <Button className="w-full font-bold h-11 rounded-xl shadow-sm text-xs bg-muted hover:bg-muted/80 text-foreground border border-border">
-                  {t.pricingPage.buyBtn} ({formatPackPrice(LANDING_PACKS[3])})
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          {LANDING_PACKS.map((pack) => (
+            <PackCard key={pack.id} pack={{ ...pack, isPopular: pack.id === "standard" }} href="/pricing" />
+          ))}
         </div>
 
         {/* Custom credit pack: same component as the pricing page */}
         <CustomTopup />
 
-        {/* Pricing FAQs (Matches Pricing Page) */}
-        <div className="max-w-3xl mx-auto space-y-6 pt-4">
-          <div className="text-center space-y-1">
-            <h3 className="text-xl sm:text-2xl font-black font-serif tracking-tight text-foreground">
-              {t.pricingPage.faqTitle}
-            </h3>
-            <p className="text-xs text-muted-foreground">{t.pricingPage.faqSubtitle}</p>
-          </div>
-
-          <div className="space-y-3">
-            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
-              <h4 className="font-bold text-xs sm:text-sm text-foreground">
-                {t.pricingPage.faq1Q}
-              </h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">{t.pricingPage.faq1A}</p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
-              <h4 className="font-bold text-xs sm:text-sm text-foreground">
-                {t.pricingPage.faq2Q}
-              </h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">{t.pricingPage.faq2A}</p>
-            </div>
-
-            <div className="p-4 rounded-xl border border-border/70 bg-card space-y-1 shadow-xs">
-              <h4 className="font-bold text-xs sm:text-sm text-foreground">
-                {t.pricingPage.faq3Q}
-              </h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">{t.pricingPage.faq3A}</p>
-            </div>
-          </div>
+        {/* Pricing FAQs: same component as the pricing page */}
+        <div className="pt-4">
+          <PricingFaq headingLevel="h3" />
         </div>
       </section>
 
-      {/* ================= SECTION 4: PRODUCT HISTORY SHOWCASE (Ref Image 4 & 5) ================= */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-16 space-y-8 border-t border-border/40">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-black font-serif tracking-tight">
-              {t.sections.historyTitle}
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              {t.sections.historySubtitle}
-            </p>
-          </div>
-
-          {/* Filter Pills: All, WhatsApp, Meesho */}
-          <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-full border border-border text-xs w-fit">
-            {[
-              { id: "all", label: t.sections.filterAll },
-              { id: "whatsapp", label: t.sections.filterWhatsapp },
-              { id: "meesho", label: t.sections.filterMeesho },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setActiveHistoryFilter(f.id as any)}
-                className={`px-3 py-1 rounded-full font-bold transition-all text-xs ${
-                  activeHistoryFilter === f.id
-                    ? "bg-primary text-white shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 4 Cards Grid Matching Ref Image 4 & 5 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {filteredHistory.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs flex flex-col justify-between group hover:border-primary/40 transition-colors"
-            >
-              <div className="aspect-square bg-muted/30 overflow-hidden relative">
-                <img
-                  src={item.img}
-                  alt={item.title}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-
-              <div className="p-4 space-y-3">
-                <div>
-                  <h4 className="font-bold text-sm text-foreground line-clamp-1">{item.title}</h4>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{item.time}</p>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-border/40">
-                  <Link href="/app/generate" className="flex-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full h-7 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      {t.sections.edit}
-                    </Button>
-                  </Link>
-                  <Link href="/app/history" className="flex-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full h-7 text-xs font-bold text-primary border-primary/30"
-                    >
-                      {t.sections.viewKit}
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Real before/after examples (replaces the old mock "product history") */}
+      <ExamplesGallery isHi={isHi} />
     </div>
   );
 }
