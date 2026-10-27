@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { trackAIGeneration } from "./ai-observability";
+import { aiOfflineFallbackAllowed } from "./offline-fallback";
 import {
   sanitizeInventory,
   sanitizeProductBox,
@@ -11,6 +12,7 @@ import {
 // gpt-4o-mini bills ~15x more tokens per image, so per call it costs about the same or less.
 export const PRODUCT_ANALYSIS_MODEL = "gpt-4.1";
 const ANALYSIS_TIMEOUT_MS = 20000;
+const ANALYSIS_MAX_RETRIES = 2;
 const MAX_PHOTOS = 5;
 const MAX_SCENE_CHARS = 1200;
 
@@ -103,17 +105,20 @@ PART 3 - scenePrompt: a scene brief for an image generator, written like a produ
 
 /**
  * One vision call that returns the scene prompt, a must-keep inventory of what is
- * visible on the product, and a product box per photo. Never throws: any failure
- * returns a safe fallback with no inventory.
+ * visible on the product, and a product box per photo. Throws when the analysis fails:
+ * without the inventory the fidelity checks are blind, so the listing fails (and is
+ * refunded) instead of running on a generic scene. The generic fallback is only used
+ * with AI_OFFLINE_FALLBACK in local development.
  */
 export async function analyzeProductPhotos(params: PromptEnhancerParams): Promise<ProductAnalysis> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey.includes("YOUR_OPENAI_API_KEY") || apiKey === "sk-mock-key") {
-    return fallbackAnalysis(params);
+    if (aiOfflineFallbackAllowed()) return fallbackAnalysis(params);
+    throw new Error("OpenAI is not configured (OPENAI_API_KEY)");
   }
 
   const photos = params.imageBuffers.slice(0, MAX_PHOTOS);
-  if (photos.length === 0) return fallbackAnalysis(params);
+  if (photos.length === 0) throw new Error("No product photos to analyse");
 
   const promptText = buildAnalysisPrompt(params, photos.length);
   const imageParts = photos.flatMap((buf, i) => [
@@ -139,7 +144,8 @@ export async function analyzeProductPhotos(params: PromptEnhancerParams): Promis
         max_tokens: 1200,
         temperature: 0.2,
       },
-      { timeout: ANALYSIS_TIMEOUT_MS, maxRetries: 0 }
+      // A failed analysis now fails the listing, so ride out brief blips (429/5xx/timeouts)
+      { timeout: ANALYSIS_TIMEOUT_MS, maxRetries: ANALYSIS_MAX_RETRIES }
     );
 
     const raw = response.choices[0]?.message?.content?.trim() || "";
@@ -163,8 +169,10 @@ export async function analyzeProductPhotos(params: PromptEnhancerParams): Promis
         ? stripBannedWords(parsed.scenePrompt).slice(0, MAX_SCENE_CHARS).trim()
         : "";
 
+    if (!scene) throw new Error("Product analysis returned no scene prompt");
+
     return {
-      scenePrompt: scene || fallbackScenePrompt(params),
+      scenePrompt: scene,
       inventory: sanitizeInventory(parsed.inventory),
       productBoxes: alignBoxes(parsed.productBoxes, params.imageBuffers.length),
     };
@@ -178,8 +186,9 @@ export async function analyzeProductPhotos(params: PromptEnhancerParams): Promis
       isError: true,
       errorMessage: String(err),
     });
-    console.warn("Product photo analysis failed, using fallback scene prompt:", err);
-    return fallbackAnalysis(params);
+    console.warn("Product photo analysis failed:", err);
+    if (aiOfflineFallbackAllowed()) return fallbackAnalysis(params);
+    throw err;
   }
 }
 

@@ -72,7 +72,7 @@ describe("analyzeProductPhotos", () => {
     expect(body.model).toBe("gpt-4.1");
     expect(body.temperature).toBe(0.2);
     expect(body.response_format).toEqual({ type: "json_object" });
-    expect(options).toEqual({ timeout: 20000, maxRetries: 0 });
+    expect(options).toEqual({ timeout: 20000, maxRetries: 2 });
 
     const content = body.messages[0].content;
     const images = content.filter((p: any) => p.type === "image_url");
@@ -131,11 +131,11 @@ describe("analyzeProductPhotos", () => {
     expect(out.scenePrompt).not.toMatch(/\s{2,}|\s,|,,|^[,\s]/);
   });
 
-  it("keeps the inventory but falls back to the template scene when scenePrompt is missing", async () => {
+  it("throws when scenePrompt is missing", async () => {
     createMock.mockResolvedValue(reply({ ...goodReply, scenePrompt: "" }));
-    const out = await analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Bag" });
-    expect(out.scenePrompt).toContain("Studio product photograph of Bag");
-    expect(out.inventory?.category).toBe("calculator");
+    await expect(analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Bag" })).rejects.toThrow(
+      "no scene prompt"
+    );
   });
 
   it("returns a null inventory when the model lists nothing usable", async () => {
@@ -144,7 +144,42 @@ describe("analyzeProductPhotos", () => {
     expect(out.inventory).toBeNull();
   });
 
-  describe("fallbacks", () => {
+  // A failed analysis must fail the listing (so it is refunded) instead of running on a generic scene.
+  describe("failures", () => {
+    it("throws without an API key, without calling OpenAI", async () => {
+      delete process.env.OPENAI_API_KEY;
+      await expect(analyzeProductPhotos({ imageBuffers: photos(3), userTitle: "Shoe" })).rejects.toThrow(
+        /not configured/
+      );
+      process.env.OPENAI_API_KEY = "YOUR_OPENAI_API_KEY";
+      await expect(analyzeProductPhotos({ imageBuffers: photos(2), userTitle: "Shoe" })).rejects.toThrow(
+        /not configured/
+      );
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it("throws on errors and timeouts", async () => {
+      createMock.mockRejectedValue(new Error("timeout"));
+      await expect(analyzeProductPhotos({ imageBuffers: photos(2), userTitle: "Shoe" })).rejects.toThrow("timeout");
+    });
+
+    it("throws on unparsable or non-object replies", async () => {
+      createMock.mockResolvedValue(reply("not json"));
+      await expect(analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Shoe" })).rejects.toThrow();
+      createMock.mockResolvedValue(reply("[1,2]"));
+      await expect(analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Shoe" })).rejects.toThrow(
+        "Unexpected product analysis reply"
+      );
+    });
+  });
+
+  describe("offline fallback (AI_OFFLINE_FALLBACK=1, local development only)", () => {
+    beforeEach(() => {
+      vi.stubEnv("AI_OFFLINE_FALLBACK", "1");
+      vi.stubEnv("NODE_ENV", "development");
+    });
+    afterEach(() => vi.unstubAllEnvs());
+
     const expectFallback = (out: Awaited<ReturnType<typeof analyzeProductPhotos>>, n: number) => {
       expect(out.inventory).toBeNull();
       expect(out.productBoxes).toEqual(Array(n).fill(null));
@@ -153,24 +188,12 @@ describe("analyzeProductPhotos", () => {
       expect(out.scenePrompt).not.toMatch(BANNED);
     };
 
-    it("without an API key, without calling OpenAI", async () => {
+    it("uses the generic scene without an API key or on errors", async () => {
       delete process.env.OPENAI_API_KEY;
       expectFallback(await analyzeProductPhotos({ imageBuffers: photos(3), userTitle: "Shoe" }), 3);
-      process.env.OPENAI_API_KEY = "YOUR_OPENAI_API_KEY";
-      expectFallback(await analyzeProductPhotos({ imageBuffers: photos(2), userTitle: "Shoe" }), 2);
-      expect(createMock).not.toHaveBeenCalled();
-    });
-
-    it("on errors and timeouts", async () => {
+      process.env.OPENAI_API_KEY = "sk-test-key";
       createMock.mockRejectedValue(new Error("timeout"));
       expectFallback(await analyzeProductPhotos({ imageBuffers: photos(2), userTitle: "Shoe" }), 2);
-    });
-
-    it("on unparsable or non-object replies", async () => {
-      createMock.mockResolvedValue(reply("not json"));
-      expectFallback(await analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Shoe" }), 1);
-      createMock.mockResolvedValue(reply("[1,2]"));
-      expectFallback(await analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Shoe" }), 1);
     });
 
     it("strips banned words from the seller's style text too", async () => {
@@ -182,6 +205,12 @@ describe("analyzeProductPhotos", () => {
       });
       expect(out.scenePrompt).toContain("marble");
       expect(out.scenePrompt).not.toMatch(BANNED);
+    });
+
+    it("is ignored in production", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      createMock.mockRejectedValue(new Error("timeout"));
+      await expect(analyzeProductPhotos({ imageBuffers: photos(1), userTitle: "Shoe" })).rejects.toThrow("timeout");
     });
   });
 });

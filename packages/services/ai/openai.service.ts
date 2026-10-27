@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { IAiGeneratedText } from "@repo/database";
 import { trackAIGeneration } from "./ai-observability";
+import { aiOfflineFallbackAllowed } from "./offline-fallback";
 import { normalizePricing, buildPriceLine, formatINR, findDisallowedAmounts } from "../pricing/price";
 import { sanitizeInventory, inventoryToCopyFacts, type ProductInventory } from "./product-inventory";
 
@@ -349,14 +350,21 @@ export function sanitizeListingText(parsed: any, params: GenerateTextParams): IA
   };
 }
 
+function openAiKeyMissing(apiKey: string | undefined): boolean {
+  return !apiKey || apiKey.includes("YOUR_OPENAI_API_KEY") || apiKey === "sk-mock-key";
+}
+
 /**
  * Direct non-streaming generation for BullMQ worker and tRPC self-healing.
- * Always returns complete, valid IAiGeneratedText.
+ * Returns complete, valid IAiGeneratedText, or throws when OpenAI fails: the seller paid for
+ * AI-written copy, so a failure fails the listing (and refunds it) instead of delivering
+ * template text. Template text only with AI_OFFLINE_FALLBACK in local development.
  */
 export async function generateListingText(params: GenerateTextParams): Promise<IAiGeneratedText> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey.includes("YOUR_OPENAI_API_KEY") || apiKey === "sk-mock-key") {
-    return generateFallbackListingText(params);
+  if (openAiKeyMissing(apiKey)) {
+    if (aiOfflineFallbackAllowed()) return generateFallbackListingText(params);
+    throw new Error("OpenAI is not configured (OPENAI_API_KEY)");
   }
 
   const { systemPrompt, userContent } = buildPrompts(params);
@@ -391,7 +399,7 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
     });
 
     if (!raw) {
-      return generateFallbackListingText(params);
+      throw new Error("OpenAI returned no listing text");
     }
 
     const parsed = JSON.parse(raw);
@@ -411,8 +419,9 @@ export async function generateListingText(params: GenerateTextParams): Promise<I
       isError: true,
       errorMessage: String(error),
     });
-    console.warn("[OpenAI Service] generateListingText encountered an error, using fallback SEO text:", error);
-    return generateFallbackListingText(params);
+    console.warn("[OpenAI Service] generateListingText failed:", error);
+    if (aiOfflineFallbackAllowed()) return generateFallbackListingText(params);
+    throw error;
   }
 }
 
@@ -424,7 +433,8 @@ export async function generateListingTextStream(
   onChunk?: (chunk: { field: string; content: string }) => void
 ): Promise<IAiGeneratedText> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey.includes("YOUR_OPENAI_API_KEY") || apiKey === "sk-mock-key") {
+  if (openAiKeyMissing(apiKey)) {
+    if (!aiOfflineFallbackAllowed()) throw new Error("OpenAI is not configured (OPENAI_API_KEY)");
     const fallback = generateFallbackListingText(params);
     if (onChunk) {
       onChunk({ field: "fallback", content: JSON.stringify(fallback) });
@@ -462,7 +472,8 @@ export async function generateListingTextStream(
     const parsed = JSON.parse(fullText);
     return sanitizeListingText(parsed, params);
   } catch (error) {
-    console.warn("[OpenAI Service] Streaming failed, using fallback:", error);
+    console.warn("[OpenAI Service] Streaming failed:", error);
+    if (!aiOfflineFallbackAllowed()) throw error;
     const fallback = generateFallbackListingText(params);
     if (onChunk) {
       onChunk({ field: "fallback", content: JSON.stringify(fallback) });
