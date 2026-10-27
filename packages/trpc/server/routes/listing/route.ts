@@ -446,7 +446,11 @@ export const listingRouter = router({
           { _id: listing._id },
           { $inc: { seoRegenerateCount: -1 } }
         ).catch(() => {});
-        throw genError;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Couldn't rewrite the copy right now. Your current text is unchanged - please try again in a minute.",
+          cause: genError,
+        });
       }
 
       await ListingObject.updateOne(

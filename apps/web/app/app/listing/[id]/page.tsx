@@ -95,7 +95,16 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       ]);
       toast.success(isHi ? "एसईओ कॉपी सफलतापूर्वक अपडेट की गई!" : "SEO copy updated successfully!");
     } catch (err: any) {
-      toast.error(err.message || (isHi ? "कॉपी फिर से लिखने में विफल" : "Failed to regenerate copy"));
+      // The limit message is specific; anything else means the AI call failed and the old text was kept.
+      if (err?.data?.code === "TOO_MANY_REQUESTS") {
+        toast.error(err.message);
+      } else {
+        toast.error(
+          isHi
+            ? "अभी कॉपी फिर से नहीं लिखी जा सकी। आपका मौजूदा टेक्स्ट वैसा ही है - एक मिनट बाद फिर कोशिश करें।"
+            : "Couldn't rewrite the copy right now. Your current text is unchanged - please try again in a minute."
+        );
+      }
     } finally {
       setIsRegenerating(false);
     }

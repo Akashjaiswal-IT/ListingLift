@@ -147,7 +147,11 @@ describe("listing.regenerateText rate limiting", () => {
     findOneAndUpdate.mockResolvedValue({ ...listing, seoRegenerateCount: 1 });
     generateListingText.mockRejectedValue(new Error("OpenAI API timeout"));
 
-    await expect(caller().regenerateText({ id: "list_err" })).rejects.toThrow("OpenAI API timeout");
+    // The seller gets a plain message (old text kept), not the raw provider error
+    await expect(caller().regenerateText({ id: "list_err" })).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+      message: expect.stringContaining("Your current text is unchanged"),
+    });
 
     expect(updateOne).toHaveBeenCalledWith(
       { _id: "list_err" },
