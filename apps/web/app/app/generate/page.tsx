@@ -46,6 +46,7 @@ import { trackEvent, captureError } from "~/lib/analytics";
 import { calculateGenerationCredits, calculateProQualitySurcharge } from "~/lib/pricing";
 import { Checkbox } from "~/components/ui/checkbox";
 import { adaptiveStatusInterval } from "~/lib/polling";
+import { isNeverStarted } from "~/lib/generation-status";
 import { GenerationProgressCard } from "~/components/generate/GenerationProgressCard";
 import { compressImage, putWithProgress } from "~/lib/upload-image";
 import { InsufficientCreditsDialog } from "~/components/credits/InsufficientCreditsDialog";
@@ -126,10 +127,13 @@ export default function GeneratePage() {
   const getPresignedUrlMutation = trpc.upload.getPresignedUrl.useMutation();
   const confirmUploadMutation = trpc.upload.confirmUpload.useMutation();
   const startGenerationMutation = trpc.generate.startGeneration.useMutation();
+  // Poll only once the listing is known to be started (startGeneration resolved, a resumed
+  // ?listing= link, or a retry): before that the server still reports "uploaded".
+  const [statusPollingReady, setStatusPollingReady] = useState(false);
   const getStatusQuery = trpc.generate.getStatus.useQuery(
     { listingObjectId: activeListingId || "" },
     {
-      enabled: step === 3 && !!activeListingId,
+      enabled: step === 3 && !!activeListingId && statusPollingReady,
       refetchInterval: (query) => {
         const s = query.state.data?.status;
         if (s === "completed" || s === "failed" || s === "uploaded") return false;
@@ -155,6 +159,7 @@ export default function GeneratePage() {
     const resumeId = searchParams.get("listing");
     if (resumeId && !activeListingId) {
       setActiveListingId(resumeId);
+      setStatusPollingReady(true);
       setStep(3);
     } else if (!resumeId && searchParams.get("sample") === "1") {
       // "Try with a sample photo" links: preload the bundled sample.
@@ -338,6 +343,8 @@ export default function GeneratePage() {
     }
 
     try {
+      setStatusPollingReady(false);
+      setImageGenStatus("pending");
       setStep(3);
       trackEvent("listing_generation_started", {
         listingId: activeListingId,
@@ -365,6 +372,9 @@ export default function GeneratePage() {
 
       // Generation successfully queued on server! Reflect in URL so user can safely refresh to resume
       router.replace(`/app/generate?listing=${activeListingId}`);
+      // Start polling from a clean cache so no earlier "uploaded" reading is reused
+      await utils.generate.getStatus.reset({ listingObjectId: activeListingId });
+      setStatusPollingReady(true);
       deductLocal(creditsNeeded);
       utils.credits.getBalance.invalidate();
       utils.user.getCreditBalance.invalidate();
@@ -382,6 +392,7 @@ export default function GeneratePage() {
       // Clean up URL so refresh cannot get stuck in progress for a job that never started
       router.replace("/app/generate");
       toast.error(err.message || (isHi ? "जेनरेशन शुरू नहीं हो सका" : "Failed to start generation"));
+      setStatusPollingReady(false);
       setStep(2);
       utils.user.getCreditBalance.invalidate();
     }
@@ -435,21 +446,23 @@ export default function GeneratePage() {
               ? "जेनरेशन असफल रहा। आपका रिफंड प्रोसेस हो रहा है।"
               : "Generation failed. We're processing your refund."
         );
-      } else if (status === "uploaded") {
+      } else if (isNeverStarted(status, startGenerationMutation.isPending)) {
         // Generation was never started on the server; escape the endless progress loop
         router.replace("/app/generate");
         setActiveListingId(null);
+        setStatusPollingReady(false);
         setStep(1);
         toast.info(isHi ? "यह जेनरेशन शुरू नहीं हुई थी।" : "This generation was not started.");
       }
     }
-  }, [step, getStatusQuery.data, activeListingId, router, utils, isHi]);
+  }, [step, getStatusQuery.data, activeListingId, router, utils, isHi, startGenerationMutation.isPending]);
 
   // If status query errors (e.g. invalid or deleted listing ID in URL), escape to Step 1
   useEffect(() => {
     if (step === 3 && getStatusQuery.isError) {
       router.replace("/app/generate");
       setActiveListingId(null);
+      setStatusPollingReady(false);
       setStep(1);
       toast.error(isHi ? "कैटलॉग नहीं मिला" : "Listing not found");
     }
@@ -463,6 +476,7 @@ export default function GeneratePage() {
       setImageGenStatus("queued");
       // Reset the status query so polling restarts (fast) from the fresh "queued" state
       await utils.generate.getStatus.reset({ listingObjectId: activeListingId });
+      setStatusPollingReady(true);
       Promise.allSettled([
         utils.credits.getBalance.invalidate(),
         utils.user.getCreditBalance.invalidate(),
