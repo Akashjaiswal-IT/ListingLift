@@ -429,29 +429,43 @@ describe("generateStudioImages fidelity loop", () => {
     expect(fix).toContain("not product problems: leave the product itself exactly as it is");
   });
 
-  it("isolates a failing slot: paid slots are kept, only the failed one becomes a composite", async () => {
+  // A paid listing must fail (so the job retries and then refunds) rather than deliver the
+  // seller's own photo pasted on a background.
+  it("throws when one slot fails, even if another slot succeeded", async () => {
     checkMock.mockResolvedValue(pass);
     interactionsCreate
       .mockResolvedValueOnce({ id: "int_ok", output_image: { data: generatedB64 } })
       .mockRejectedValueOnce(new Error("429 rate limited"));
 
-    const out = await run({ count: 2 });
-
-    expect(out).toHaveLength(2);
-    expect(out[0]!.interactionId).toBe("int_ok");
-    expect(out[0]!.fidelityStatus).toBe("verified");
-    expect(out[1]!.variationType).toBe("studio_premium");
-    expect(out[1]!.attempts).toBe(0);
-    expect(out[1]!.fidelityStatus).toBe("not_verified");
+    await expect(run({ count: 2 })).rejects.toThrow("Gemini produced 1 of 2 studio images: 429 rate limited");
   });
 
-  it("falls back to composites for every slot when every slot fails", async () => {
+  it("throws when every slot fails", async () => {
+    interactionsCreate.mockRejectedValue(new Error("503"));
+
+    await expect(run({ count: 2 })).rejects.toThrow("Gemini produced 0 of 2 studio images: 503");
+  });
+
+  it("throws when the image model is not configured", async () => {
+    delete process.env.GEMINI_API_KEY;
+
+    await expect(run()).rejects.toThrow(/not configured/);
+    expect(interactionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses composites only with AI_OFFLINE_FALLBACK=1 outside production", async () => {
+    vi.stubEnv("AI_OFFLINE_FALLBACK", "1");
+    vi.stubEnv("NODE_ENV", "development");
     interactionsCreate.mockRejectedValue(new Error("503"));
 
     const out = await run({ count: 2 });
 
     expect(out).toHaveLength(2);
-    expect(out.every((o) => o.attempts === 0)).toBe(true);
+    expect(out.every((o) => o.attempts === 0 && o.fidelityStatus === "not_verified")).toBe(true);
+
+    vi.stubEnv("NODE_ENV", "production");
+    await expect(run({ count: 2 })).rejects.toThrow(/Gemini produced 0 of 2/);
+    vi.unstubAllEnvs();
   });
 
   it("finishes white shots with finishWhiteShot and styled shots with toMarketplaceJpeg", async () => {
@@ -511,10 +525,20 @@ describe("generateStudioImages fidelity loop", () => {
     );
   });
 
-  it("uses the Sharp composite (JPEG, not_verified) only when Gemini returns no image at all", async () => {
+  it("throws when Gemini returns no image", async () => {
+    interactionsCreate.mockResolvedValue({ id: "int_empty", output_image: undefined });
+
+    await expect(run()).rejects.toThrow("Gemini produced 0 of 1 studio images (no image returned)");
+    expect(checkMock).not.toHaveBeenCalled();
+  });
+
+  it("builds the offline Sharp composite (JPEG, not_verified) when the offline fallback is on", async () => {
+    vi.stubEnv("AI_OFFLINE_FALLBACK", "1");
+    vi.stubEnv("NODE_ENV", "development");
     interactionsCreate.mockResolvedValue({ id: "int_empty", output_image: undefined });
 
     const out = await run();
+    vi.unstubAllEnvs();
 
     expect(checkMock).not.toHaveBeenCalled();
     expect(out).toHaveLength(1);

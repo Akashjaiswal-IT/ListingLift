@@ -23,6 +23,7 @@ import {
   isGeminiRateLimitError,
   noteGeminiRateLimited,
 } from "./gemini-rate-limiter";
+import { aiOfflineFallbackAllowed } from "./offline-fallback";
 
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 
@@ -166,10 +167,9 @@ async function safeCrop(buffer: Buffer, box: ProductBox | null | undefined): Pro
 }
 
 /**
- * Fallback studio composite for development/offline/testing, or when Gemini
- * returns no image: studio background + soft contact shadow, with the ORIGINAL
- * photo placed centered. Never used to replace a Gemini image that the fidelity
- * check disliked - a pasted raw phone photo is worse than a minor deviation.
+ * Offline studio composite for local development (see aiOfflineFallbackAllowed): studio
+ * background + soft contact shadow, with the ORIGINAL photo placed centered. Never used
+ * to replace a Gemini image that the fidelity check disliked.
  */
 async function buildSharpStudioComposite(params: {
   baseImg: Buffer | undefined;
@@ -584,10 +584,14 @@ export async function generateStudioImages(params: {
     }
     return results;
   };
-  if (!ai) return fallbackAll();
+  if (!ai) {
+    if (aiOfflineFallbackAllowed()) return fallbackAll();
+    throw new Error("Gemini image model is not configured (GEMINI_API_KEY)");
+  }
 
-  // Per slot: an image, null (Gemini returned none: slot skipped) or "error"
+  // Per slot: an image, null (Gemini returned none) or "error"
   const slots: (GeneratedImageOutput | null | "error")[] = [];
+  let firstError: unknown;
   for (let i = 0; i < count; i++) {
     const { sourceIndex, variation } = shotPlan[i]!;
     try {
@@ -634,13 +638,22 @@ export async function generateStudioImages(params: {
         isError: true,
         errorMessage: String(err),
       });
-      console.warn(`Gemini generation failed for ${variation} (slot ${i + 1}), using a Sharp composite for it:`, err);
+      console.warn(`Gemini generation failed for ${variation} (slot ${i + 1}):`, err);
+      firstError ??= err;
       slots.push("error");
     }
   }
 
-  // Nothing from Gemini at all: offline-style composites for every slot, as before
-  if (!slots.some((s) => s && s !== "error")) return fallbackAll();
+  const produced = slots.filter((s): s is GeneratedImageOutput => !!s && s !== "error");
+  if (produced.length < count && !aiOfflineFallbackAllowed()) {
+    // The seller paid for every slot: fail the listing so the job retries and then refunds,
+    // instead of delivering their own photo pasted on a background.
+    const reason = firstError ? `: ${firstError instanceof Error ? firstError.message : String(firstError)}` : " (no image returned)";
+    throw new Error(`Gemini produced ${produced.length} of ${count} studio images${reason}`);
+  }
+
+  // Local development with AI_OFFLINE_FALLBACK=1 only: composites stand in for missing slots
+  if (produced.length === 0) return fallbackAll();
 
   const results: GeneratedImageOutput[] = [];
   for (let i = 0; i < slots.length; i++) {
