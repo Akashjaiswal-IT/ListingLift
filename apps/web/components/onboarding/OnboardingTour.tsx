@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { useLanguage } from "~/providers/LanguageContext";
 import { useUser } from "@clerk/nextjs";
-import { Camera, Sparkles, ShoppingBag, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { Camera, Sparkles, ShoppingBag, ShieldCheck, ArrowRight, ArrowLeft, X } from "lucide-react";
 import Link from "next/link";
 
 export function OnboardingTour() {
@@ -56,32 +56,28 @@ export function OnboardingTour() {
       desc: t.tour.step1Desc,
       icon: Camera,
       tag: language === "hi" ? "स्टेप 1" : "Step 1",
-      highlight: language === "hi" ? "फोन से 1 क्लिक में फोटो खींचें" : "Simple Smartphone Photography",
-      previewBadge: "Raw Phone Photo",
+      badge: "Raw Phone Photo",
     },
     {
       title: t.tour.step2Title,
       desc: t.tour.step2Desc,
       icon: Sparkles,
       tag: language === "hi" ? "स्टेप 2" : "Step 2",
-      highlight: language === "hi" ? "100% प्योर व्हाइट बैकग्राउंड गारंटी" : "Guaranteed Studio Pure White",
-      previewBadge: "White Studio (#FFFFFF)",
+      badge: "Pure White (#FFFFFF)",
     },
     {
       title: t.tour.step3Title,
       desc: t.tour.step3Desc,
       icon: ShoppingBag,
       tag: language === "hi" ? "स्टेप 3" : "Step 3",
-      highlight: language === "hi" ? "व्हाट्सएप, मीशो व इंस्टा किट" : "WhatsApp Broadcast & Social Cards",
-      previewBadge: "Ready-to-Post Kit",
+      badge: "Marketplace Kit",
     },
     {
       title: t.tour.step4Title,
       desc: t.tour.step4Desc,
       icon: ShieldCheck,
       tag: language === "hi" ? "स्टेप 4" : "Step 4",
-      highlight: language === "hi" ? "ऑटोमेटेड रिफंड सुरक्षा" : "Instant Refund Guarantee",
-      previewBadge: "Zero Risk",
+      badge: "Auto-Refund Protection",
     },
   ];
 
@@ -90,84 +86,83 @@ export function OnboardingTour() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden border border-border/80 bg-card rounded-2xl shadow-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-md p-0 overflow-hidden border border-border/70 bg-card rounded-2xl shadow-2xl"
+      >
         <DialogTitle className="sr-only">{t.tour.welcomeTitle}</DialogTitle>
 
-        {/* Top Header Card */}
-        <div className="relative p-6 sm:p-8 bg-gradient-to-br from-primary via-primary/95 to-amber-600 text-white">
+        {/* Main Content Area */}
+        <div className="relative p-6 sm:p-7 bg-gradient-to-br from-primary via-primary/95 to-amber-600 text-white">
           <div className="flex items-center justify-between mb-4">
-            <Badge className="bg-white/20 text-white border-white/30 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-              {step.tag} / 4
+            <Badge className="bg-white/20 text-white border-white/30 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm px-2.5 py-0.5">
+              {step.tag} / {steps.length}
             </Badge>
             <button
               onClick={handleClose}
-              className="text-xs text-white/80 hover:text-white font-medium transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-white/80 hover:text-white font-medium px-2.5 py-1 rounded-full hover:bg-white/10 transition-colors"
+              aria-label={t.tour.skip}
             >
-              {t.tour.skip} ✕
+              <span>{t.tour.skip}</span>
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-3.5 mb-2">
-            <div className="h-11 w-11 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0 shadow-sm backdrop-blur-sm">
+          <div className="flex items-start gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0 shadow-md backdrop-blur-sm">
               <Icon className="h-6 w-6 text-white" />
             </div>
-            <div>
+            <div className="space-y-2 min-w-0">
               <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
                 {step.title}
               </h3>
+              <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
+                {step.desc}
+              </p>
+              <div className="pt-1">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-semibold text-white/95">
+                  ✓ {step.badge}
+                </span>
+              </div>
             </div>
-          </div>
-          <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal mt-1">
-            {step.desc}
-          </p>
-
-          {/* Progress dots */}
-          <div className="flex items-center gap-1.5 mt-5">
-            {steps.map((_, idx) => (
-              <div
-                key={idx}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  idx === currentStep ? "w-7 bg-white" : "w-2 bg-white/40"
-                }`}
-              />
-            ))}
           </div>
         </div>
 
-        {/* Step Highlight Box */}
-        <div className="p-6 space-y-4">
-          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-              <span className="text-xs sm:text-sm font-bold text-foreground">
-                {step.highlight}
-              </span>
-            </div>
-            <Badge variant="outline" className="text-xs font-semibold border-primary/30 text-primary">
-              {step.previewBadge}
-            </Badge>
-          </div>
-
-          {/* Bottom Actions */}
-          <div className="flex items-center justify-between pt-2">
+        {/* Footer Navigation Bar */}
+        <div className="p-4 sm:p-5 bg-card flex items-center justify-between gap-4">
+          <div className="w-20">
             {currentStep > 0 ? (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setCurrentStep((prev) => prev - 1)}
-                className="gap-1.5 text-xs text-muted-foreground font-semibold"
+                className="gap-1 text-xs text-muted-foreground font-semibold px-2 hover:text-foreground"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> {t.tour.prev}
               </Button>
-            ) : (
-              <div />
-            )}
+            ) : null}
+          </div>
 
+          {/* Centered animated dots */}
+          <div className="flex items-center gap-1.5">
+            {steps.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentStep(idx)}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  idx === currentStep ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                }`}
+                aria-label={`Go to step ${idx + 1}`}
+              />
+            ))}
+          </div>
+
+          <div className="w-28 flex justify-end">
             {currentStep < steps.length - 1 ? (
               <Button
                 size="sm"
                 onClick={() => setCurrentStep((prev) => prev + 1)}
-                className="bg-primary hover:bg-primary/90 text-white font-bold text-xs gap-1.5 px-5 shadow-md"
+                className="bg-primary hover:bg-primary/90 text-white font-bold text-xs gap-1.5 px-4 shadow-sm"
               >
                 {t.tour.next} <ArrowRight className="h-3.5 w-3.5" />
               </Button>
@@ -175,7 +170,7 @@ export function OnboardingTour() {
               <Link href="/app/generate" onClick={handleClose}>
                 <Button
                   size="sm"
-                  className="bg-gradient-to-r from-primary to-amber-500 hover:from-primary/90 hover:to-amber-600 text-white font-black text-xs gap-1.5 px-6 shadow-md"
+                  className="bg-gradient-to-r from-primary to-amber-500 hover:from-primary/90 hover:to-amber-600 text-white font-black text-xs gap-1 px-4 shadow-sm"
                 >
                   {t.tour.finish}
                 </Button>
