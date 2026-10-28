@@ -66,12 +66,10 @@ export function Footer() {
             <ul className="space-y-2 text-xs text-stone-400">
               <li>
                 <a
-                  href="https://api.whatsapp.com/send?text=Hello%20Peshkar%20AI%20Support"
-                  target="_blank"
-                  rel="noreferrer"
+                  href="mailto:peshkarai.support@gmail.com"
                   className="hover:text-white transition-colors"
                 >
-                  {language === "hi" ? "व्हाट्सएप सपोर्ट" : "WhatsApp Support"}
+                  {language === "hi" ? "ईमेल सपोर्ट" : "Email Support"}
                 </a>
               </li>
               <li>

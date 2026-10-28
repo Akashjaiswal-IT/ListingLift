@@ -14,7 +14,7 @@ import {
 } from "~/lib/topup-pricing";
 
 // TODO: replace with a contact page if one is added; for now this is the support address from the refund policy
-const SUPPORT_EMAIL = "support@peshkarai.in";
+const SUPPORT_EMAIL = "peshkarai.support@gmail.com";
 
 /**
  * Custom credit slider. The price shown is always getTopupPriceRupees(qty), and

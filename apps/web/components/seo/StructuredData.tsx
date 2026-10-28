@@ -24,7 +24,7 @@ export function SiteStructuredData() {
             name: "Peshkar AI",
             url: siteUrl,
             logo: `${siteUrl}/icon.svg`,
-            email: "support@peshkarai.in",
+            email: "peshkarai.support@gmail.com",
           },
           {
             "@type": "WebSite",

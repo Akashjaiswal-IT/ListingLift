@@ -36,8 +36,8 @@ const sections: LegalSection[] = [
       hi: "कुकीज़, स्टोरेज अवधि और आपके विकल्प",
     },
     body: {
-      en: "Cookies help sign-in, preferences, measurement, and security. We keep information only as reasonably needed for the service, disputes, fraud prevention, and legal or accounting duties. You may ask to access, correct, delete, or obtain a copy of your information at support@peshkarai.in; we may verify your request and retain limited information where required.",
-      hi: "कुकीज़ साइन-इन, प्राथमिकताएं, मापन और सुरक्षा में मदद करती हैं। हम जानकारी केवल सेवा, विवाद, धोखाधड़ी रोकथाम और कानूनी या लेखा दायित्वों के लिए उचित अवधि तक रखते हैं। आप support@peshkarai.in पर अपनी जानकारी देखने, सुधारने, हटाने या कॉपी पाने का अनुरोध कर सकते हैं; हम अनुरोध सत्यापित कर सकते हैं और आवश्यक होने पर सीमित जानकारी रख सकते हैं।",
+      en: "Cookies help sign-in, preferences, measurement, and security. We keep information only as reasonably needed for the service, disputes, fraud prevention, and legal or accounting duties. You may ask to access, correct, delete, or obtain a copy of your information at peshkarai.support@gmail.com; we may verify your request and retain limited information where required.",
+      hi: "कुकीज़ साइन-इन, प्राथमिकताएं, मापन और सुरक्षा में मदद करती हैं। हम जानकारी केवल सेवा, विवाद, धोखाधड़ी रोकथाम और कानूनी या लेखा दायित्वों के लिए उचित अवधि तक रखते हैं। आप peshkarai.support@gmail.com पर अपनी जानकारी देखने, सुधारने, हटाने या कॉपी पाने का अनुरोध कर सकते हैं; हम अनुरोध सत्यापित कर सकते हैं और आवश्यक होने पर सीमित जानकारी रख सकते हैं।",
     },
   },
   {

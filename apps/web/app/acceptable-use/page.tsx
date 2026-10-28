@@ -35,8 +35,8 @@ const sections: LegalSection[] = [
   {
     title: { en: "Enforcement", hi: "प्रवर्तन" },
     body: {
-      en: "We may remove content, suspend access, or close an account where we reasonably believe these rules or applicable law have been broken. Report misuse to support@peshkarai.in.",
-      hi: "जहां हमें उचित रूप से लगे कि इन नियमों या लागू कानून का उल्लंघन हुआ है, हम सामग्री हटा सकते हैं, एक्सेस निलंबित कर सकते हैं या अकाउंट बंद कर सकते हैं। दुरुपयोग की रिपोर्ट support@peshkarai.in पर करें।",
+      en: "We may remove content, suspend access, or close an account where we reasonably believe these rules or applicable law have been broken. Report misuse to peshkarai.support@gmail.com.",
+      hi: "जहां हमें उचित रूप से लगे कि इन नियमों या लागू कानून का उल्लंघन हुआ है, हम सामग्री हटा सकते हैं, एक्सेस निलंबित कर सकते हैं या अकाउंट बंद कर सकते हैं। दुरुपयोग की रिपोर्ट peshkarai.support@gmail.com पर करें।",
     },
   },
 ];

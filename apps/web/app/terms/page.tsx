@@ -47,8 +47,8 @@ const sections: LegalSection[] = [
   {
     title: { en: "Service, Liability, and Contact", hi: "सेवा, जिम्मेदारी और संपर्क" },
     body: {
-      en: "We may change, pause, or discontinue features when reasonably necessary. The service is provided as available. To the maximum extent permitted by law, we are not responsible for indirect loss, lost sales, rejected listings, or AI output; total liability is capped at fees paid in the 12 months before a claim. Rights that law cannot remove remain. Indian law applies. Contact support@peshkarai.in for help or complaints.",
-      hi: "आवश्यक होने पर हम फीचर बदल, रोक या बंद कर सकते हैं। सेवा उपलब्धता के आधार पर दी जाती है। कानून द्वारा अनुमत सीमा तक, हम अप्रत्यक्ष हानि, खोई बिक्री, अस्वीकृत लिस्टिंग या AI आउटपुट के लिए जिम्मेदार नहीं हैं; कुल जिम्मेदारी दावे से पहले 12 महीनों में चुकाई गई फीस तक सीमित है। कानून से न हटाए जा सकने वाले अधिकार बने रहते हैं। भारतीय कानून लागू है। सहायता या शिकायत के लिए support@peshkarai.in पर संपर्क करें।",
+      en: "We may change, pause, or discontinue features when reasonably necessary. The service is provided as available. To the maximum extent permitted by law, we are not responsible for indirect loss, lost sales, rejected listings, or AI output; total liability is capped at fees paid in the 12 months before a claim. Rights that law cannot remove remain. Indian law applies. Contact peshkarai.support@gmail.com for help or complaints.",
+      hi: "आवश्यक होने पर हम फीचर बदल, रोक या बंद कर सकते हैं। सेवा उपलब्धता के आधार पर दी जाती है। कानून द्वारा अनुमत सीमा तक, हम अप्रत्यक्ष हानि, खोई बिक्री, अस्वीकृत लिस्टिंग या AI आउटपुट के लिए जिम्मेदार नहीं हैं; कुल जिम्मेदारी दावे से पहले 12 महीनों में चुकाई गई फीस तक सीमित है। कानून से न हटाए जा सकने वाले अधिकार बने रहते हैं। भारतीय कानून लागू है। सहायता या शिकायत के लिए peshkarai.support@gmail.com पर संपर्क करें।",
     },
   },
 ];

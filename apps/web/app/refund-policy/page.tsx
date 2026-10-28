@@ -25,8 +25,8 @@ const sections: LegalSection[] = [
   {
     title: { en: "Purchases, Cancellation, and Review", hi: "खरीद, रद्दीकरण और समीक्षा" },
     body: {
-      en: "Credit packs are generally not redeemable for cash. Contact support@peshkarai.in for duplicate charges, incorrect charges, or a technical issue, with your account email and listing or payment order ID. Ending use does not turn unused credits into cash. This policy does not limit a remedy required by law.",
-      hi: "क्रेडिट पैक सामान्यतः नकद में रिडीम नहीं किए जा सकते। डुप्लीकेट चार्ज, गलत चार्ज या तकनीकी समस्या के लिए अपने अकाउंट ईमेल और लिस्टिंग या भुगतान ऑर्डर ID के साथ support@peshkarai.in पर संपर्क करें। सेवा का उपयोग बंद करने से अप्रयुक्त क्रेडिट्स नकद में नहीं बदलते। यह नीति कानून द्वारा आवश्यक उपाय को सीमित नहीं करती।",
+      en: "Credit packs are generally not redeemable for cash. Contact peshkarai.support@gmail.com for duplicate charges, incorrect charges, or a technical issue, with your account email and listing or payment order ID. Ending use does not turn unused credits into cash. This policy does not limit a remedy required by law.",
+      hi: "क्रेडिट पैक सामान्यतः नकद में रिडीम नहीं किए जा सकते। डुप्लीकेट चार्ज, गलत चार्ज या तकनीकी समस्या के लिए अपने अकाउंट ईमेल और लिस्टिंग या भुगतान ऑर्डर ID के साथ peshkarai.support@gmail.com पर संपर्क करें। सेवा का उपयोग बंद करने से अप्रयुक्त क्रेडिट्स नकद में नहीं बदलते। यह नीति कानून द्वारा आवश्यक उपाय को सीमित नहीं करती।",
     },
   },
 ];
