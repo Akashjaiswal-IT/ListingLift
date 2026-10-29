@@ -25,7 +25,7 @@ import {
 } from "./gemini-rate-limiter";
 import { aiOfflineFallbackAllowed } from "./offline-fallback";
 
-const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+const GEMINI_IMAGE_MODEL = "gemini-nano-banana-2.1";
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
