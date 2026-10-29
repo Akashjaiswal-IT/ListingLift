@@ -32,11 +32,13 @@ export class GeminiCapacityError extends Error {
 }
 
 /**
- * Estimated cost of one image call in USD (official prices: $0.067 per 1K image, $0.101 per 2K
- * image, plus a little for reference-image input and, for Pro, thinking tokens).
+ * Estimated cost of one Nano Banana 2.1 image call in USD (official prices: $0.0336 per 1K image,
+ * $0.0504 per 2K image, plus reference-image input at $1.50/1M and thinking at $7.50/1M: the
+ * model's default "medium" for standard calls, "high" for Pro).
+ * Kept slightly high on purpose: over-estimating only makes the spend cap throttle a bit early.
  */
 export function estimateGeminiCallUsd(imageSize: "1K" | "2K"): number {
-  return imageSize === "2K" ? 0.11 : 0.07;
+  return imageSize === "2K" ? 0.07 : 0.05;
 }
 
 // Atomically: drop entries older than their window, then either reserve this call (returns 0) or
